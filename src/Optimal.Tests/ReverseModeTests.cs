@@ -97,6 +97,74 @@ namespace Optimal.Tests
             Assert.AreEqual(gradientY, gradientsReverse[1], 1e-10, "Gradient w.r.t. y should match");
         }
 
+        [TestMethod]
+        public void MaxReverse()
+        {
+            var a = 5.0;
+            var b = 3.0;
+            var (value1, gradients1) = ConditionalFunctionsGradients.MaxReverse(a, b);
+
+            Assert.AreEqual(5.0, value1, 1e-10, "Max(5, 3) = 5");
+            Assert.AreEqual(2, gradients1.Length, "Should have 2 gradients");
+            Assert.AreEqual(1.0, gradients1[0], 1e-10, "∂Max/∂a = 1 when a > b");
+            Assert.AreEqual(0.0, gradients1[1], 1e-10, "∂Max/∂b = 0 when a > b");
+
+            var (value2, gradients2) = ConditionalFunctionsGradients.MaxReverse(b, a);
+
+            Assert.AreEqual(5.0, value2, 1e-10, "Max(3, 5) = 5");
+            Assert.AreEqual(2, gradients2.Length, "Should have 2 gradients");
+            Assert.AreEqual(0.0, gradients2[0], 1e-10, "∂Max/∂a = 0 when a < b");
+            Assert.AreEqual(1.0, gradients2[1], 1e-10, "∂Max/∂b = 1 when a < b");
+        }
+
+        [TestMethod]
+        public void MinReverse()
+        {
+            var a = 5.0;
+            var b = 3.0;
+            var (value1, gradients1) = ConditionalFunctionsGradients.MinReverse(a, b);
+
+            Assert.AreEqual(3.0, value1, 1e-10, "Min(5, 3) = 3");
+            Assert.AreEqual(2, gradients1.Length, "Should have 2 gradients");
+            Assert.AreEqual(0.0, gradients1[0], 1e-10, "∂Min/∂a = 0 when a > b");
+            Assert.AreEqual(1.0, gradients1[1], 1e-10, "∂Min/∂b = 1 when a > b");
+
+            var (value2, gradients2) = ConditionalFunctionsGradients.MinReverse(b, a);
+
+            Assert.AreEqual(3.0, value2, 1e-10, "Min(3, 5) = 3");
+            Assert.AreEqual(2, gradients2.Length, "Should have 2 gradients");
+            Assert.AreEqual(1.0, gradients2[0], 1e-10, "∂Min/∂a = 1 when a < b");
+            Assert.AreEqual(0.0, gradients2[1], 1e-10, "∂Min/∂b = 0 when a < b");
+        }
+
+        [TestMethod]
+        public void ClampReverse()
+        {
+            var min = 0.0;
+            var max = 10.0;
+
+            // Test x < min
+            var (value1, gradients1) = ConditionalFunctionsGradients.ClampReverse(-5.0, min, max);
+            Assert.AreEqual(0.0, value1, 1e-10, "Clamp(-5, 0, 10) = 0");
+            Assert.AreEqual(0.0, gradients1[0], 1e-10, "∂Clamp/∂x = 0 when x < min");
+            Assert.AreEqual(1.0, gradients1[1], 1e-10, "∂Clamp/∂min = 1 when x < min");
+            Assert.AreEqual(0.0, gradients1[2], 1e-10, "∂Clamp/∂max = 0 when x < min");
+
+            // Test x > max
+            var (value2, gradients2) = ConditionalFunctionsGradients.ClampReverse(15.0, min, max);
+            Assert.AreEqual(10.0, value2, 1e-10, "Clamp(15, 0, 10) = 10");
+            Assert.AreEqual(0.0, gradients2[0], 1e-10, "∂Clamp/∂x = 0 when x > max");
+            Assert.AreEqual(0.0, gradients2[1], 1e-10, "∂Clamp/∂min = 0 when x > max");
+            Assert.AreEqual(1.0, gradients2[2], 1e-10, "∂Clamp/∂max = 1 when x > max");
+
+            // Test min <= x <= max
+            var (value3, gradients3) = ConditionalFunctionsGradients.ClampReverse(5.0, min, max);
+            Assert.AreEqual(5.0, value3, 1e-10, "Clamp(5, 0, 10) = 5");
+            Assert.AreEqual(1.0, gradients3[0], 1e-10, "∂Clamp/∂x = 1 when min <= x <= max");
+            Assert.AreEqual(0.0, gradients3[1], 1e-10, "∂Clamp/∂min = 0 when min <= x <= max");
+            Assert.AreEqual(0.0, gradients3[2], 1e-10, "∂Clamp/∂max = 0 when min <= x <= max");
+        }
+
         private static void ValidateAgainstFiniteDifference(double x, double y, double[] analyticalGradients, Func<double, double, double> function)
         {
             var fXY = function(x, y);
