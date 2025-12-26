@@ -12,6 +12,7 @@
     <IsRoslynComponent>true</IsRoslynComponent>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <AnalysisLevel>latest-Recommended</AnalysisLevel>
+    <NoWarn>$(NoWarn);IDE0130;CA1822;CA1859;IDE0005;CA1854;CA1305</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

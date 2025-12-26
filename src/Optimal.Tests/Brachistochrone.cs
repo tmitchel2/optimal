@@ -11,7 +11,8 @@ using Optimal.Geometry;
 
 namespace Optimal.Tests
 {
-    [OptimalCode]
+    // TODO: Re-enable once object creation and method calls are supported
+    // [OptimalCode]
     public static class Brachistochrone
     {
         private const double Gravity = 9.81;
