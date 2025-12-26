@@ -42,7 +42,7 @@ namespace Optimal.Analyzers
                 namespace Optimal
                 {
                     [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-                    internal sealed class OptimalAttribute(string schema) : Attribute
+                    internal sealed class OptimalCodeAttribute : Attribute
                     {
                     }
                 }

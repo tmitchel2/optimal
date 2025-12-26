@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Optimal\Optimal.csproj" />
+    <ProjectReference Include="..\Optimal.Analyzers\Optimal.Analyzers.csproj"  ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
   </ItemGroup>
 
   <ItemGroup>

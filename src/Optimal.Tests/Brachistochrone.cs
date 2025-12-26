@@ -11,6 +11,7 @@ using Optimal.Geometry;
 
 namespace Optimal.Tests
 {
+    [OptimalCode]
     public static class Brachistochrone
     {
         private const double Gravity = 9.81;
