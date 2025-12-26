@@ -7,8 +7,6 @@
  */
 
 using System;
-using System.Diagnostics;
-using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Optimal.Tests
@@ -17,14 +15,41 @@ namespace Optimal.Tests
     public sealed class BrachistochroneTests
     {
         [TestMethod]
-        public void CanOptimiseBrachistochroneUsingAutoDiff()
+        public void CanCalculateDurationForArcPath()
         {
-            var x = OptRange.Create(0, 1, 100).ToArray();
-            var y = OptRange.Create(0.5, 0, x.Length).ToArray();
-            var s1 = Stopwatch.StartNew();
-            var totalTime = Brachistochrone.GetTotalTime(x, y);
-            Console.WriteLine();
-            Console.WriteLine($"Total time = {totalTime} using interation took {s1.Elapsed} time to calculate.");
+            var radius = 150.0;
+
+            var duration = Brachistochrone.GetDuration(radius);
+
+            Assert.IsTrue(duration.TotalSeconds > 0, "Duration should be positive");
+            Assert.IsTrue(duration.TotalSeconds < 100, "Duration should be reasonable");
+            Console.WriteLine($"Duration for radius {radius}: {duration.TotalSeconds:F3} seconds");
+        }
+
+        [TestMethod]
+        public void DifferentRadiiProduceDifferentDurations()
+        {
+            var radius1 = 80.0;
+            var radius2 = 150.0;
+
+            var duration1 = Brachistochrone.GetDuration(radius1);
+            var duration2 = Brachistochrone.GetDuration(radius2);
+
+            Assert.AreNotEqual(duration1, duration2);
+            Console.WriteLine($"Duration for radius {radius1}: {duration1.TotalSeconds:F3} seconds");
+            Console.WriteLine($"Duration for radius {radius2}: {duration2.TotalSeconds:F3} seconds");
+        }
+
+        [TestMethod]
+        public void GetDurationWithSmallerRadiusIsValid()
+        {
+            var minRadius = Math.Sqrt(100 * 100 + 100 * 100) / 2.0;
+            var radius = minRadius + 1.0;
+
+            var duration = Brachistochrone.GetDuration(radius);
+
+            Assert.IsTrue(duration.TotalSeconds > 0);
+            Console.WriteLine($"Duration for radius {radius:F2} (near minimum): {duration.TotalSeconds:F3} seconds");
         }
     }
 }

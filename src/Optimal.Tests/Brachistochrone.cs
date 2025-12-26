@@ -7,36 +7,59 @@
  */
 
 using System;
+using Optimal.Geometry;
 
 namespace Optimal.Tests
 {
     public static class Brachistochrone
     {
-        public static double GetTotalTime(
-            double[] x, double[] y)
+        private const double Gravity = 9.81;
+
+        public static TimeSpan GetDuration(double radius, int segments = 100)
         {
-            var totalTime = 0d;
-            for (var i = 0; i < x.Length - 1; i++)
+            var startPoint = new Point2D(0, 100);
+            var endPoint = new Point2D(100, 0);
+
+            var arc = new Arc(startPoint, endPoint, radius, isCounterClockwise: true);
+
+            var totalTime = 0.0;
+            var startHeight = startPoint.Y;
+
+            for (var i = 0; i < segments; i++)
             {
-                // Gravitational potential energy
-                //   0.5 * mv^2 = mgy
-                //   v = (2gy) ^ 0.5
+                var t1 = i / (double)segments;
+                var t2 = (i + 1) / (double)segments;
 
-                // Equation of motion 
-                // -  Displacement = Velocity * Time
-                // -  s = vt
+                var p1 = arc.GetPointAtParameter(t1);
+                var p2 = arc.GetPointAtParameter(t2);
 
-                var startVelocity = Math.Pow(2.0d * 9.81d * (y[0] - y[i]), 0.5d);
-                var endVelocity = Math.Pow(2.0d * 9.81d * (y[0] - y[i + 1]), 0.5d);
-                var velocity = (startVelocity + endVelocity) / 2d;
-                var dx = x[i + 1] - x[i];
-                var dy = y[i + 1] - y[i];
-                var distance = Math.Pow(Math.Pow(dx, 2d) + Math.Pow(dy, 2d), 0.5d);
+                var h1 = p1.Y;
+                var h2 = p2.Y;
+
+                if (h1 > startHeight || h2 > startHeight)
+                {
+                    throw new InvalidOperationException("Arc goes above starting height - invalid path for brachistochrone");
+                }
+
+                var heightDrop1 = startHeight - h1;
+                var heightDrop2 = startHeight - h2;
+
+                var startVelocity = heightDrop1 > 0 ? Math.Sqrt(2.0 * Gravity * heightDrop1) : 0.0;
+                var endVelocity = heightDrop2 > 0 ? Math.Sqrt(2.0 * Gravity * heightDrop2) : 0.0;
+
+                var velocity = (startVelocity + endVelocity) / 2.0;
+
+                if (velocity == 0.0)
+                {
+                    continue;
+                }
+
+                var distance = p1.DistanceTo(p2);
                 var time = distance / velocity;
                 totalTime += time;
             }
 
-            return totalTime;
+            return TimeSpan.FromSeconds(totalTime);
         }
     }
 }
