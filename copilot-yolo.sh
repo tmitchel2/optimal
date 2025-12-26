@@ -1,0 +1,1 @@
+copilot --allow-all-paths --allow-all-tools --disable-mcp-server github-mcp-server

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <MaxCpuCount>1</MaxCpuCount>
+    <!-- <ResultsDirectory>./bin/test/results</ResultsDirectory> -->
+  </RunConfiguration>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger friendlyName="console" enabled="True"/>
+      <Logger friendlyName="trx" enabled="True"/>
+    </Loggers>
+  </LoggerRunSettings>
+  <DataCollectionRunSettings>
+        <DataCollectors>
+            <DataCollector friendlyName="XPlat Code Coverage">
+                <Configuration>
+                    <Exclude>[*Tests]*</Exclude>
+                    <ExcludeByFile>**/*.g.cs</ExcludeByFile>
+                    <Include>[Optimal]*,[Optimal*]*</Include>
+                    <Functions>
+                      <Exclude>
+                        <Function>*c__DisplayClass*</Function>
+                      </Exclude>
+                    </Functions>
+                    <Attributes>
+                      <Exclude>
+                        <Attribute>^System\.Diagnostics\.DebuggerHiddenAttribute$</Attribute>
+                        <Attribute>^System\.Diagnostics\.DebuggerNonUserCodeAttribute$</Attribute>
+                        <Attribute>^System\.CodeDom\.Compiler\.GeneratedCodeAttribute$</Attribute>
+                        <Attribute>^System\.Diagnostics\.CodeAnalysis\.ExcludeFromCodeCoverageAttribute$</Attribute>
+                      </Exclude>
+                    </Attributes>
+                </Configuration>
+            </DataCollector>
+        </DataCollectors>
+    </DataCollectionRunSettings>
+</RunSettings>
