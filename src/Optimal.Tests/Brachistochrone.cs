@@ -7,27 +7,12 @@
  */
 
 using System;
-using System.Diagnostics;
-using System.Linq;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Optimal.Tests
 {
-    [TestClass]
-    public sealed class OptimalTests
+    public static class Brachistochrone
     {
-        [TestMethod]
-        public void CanOptimiseBrachistochroneUsingAutoDiff()
-        {
-            var x = OptRange.Create(0, 1, 100).ToArray();
-            var y = OptRange.Create(0.5, 0, x.Length).ToArray();
-            var s1 = Stopwatch.StartNew();
-            var totalTime = GetBrachistochroneTotalTime(x, y);
-            Console.WriteLine();
-            Console.WriteLine($"Total time = {totalTime} using interation took {s1.Elapsed} time to calculate.");
-        }
-
-        static double GetBrachistochroneTotalTime(
+        public static double GetTotalTime(
             double[] x, double[] y)
         {
             var totalTime = 0d;
