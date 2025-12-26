@@ -1,0 +1,634 @@
+HasOptimalAttribute
+IsOptimalAttribute
+GetTransform for class: ConditionalFunctions
+  Method: ReLU, Differentiable params: 1
+  Method: LeakyReLU, Differentiable params: 1
+  Method: Max, Differentiable params: 2
+  Method: Min, Differentiable params: 2
+  Method: Clamp, Differentiable params: 3
+  Method: PiecewiseLinear, Differentiable params: 1
+  Method: Quadratic, Differentiable params: 1
+  Method: SmoothStep, Differentiable params: 1
+GetTransform for class: LoopFunctions
+  Method: SumOfSquares, Differentiable params: 1
+  Method: SumOfCubes, Differentiable params: 1
+  Method: LinearSum, Differentiable params: 1
+  Method: ProductAccumulation, Differentiable params: 1
+  Method: IndexedSum, Differentiable params: 1
+GetTransform for class: MathFunctions
+  Method: SquareRoot, Differentiable params: 1
+  Method: Sine, Differentiable params: 1
+  Method: Cosine, Differentiable params: 1
+  Method: Tangent, Differentiable params: 1
+  Method: Exponential, Differentiable params: 1
+  Method: Logarithm, Differentiable params: 1
+  Method: Power, Differentiable params: 2
+  Method: AbsoluteValue, Differentiable params: 1
+  Method: Velocity, Differentiable params: 1
+  Method: SinPlusExp, Differentiable params: 1
+  Method: ComplexFunction, Differentiable params: 1
+  Method: ComplexFunction, Differentiable params: 2
+GetTransform for class: SimpleTestFunctions
+  Method: Square, Differentiable params: 1
+  Method: Add, Differentiable params: 2
+  Method: Multiply, Differentiable params: 2
+  Method: KineticEnergy, Differentiable params: 2
+Generating code for class: ConditionalFunctions
+  Generating gradients for method: ReLU
+    Generating forward mode w.r.t. x
+  Generating gradients for method: LeakyReLU
+  Generating gradients for method: Max
+    Generating forward mode w.r.t. a
+    Generating forward mode w.r.t. b
+    Generating reverse mode (all parameters)
+  Generating gradients for method: Min
+  Generating gradients for method: Clamp
+    Generating forward mode w.r.t. min
+    Generating forward mode w.r.t. max
+    Skipping reverse mode: Reverse mode for control flow not yet implemented
+  Generating gradients for method: PiecewiseLinear
+  Generating gradients for method: Quadratic
+  Generating gradients for method: SmoothStep
+Successfully generated ConditionalFunctionsGradients.g.cs
+Generating code for class: LoopFunctions
+  Generating gradients for method: SumOfSquares
+  Generating gradients for method: SumOfCubes
+  Generating gradients for method: LinearSum
+  Generating gradients for method: ProductAccumulation
+  Generating gradients for method: IndexedSum
+Successfully generated LoopFunctionsGradients.g.cs
+Generating code for class: MathFunctions
+  Generating gradients for method: SquareRoot
+  Generating gradients for method: Sine
+  Generating gradients for method: Cosine
+  Generating gradients for method: Tangent
+  Generating gradients for method: Exponential
+  Generating gradients for method: Logarithm
+  Generating gradients for method: Power
+    Generating forward mode w.r.t. n
+  Generating gradients for method: AbsoluteValue
+  Generating gradients for method: Velocity
+    Generating forward mode w.r.t. height
+  Generating gradients for method: SinPlusExp
+  Generating gradients for method: ComplexFunction
+    Generating forward mode w.r.t. y
+===START_COMPLEXFUNCTION_REVERSE===
+        public static (double value, double[] gradients) ComplexFunctionReverse(
+            double x, double y)
+        {
+            var node0 = x;
+            var node1 = y;
+            var node4 = Math.Sqrt(node0);
+            var node5 = Math.Sin(node0);
+            var node3 = node4 * node5;
+            var node6 = Math.Log(node0);
+            var node2 = node3 + node6;
+
+            var adj = new double[7];
+            adj[2] = 1.0;
+
+            adj[0] += adj[6] / node0;
+            adj[0] += adj[5] * Math.Cos(node0);
+            adj[0] += adj[4] / (2.0 * node4);
+            adj[3] += adj[2];
+            adj[6] += adj[2];
+            adj[4] += adj[3] * node5;
+            adj[5] += adj[3] * node4;
+            return (node2, new double[] { adj[0], adj[1] });
+        }
+
+===END_COMPLEXFUNCTION_REVERSE===
+Successfully generated MathFunctionsGradients.g.cs
+Generating code for class: SimpleTestFunctions
+  Generating gradients for method: Square
+  Generating gradients for method: Add
+  Generating gradients for method: Multiply
+  Generating gradients for method: KineticEnergy
+    Generating forward mode w.r.t. mass
+    Generating forward mode w.r.t. velocity
+Successfully generated SimpleTestFunctionsGradients.g.cs
+HasOptimalAttribute
+IsOptimalAttribute
+GetTransform for class: SimpleTestFunctions
+  Method: Square, Differentiable params: 1
+  Method: Add, Differentiable params: 2
+  Method: Multiply, Differentiable params: 2
+  Method: KineticEnergy, Differentiable params: 2
+GetTransform for class: MathFunctions
+  Method: SquareRoot, Differentiable params: 1
+  Method: Sine, Differentiable params: 1
+  Method: Cosine, Differentiable params: 1
+  Method: Tangent, Differentiable params: 1
+  Method: Exponential, Differentiable params: 1
+  Method: Logarithm, Differentiable params: 1
+  Method: Power, Differentiable params: 2
+  Method: AbsoluteValue, Differentiable params: 1
+  Method: Velocity, Differentiable params: 1
+  Method: SinPlusExp, Differentiable params: 1
+  Method: ComplexFunction, Differentiable params: 1
+  Method: ComplexFunction, Differentiable params: 2
+GetTransform for class: ConditionalFunctions
+  Method: ReLU, Differentiable params: 1
+  Method: LeakyReLU, Differentiable params: 1
+  Method: Max, Differentiable params: 2
+  Method: Min, Differentiable params: 2
+  Method: Clamp, Differentiable params: 3
+  Method: PiecewiseLinear, Differentiable params: 1
+  Method: Quadratic, Differentiable params: 1
+  Method: SmoothStep, Differentiable params: 1
+GetTransform for class: LoopFunctions
+  Method: SumOfSquares, Differentiable params: 1
+  Method: SumOfCubes, Differentiable params: 1
+  Method: LinearSum, Differentiable params: 1
+  Method: ProductAccumulation, Differentiable params: 1
+  Method: IndexedSum, Differentiable params: 1
+Generating code for class: SimpleTestFunctions
+  Generating gradients for method: Square
+    Generating forward mode w.r.t. x
+  Generating gradients for method: Add
+    Generating forward mode w.r.t. y
+    Generating reverse mode (all parameters)
+  Generating gradients for method: Multiply
+  Generating gradients for method: KineticEnergy
+    Generating forward mode w.r.t. mass
+    Generating forward mode w.r.t. velocity
+Successfully generated SimpleTestFunctionsGradients.g.cs
+Generating code for class: MathFunctions
+  Generating gradients for method: SquareRoot
+  Generating gradients for method: Sine
+  Generating gradients for method: Cosine
+  Generating gradients for method: Tangent
+  Generating gradients for method: Exponential
+  Generating gradients for method: Logarithm
+  Generating gradients for method: Power
+    Generating forward mode w.r.t. n
+  Generating gradients for method: AbsoluteValue
+  Generating gradients for method: Velocity
+    Generating forward mode w.r.t. height
+  Generating gradients for method: SinPlusExp
+  Generating gradients for method: ComplexFunction
+===START_COMPLEXFUNCTION_REVERSE===
+        public static (double value, double[] gradients) ComplexFunctionReverse(
+            double x, double y)
+        {
+            var node0 = x;
+            var node1 = y;
+            var node4 = Math.Sqrt(node0);
+            var node5 = Math.Sin(node0);
+            var node3 = node4 * node5;
+            var node6 = Math.Log(node0);
+            var node2 = node3 + node6;
+
+            var adj = new double[7];
+            adj[2] = 1.0;
+
+            adj[0] += adj[6] / node0;
+            adj[0] += adj[5] * Math.Cos(node0);
+            adj[0] += adj[4] / (2.0 * node4);
+            adj[3] += adj[2];
+            adj[6] += adj[2];
+            adj[4] += adj[3] * node5;
+            adj[5] += adj[3] * node4;
+            return (node2, new double[] { adj[0], adj[1] });
+        }
+
+===END_COMPLEXFUNCTION_REVERSE===
+Successfully generated MathFunctionsGradients.g.cs
+Generating code for class: ConditionalFunctions
+  Generating gradients for method: ReLU
+  Generating gradients for method: LeakyReLU
+  Generating gradients for method: Max
+    Generating forward mode w.r.t. a
+    Generating forward mode w.r.t. b
+  Generating gradients for method: Min
+  Generating gradients for method: Clamp
+    Generating forward mode w.r.t. min
+    Generating forward mode w.r.t. max
+    Skipping reverse mode: Reverse mode for control flow not yet implemented
+  Generating gradients for method: PiecewiseLinear
+  Generating gradients for method: Quadratic
+  Generating gradients for method: SmoothStep
+Successfully generated ConditionalFunctionsGradients.g.cs
+Generating code for class: LoopFunctions
+  Generating gradients for method: SumOfSquares
+  Generating gradients for method: SumOfCubes
+  Generating gradients for method: LinearSum
+  Generating gradients for method: ProductAccumulation
+  Generating gradients for method: IndexedSum
+Successfully generated LoopFunctionsGradients.g.cs
+HasOptimalAttribute
+IsOptimalAttribute
+GetTransform for class: ConditionalFunctions
+  Method: ReLU, Differentiable params: 1
+  Method: LeakyReLU, Differentiable params: 1
+  Method: Max, Differentiable params: 2
+  Method: Min, Differentiable params: 2
+  Method: Clamp, Differentiable params: 3
+  Method: PiecewiseLinear, Differentiable params: 1
+  Method: Quadratic, Differentiable params: 1
+  Method: SmoothStep, Differentiable params: 1
+GetTransform for class: LoopFunctions
+  Method: SumOfSquares, Differentiable params: 1
+  Method: SumOfCubes, Differentiable params: 1
+  Method: LinearSum, Differentiable params: 1
+  Method: ProductAccumulation, Differentiable params: 1
+  Method: IndexedSum, Differentiable params: 1
+GetTransform for class: MathFunctions
+  Method: SquareRoot, Differentiable params: 1
+  Method: Sine, Differentiable params: 1
+  Method: Cosine, Differentiable params: 1
+  Method: Tangent, Differentiable params: 1
+  Method: Exponential, Differentiable params: 1
+  Method: Logarithm, Differentiable params: 1
+  Method: Power, Differentiable params: 2
+  Method: AbsoluteValue, Differentiable params: 1
+  Method: Velocity, Differentiable params: 1
+  Method: SinPlusExp, Differentiable params: 1
+  Method: ComplexFunction, Differentiable params: 1
+  Method: ComplexFunction, Differentiable params: 2
+GetTransform for class: SimpleTestFunctions
+  Method: Square, Differentiable params: 1
+  Method: Add, Differentiable params: 2
+  Method: Multiply, Differentiable params: 2
+  Method: KineticEnergy, Differentiable params: 2
+Generating code for class: ConditionalFunctions
+  Generating gradients for method: ReLU
+    Generating forward mode w.r.t. x
+  Generating gradients for method: LeakyReLU
+  Generating gradients for method: Max
+    Generating forward mode w.r.t. a
+    Generating forward mode w.r.t. b
+    Generating reverse mode (all parameters)
+  Generating gradients for method: Min
+  Generating gradients for method: Clamp
+    Generating forward mode w.r.t. min
+    Generating forward mode w.r.t. max
+    Skipping reverse mode: Reverse mode for control flow not yet implemented
+  Generating gradients for method: PiecewiseLinear
+  Generating gradients for method: Quadratic
+  Generating gradients for method: SmoothStep
+Successfully generated ConditionalFunctionsGradients.g.cs
+Generating code for class: LoopFunctions
+  Generating gradients for method: SumOfSquares
+  Generating gradients for method: SumOfCubes
+  Generating gradients for method: LinearSum
+  Generating gradients for method: ProductAccumulation
+  Generating gradients for method: IndexedSum
+Successfully generated LoopFunctionsGradients.g.cs
+Generating code for class: MathFunctions
+  Generating gradients for method: SquareRoot
+  Generating gradients for method: Sine
+  Generating gradients for method: Cosine
+  Generating gradients for method: Tangent
+  Generating gradients for method: Exponential
+  Generating gradients for method: Logarithm
+  Generating gradients for method: Power
+    Generating forward mode w.r.t. n
+  Generating gradients for method: AbsoluteValue
+  Generating gradients for method: Velocity
+    Generating forward mode w.r.t. height
+  Generating gradients for method: SinPlusExp
+  Generating gradients for method: ComplexFunction
+    Generating forward mode w.r.t. y
+===START_COMPLEXFUNCTION_REVERSE===
+        public static (double value, double[] gradients) ComplexFunctionReverse(
+            double x, double y)
+        {
+            var node0 = x;
+            var node1 = y;
+            var node3 = Math.Sin(node0);
+            var node4 = Math.Exp(node1);
+            var node2 = node3 * node4;
+
+            var adj = new double[5];
+            adj[2] = 1.0;
+
+            adj[1] += adj[4] * node4;
+            adj[0] += adj[3] * Math.Cos(node0);
+            adj[3] += adj[2] * node4;
+            adj[4] += adj[2] * node3;
+            return (node2, new double[] { adj[0], adj[1] });
+        }
+
+===END_COMPLEXFUNCTION_REVERSE===
+Successfully generated MathFunctionsGradients.g.cs
+Generating code for class: SimpleTestFunctions
+  Generating gradients for method: Square
+  Generating gradients for method: Add
+  Generating gradients for method: Multiply
+  Generating gradients for method: KineticEnergy
+    Generating forward mode w.r.t. mass
+    Generating forward mode w.r.t. velocity
+Successfully generated SimpleTestFunctionsGradients.g.cs
+HasOptimalAttribute
+IsOptimalAttribute
+GetTransform for class: SimpleTestFunctions
+  Method: Square, Differentiable params: 1
+  Method: Add, Differentiable params: 2
+  Method: Multiply, Differentiable params: 2
+  Method: KineticEnergy, Differentiable params: 2
+GetTransform for class: MathFunctions
+  Method: SquareRoot, Differentiable params: 1
+  Method: Sine, Differentiable params: 1
+  Method: Cosine, Differentiable params: 1
+  Method: Tangent, Differentiable params: 1
+  Method: Exponential, Differentiable params: 1
+  Method: Logarithm, Differentiable params: 1
+  Method: Power, Differentiable params: 2
+  Method: AbsoluteValue, Differentiable params: 1
+  Method: Velocity, Differentiable params: 1
+  Method: SinPlusExp, Differentiable params: 1
+  Method: ComplexFunction, Differentiable params: 1
+  Method: ComplexFunction, Differentiable params: 2
+GetTransform for class: ConditionalFunctions
+  Method: ReLU, Differentiable params: 1
+  Method: LeakyReLU, Differentiable params: 1
+  Method: Max, Differentiable params: 2
+  Method: Min, Differentiable params: 2
+  Method: Clamp, Differentiable params: 3
+  Method: PiecewiseLinear, Differentiable params: 1
+  Method: Quadratic, Differentiable params: 1
+  Method: SmoothStep, Differentiable params: 1
+GetTransform for class: LoopFunctions
+  Method: SumOfSquares, Differentiable params: 1
+  Method: SumOfCubes, Differentiable params: 1
+  Method: LinearSum, Differentiable params: 1
+  Method: ProductAccumulation, Differentiable params: 1
+  Method: IndexedSum, Differentiable params: 1
+Generating code for class: SimpleTestFunctions
+  Generating gradients for method: Square
+    Generating forward mode w.r.t. x
+  Generating gradients for method: Add
+    Generating forward mode w.r.t. y
+    Generating reverse mode (all parameters)
+  Generating gradients for method: Multiply
+  Generating gradients for method: KineticEnergy
+    Generating forward mode w.r.t. mass
+    Generating forward mode w.r.t. velocity
+Successfully generated SimpleTestFunctionsGradients.g.cs
+Generating code for class: MathFunctions
+  Generating gradients for method: SquareRoot
+  Generating gradients for method: Sine
+  Generating gradients for method: Cosine
+  Generating gradients for method: Tangent
+  Generating gradients for method: Exponential
+  Generating gradients for method: Logarithm
+  Generating gradients for method: Power
+    Generating forward mode w.r.t. n
+  Generating gradients for method: AbsoluteValue
+  Generating gradients for method: Velocity
+    Generating forward mode w.r.t. height
+  Generating gradients for method: SinPlusExp
+  Generating gradients for method: ComplexFunction
+===START_COMPLEXFUNCTION_REVERSE===
+        public static (double value, double[] gradients) ComplexFunctionReverse(
+            double x, double y)
+        {
+            var node0 = x;
+            var node1 = y;
+            var node3 = Math.Sin(node0);
+            var node4 = Math.Exp(node1);
+            var node2 = node3 * node4;
+
+            var adj = new double[5];
+            adj[2] = 1.0;
+
+            adj[1] += adj[4] * node4;
+            adj[0] += adj[3] * Math.Cos(node0);
+            adj[3] += adj[2] * node4;
+            adj[4] += adj[2] * node3;
+            return (node2, new double[] { adj[0], adj[1] });
+        }
+
+===END_COMPLEXFUNCTION_REVERSE===
+Successfully generated MathFunctionsGradients.g.cs
+Generating code for class: ConditionalFunctions
+  Generating gradients for method: ReLU
+  Generating gradients for method: LeakyReLU
+  Generating gradients for method: Max
+    Generating forward mode w.r.t. a
+    Generating forward mode w.r.t. b
+  Generating gradients for method: Min
+  Generating gradients for method: Clamp
+    Generating forward mode w.r.t. min
+    Generating forward mode w.r.t. max
+    Skipping reverse mode: Reverse mode for control flow not yet implemented
+  Generating gradients for method: PiecewiseLinear
+  Generating gradients for method: Quadratic
+  Generating gradients for method: SmoothStep
+Successfully generated ConditionalFunctionsGradients.g.cs
+Generating code for class: LoopFunctions
+  Generating gradients for method: SumOfSquares
+  Generating gradients for method: SumOfCubes
+  Generating gradients for method: LinearSum
+  Generating gradients for method: ProductAccumulation
+  Generating gradients for method: IndexedSum
+Successfully generated LoopFunctionsGradients.g.cs
+HasOptimalAttribute
+IsOptimalAttribute
+GetTransform for class: ConditionalFunctions
+  Method: ReLU, Differentiable params: 1
+  Method: LeakyReLU, Differentiable params: 1
+  Method: Max, Differentiable params: 2
+  Method: Min, Differentiable params: 2
+  Method: Clamp, Differentiable params: 3
+  Method: PiecewiseLinear, Differentiable params: 1
+  Method: Quadratic, Differentiable params: 1
+  Method: SmoothStep, Differentiable params: 1
+GetTransform for class: LoopFunctions
+  Method: SumOfSquares, Differentiable params: 1
+  Method: SumOfCubes, Differentiable params: 1
+  Method: LinearSum, Differentiable params: 1
+  Method: ProductAccumulation, Differentiable params: 1
+  Method: IndexedSum, Differentiable params: 1
+GetTransform for class: MathFunctions
+  Method: SquareRoot, Differentiable params: 1
+  Method: Sine, Differentiable params: 1
+  Method: Cosine, Differentiable params: 1
+  Method: Tangent, Differentiable params: 1
+  Method: Exponential, Differentiable params: 1
+  Method: Logarithm, Differentiable params: 1
+  Method: Power, Differentiable params: 2
+  Method: AbsoluteValue, Differentiable params: 1
+  Method: Velocity, Differentiable params: 1
+  Method: SinPlusExp, Differentiable params: 1
+  Method: ComplexFunction, Differentiable params: 1
+  Method: ComplexFunction, Differentiable params: 2
+GetTransform for class: SimpleTestFunctions
+  Method: Square, Differentiable params: 1
+  Method: Add, Differentiable params: 2
+  Method: Multiply, Differentiable params: 2
+  Method: KineticEnergy, Differentiable params: 2
+Generating code for class: ConditionalFunctions
+  Generating gradients for method: ReLU
+    Generating forward mode w.r.t. x
+  Generating gradients for method: LeakyReLU
+  Generating gradients for method: Max
+    Generating forward mode w.r.t. a
+    Generating forward mode w.r.t. b
+    Generating reverse mode (all parameters)
+  Generating gradients for method: Min
+  Generating gradients for method: Clamp
+    Generating forward mode w.r.t. min
+    Generating forward mode w.r.t. max
+    Skipping reverse mode: Reverse mode for control flow not yet implemented
+  Generating gradients for method: PiecewiseLinear
+  Generating gradients for method: Quadratic
+  Generating gradients for method: SmoothStep
+Successfully generated ConditionalFunctionsGradients.g.cs
+Generating code for class: LoopFunctions
+  Generating gradients for method: SumOfSquares
+  Generating gradients for method: SumOfCubes
+  Generating gradients for method: LinearSum
+  Generating gradients for method: ProductAccumulation
+  Generating gradients for method: IndexedSum
+Successfully generated LoopFunctionsGradients.g.cs
+Generating code for class: MathFunctions
+  Generating gradients for method: SquareRoot
+  Generating gradients for method: Sine
+  Generating gradients for method: Cosine
+  Generating gradients for method: Tangent
+  Generating gradients for method: Exponential
+  Generating gradients for method: Logarithm
+  Generating gradients for method: Power
+    Generating forward mode w.r.t. n
+  Generating gradients for method: AbsoluteValue
+  Generating gradients for method: Velocity
+    Generating forward mode w.r.t. height
+  Generating gradients for method: SinPlusExp
+  Generating gradients for method: ComplexFunction
+    Generating forward mode w.r.t. y
+===START_COMPLEXFUNCTION_REVERSE===
+        public static (double value, double[] gradients) ComplexFunctionReverse(
+            double x, double y)
+        {
+            var node0 = x;
+            var node1 = y;
+            var node3 = Math.Sin(node0);
+            var node4 = Math.Exp(node1);
+            var node2 = node3 * node4;
+
+            var adj = new double[5];
+            adj[2] = 1.0;
+
+            adj[3] += adj[2] * node4;
+            adj[4] += adj[2] * node3;
+            adj[1] += adj[4] * node4;
+            adj[0] += adj[3] * Math.Cos(node0);
+            return (node2, new double[] { adj[0], adj[1] });
+        }
+
+===END_COMPLEXFUNCTION_REVERSE===
+Successfully generated MathFunctionsGradients.g.cs
+Generating code for class: SimpleTestFunctions
+  Generating gradients for method: Square
+  Generating gradients for method: Add
+  Generating gradients for method: Multiply
+  Generating gradients for method: KineticEnergy
+    Generating forward mode w.r.t. mass
+    Generating forward mode w.r.t. velocity
+Successfully generated SimpleTestFunctionsGradients.g.cs
+HasOptimalAttribute
+IsOptimalAttribute
+GetTransform for class: SimpleTestFunctions
+  Method: Square, Differentiable params: 1
+  Method: Add, Differentiable params: 2
+  Method: Multiply, Differentiable params: 2
+  Method: KineticEnergy, Differentiable params: 2
+GetTransform for class: MathFunctions
+  Method: SquareRoot, Differentiable params: 1
+  Method: Sine, Differentiable params: 1
+  Method: Cosine, Differentiable params: 1
+  Method: Tangent, Differentiable params: 1
+  Method: Exponential, Differentiable params: 1
+  Method: Logarithm, Differentiable params: 1
+  Method: Power, Differentiable params: 2
+  Method: AbsoluteValue, Differentiable params: 1
+  Method: Velocity, Differentiable params: 1
+  Method: SinPlusExp, Differentiable params: 1
+  Method: ComplexFunction, Differentiable params: 1
+  Method: ComplexFunction, Differentiable params: 2
+GetTransform for class: ConditionalFunctions
+  Method: ReLU, Differentiable params: 1
+  Method: LeakyReLU, Differentiable params: 1
+  Method: Max, Differentiable params: 2
+  Method: Min, Differentiable params: 2
+  Method: Clamp, Differentiable params: 3
+  Method: PiecewiseLinear, Differentiable params: 1
+  Method: Quadratic, Differentiable params: 1
+  Method: SmoothStep, Differentiable params: 1
+GetTransform for class: LoopFunctions
+  Method: SumOfSquares, Differentiable params: 1
+  Method: SumOfCubes, Differentiable params: 1
+  Method: LinearSum, Differentiable params: 1
+  Method: ProductAccumulation, Differentiable params: 1
+  Method: IndexedSum, Differentiable params: 1
+Generating code for class: SimpleTestFunctions
+  Generating gradients for method: Square
+    Generating forward mode w.r.t. x
+  Generating gradients for method: Add
+    Generating forward mode w.r.t. y
+    Generating reverse mode (all parameters)
+  Generating gradients for method: Multiply
+  Generating gradients for method: KineticEnergy
+    Generating forward mode w.r.t. mass
+    Generating forward mode w.r.t. velocity
+Successfully generated SimpleTestFunctionsGradients.g.cs
+Generating code for class: MathFunctions
+  Generating gradients for method: SquareRoot
+  Generating gradients for method: Sine
+  Generating gradients for method: Cosine
+  Generating gradients for method: Tangent
+  Generating gradients for method: Exponential
+  Generating gradients for method: Logarithm
+  Generating gradients for method: Power
+    Generating forward mode w.r.t. n
+  Generating gradients for method: AbsoluteValue
+  Generating gradients for method: Velocity
+    Generating forward mode w.r.t. height
+  Generating gradients for method: SinPlusExp
+  Generating gradients for method: ComplexFunction
+===START_COMPLEXFUNCTION_REVERSE===
+        public static (double value, double[] gradients) ComplexFunctionReverse(
+            double x, double y)
+        {
+            var node0 = x;
+            var node1 = y;
+            var node3 = Math.Sin(node0);
+            var node4 = Math.Exp(node1);
+            var node2 = node3 * node4;
+
+            var adj = new double[5];
+            adj[2] = 1.0;
+
+            adj[3] += adj[2] * node4;
+            adj[4] += adj[2] * node3;
+            adj[1] += adj[4] * node4;
+            adj[0] += adj[3] * Math.Cos(node0);
+            return (node2, new double[] { adj[0], adj[1] });
+        }
+
+===END_COMPLEXFUNCTION_REVERSE===
+Successfully generated MathFunctionsGradients.g.cs
+Generating code for class: ConditionalFunctions
+  Generating gradients for method: ReLU
+  Generating gradients for method: LeakyReLU
+  Generating gradients for method: Max
+    Generating forward mode w.r.t. a
+    Generating forward mode w.r.t. b
+  Generating gradients for method: Min
+  Generating gradients for method: Clamp
+    Generating forward mode w.r.t. min
+    Generating forward mode w.r.t. max
+    Skipping reverse mode: Reverse mode for control flow not yet implemented
+  Generating gradients for method: PiecewiseLinear
+  Generating gradients for method: Quadratic
+  Generating gradients for method: SmoothStep
+Successfully generated ConditionalFunctionsGradients.g.cs
+Generating code for class: LoopFunctions
+  Generating gradients for method: SumOfSquares
+  Generating gradients for method: SumOfCubes
+  Generating gradients for method: LinearSum
+  Generating gradients for method: ProductAccumulation
+  Generating gradients for method: IndexedSum
+Successfully generated LoopFunctionsGradients.g.cs

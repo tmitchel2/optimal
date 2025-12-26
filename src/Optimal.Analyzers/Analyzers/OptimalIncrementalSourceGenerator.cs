@@ -130,6 +130,22 @@ namespace Optimal.Analyzers
                         sb.Append(forwardCode);
                         sb.AppendLine();
                     }
+
+                    if (method.DifferentiableParameters.Length > 1)
+                    {
+                        try
+                        {
+                            GeneratorLogging.LogMessage($"    Generating reverse mode (all parameters)");
+                            var reverseGenerator = new CodeGen.ReverseModeCodeGenerator(doubleType);
+                            var reverseCode = reverseGenerator.GenerateMethod(method, doubleType);
+                            sb.Append(reverseCode);
+                            sb.AppendLine();
+                        }
+                        catch (NotSupportedException ex)
+                        {
+                            GeneratorLogging.LogMessage($"    Skipping reverse mode: {ex.Message}");
+                        }
+                    }
                 }
 
                 sb.AppendLine("    }");
@@ -225,7 +241,8 @@ namespace Optimal.Analyzers
                 {
                     var methodSyntax = classSyntax.Members
                         .OfType<MethodDeclarationSyntax>()
-                        .FirstOrDefault(m => m.Identifier.Text == methodSymbol.Name);
+                        .FirstOrDefault(m => m.Identifier.Text == methodSymbol.Name &&
+                            m.ParameterList.Parameters.Count == methodSymbol.Parameters.Length);
 
                     if (methodSyntax == null)
                     {

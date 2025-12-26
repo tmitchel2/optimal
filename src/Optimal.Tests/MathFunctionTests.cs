@@ -44,5 +44,10 @@ namespace Optimal.Tests
         {
             return Math.Sqrt(x) * Math.Sin(x) + Math.Log(x);
         }
+
+        public static double ComplexFunction(double x, double y)
+        {
+            return Math.Sin(x) * Math.Exp(y);
+        }
     }
 }
