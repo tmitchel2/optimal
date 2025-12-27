@@ -40,6 +40,7 @@ namespace Optimal.Tests
         /// <summary>
         /// Calculates the approximate time for a bead to slide from (0, startHeight) to (endX, 0)
         /// along a circular arc with the given radius.
+        /// Reformulated to avoid gradient cancellation by using a more direct parameterization.
         /// </summary>
         /// <param name="radius">Radius of the circular arc path</param>
         /// <param name="startHeight">Starting height (Y coordinate)</param>
@@ -48,71 +49,71 @@ namespace Optimal.Tests
         /// <returns>Total descent time in seconds</returns>
         public static double GetDescentTime(double radius, double startHeight, double endX, int segments)
         {
-            // Calculate arc center using basic geometry
-            // Add epsilon to ensure values stay positive and gradients are well-defined
-            var chordLengthSq = endX * endX + startHeight * startHeight + Epsilon;
-            var chordLength = Math.Sqrt(chordLengthSq);
-            var halfChord = chordLength / 2.0;
+            // NEW APPROACH: Use arc length parameterization directly
+            // Compute total arc length first, then parameterize by arc length fraction
+            // This avoids Atan2 and angle-based dependencies
 
-            // Ensure the value under sqrt is positive
-            var radiusSq = radius * radius;
-            var halfChordSq = halfChord * halfChord;
-            var distanceToCenterSq = radiusSq - halfChordSq + Epsilon;
-            var distanceToCenter = Math.Sqrt(distanceToCenterSq);
+            var chordLength = Math.Sqrt(endX * endX + startHeight * startHeight + Epsilon);
 
-            // Center offset perpendicular to chord
+            // Perpendicular direction (normalized)
             var perpX = startHeight / chordLength;
             var perpY = endX / chordLength;
 
-            var centerX = endX / 2.0 + perpX * distanceToCenter;
-            var centerY = startHeight / 2.0 - perpY * distanceToCenter;
+            // Distance from chord midpoint to arc center
+            var halfChord = chordLength / 2.0;
+            var sagitta = radius - Math.Sqrt(radius * radius - halfChord * halfChord + Epsilon);
 
-            // Start and end angles
-            var startAngle = Math.Atan2(startHeight - centerY, 0.0 - centerX);
-            var endAngle = Math.Atan2(0.0 - centerY, endX - centerX);
-
-            // Sweep angle (counter-clockwise)
-            var sweepAngle = endAngle - startAngle;
-            if (sweepAngle < 0.0)
-            {
-                sweepAngle += 2.0 * Math.PI;
-            }
+            // Approximate arc length using circular segment formula
+            // For small angles: arcLength ≈ chordLength * (1 + sagitta^2 / (6 * chordLength^2))
+            var sagittaRatio = sagitta / chordLength;
+            var arcLength = chordLength * (1.0 + sagittaRatio * sagittaRatio / 6.0);
 
             var totalTime = 0.0;
 
             for (var i = 0; i < segments; i++)
             {
-                var t1 = i / (double)segments;
-                var t2 = (i + 1) / (double)segments;
+                var s1 = i / (double)segments;
+                var s2 = (i + 1) / (double)segments;
 
-                var angle1 = startAngle + sweepAngle * t1;
-                var angle2 = startAngle + sweepAngle * t2;
+                // Linear interpolation along chord
+                var x1_chord = endX * s1;
+                var y1_chord = startHeight * (1.0 - s1);
+                var x2_chord = endX * s2;
+                var y2_chord = startHeight * (1.0 - s2);
 
-                var x1 = centerX + radius * Math.Cos(angle1);
-                var y1 = centerY + radius * Math.Sin(angle1);
+                // Perpendicular offset (circular arc bulge)
+                // For circular arc: offset = R - sqrt(R^2 - d^2) where d is distance from chord center
+                // Distance along chord from center point
+                var dist1_from_center = chordLength * Math.Abs(s1 - 0.5);
+                var dist2_from_center = chordLength * Math.Abs(s2 - 0.5);
 
-                var x2 = centerX + radius * Math.Cos(angle2);
-                var y2 = centerY + radius * Math.Sin(angle2);
+                // Circular arc offset perpendicular to chord
+                var offset1 = radius - Math.Sqrt(radius * radius - dist1_from_center * dist1_from_center + Epsilon);
+                var offset2 = radius - Math.Sqrt(radius * radius - dist2_from_center * dist2_from_center + Epsilon);
 
-                var heightDrop1 = startHeight - y1 + Epsilon;  // Add epsilon to ensure positive
-                var heightDrop2 = startHeight - y2 + Epsilon;
+                // Apply offset perpendicular to chord
+                var x1 = x1_chord + perpX * offset1;
+                var y1 = y1_chord - perpY * offset1;
+                var x2 = x2_chord + perpX * offset2;
+                var y2 = y2_chord - perpY * offset2;
 
-                var startVelocity = Math.Sqrt(2.0 * Gravity * heightDrop1);
-                var endVelocity = Math.Sqrt(2.0 * Gravity * heightDrop2);
+                // Height drop from start
+                var h1 = startHeight - y1 + Epsilon;
+                var h2 = startHeight - y2 + Epsilon;
 
-                var velocity = (startVelocity + endVelocity) / 2.0;
+                // Velocity from conservation of energy
+                var v1 = Math.Sqrt(2.0 * Gravity * h1);
+                var v2 = Math.Sqrt(2.0 * Gravity * h2);
+                var avgVel = (v1 + v2) / 2.0;
 
+                // Segment length
                 var dx = x2 - x1;
                 var dy = y2 - y1;
-                // Add epsilon to prevent division by zero in sqrt gradient
-                var distanceSq = dx * dx + dy * dy + Epsilon;
-                var distance = Math.Sqrt(distanceSq);
+                var segLength = Math.Sqrt(dx * dx + dy * dy + Epsilon);
 
-                // Compute time - add epsilon to denominator to prevent division by zero
-                var time = distance / (velocity + Epsilon);
-
-                // Always accumulate (no conditional that blocks gradients)
-                totalTime += time;
+                // Time for segment
+                var segTime = segLength / (avgVel + Epsilon);
+                totalTime += segTime;
             }
 
             return totalTime;
