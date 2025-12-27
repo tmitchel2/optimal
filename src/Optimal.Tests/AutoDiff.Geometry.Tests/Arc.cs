@@ -8,7 +8,7 @@
 
 using System;
 
-namespace Optimal.AutoDiff.Tests
+namespace Optimal.AutoDiff.Geometry.Tests
 {
     public sealed class Arc
     {

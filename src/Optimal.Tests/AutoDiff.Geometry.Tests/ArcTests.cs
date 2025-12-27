@@ -8,8 +8,9 @@
 
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Optimal.AutoDiff.Tests;
 
-namespace Optimal.AutoDiff.Tests
+namespace Optimal.AutoDiff.Geometry.Tests
 {
     [TestClass]
     public sealed class ArcTests

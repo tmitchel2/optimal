@@ -8,7 +8,7 @@
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Optimal.AutoDiff.Tests
+namespace Optimal.AutoDiff.Geometry.Tests
 {
     [TestClass]
     public sealed class Point2DTests

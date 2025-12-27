@@ -7,6 +7,7 @@
  */
 
 using System;
+using Optimal.AutoDiff.Geometry.Tests;
 
 namespace Optimal.AutoDiff.Tests
 {

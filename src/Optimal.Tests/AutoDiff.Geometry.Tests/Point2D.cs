@@ -8,7 +8,7 @@
 
 using System;
 
-namespace Optimal.AutoDiff.Tests
+namespace Optimal.AutoDiff.Geometry.Tests
 {
     public readonly record struct Point2D(double X, double Y)
     {
