@@ -23,7 +23,7 @@ namespace Optimal.Analyzers
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
             GeneratorLogging.SetLoggingLevel(LoggingLevel.Fatal);
-            GeneratorLogging.SetLogFilePath("/Users/tom/GitHub/optimal/src/Optimal.Analyzers/OptimalIncrementalSourceGeneratorLog.txt");
+            // GeneratorLogging.SetLogFilePath("/Users/tom/GitHub/optimal/src/Optimal.Analyzers/OptimalIncrementalSourceGeneratorLog.txt");
             try
             {
                 context.RegisterPostInitializationOutput(static postInitializationContext =>
