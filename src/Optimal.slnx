@@ -5,5 +5,4 @@
     <Platform Name="x86" />
   </Configurations>
   <Project Path="Optimal.Tests/Optimal.Tests.csproj" />
-  <Project Path="Optimal/Optimal.csproj" />
 </Solution>

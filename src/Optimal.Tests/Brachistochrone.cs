@@ -7,7 +7,6 @@
  */
 
 using System;
-using Optimal.Geometry;
 
 namespace Optimal.Tests
 {

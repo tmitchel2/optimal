@@ -8,7 +8,7 @@
 
 using System;
 
-namespace Optimal.Geometry
+namespace Optimal.Tests
 {
     public sealed class Arc
     {

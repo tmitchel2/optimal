@@ -7,9 +7,8 @@
  */
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Optimal.Geometry;
 
-namespace Optimal.Tests.Geometry
+namespace Optimal.Tests
 {
     [TestClass]
     public sealed class Point2DTests

@@ -14,9 +14,9 @@
         <DataCollectors>
             <DataCollector friendlyName="XPlat Code Coverage">
                 <Configuration>
-                    <Exclude>[*Tests]*</Exclude>
+                    <!-- <Exclude>[*Tests]*</Exclude>
                     <ExcludeByFile>**/*.g.cs</ExcludeByFile>
-                    <Include>[Optimal]*,[Optimal*]*</Include>
+                    <Include>[Optimal]*</Include> -->
                     <Functions>
                       <Exclude>
                         <Function>*c__DisplayClass*</Function>
