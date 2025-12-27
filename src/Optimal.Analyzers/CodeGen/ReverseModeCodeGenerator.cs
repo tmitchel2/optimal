@@ -543,8 +543,6 @@ namespace Optimal.Analyzers.CodeGen
             {
                 ConstantNode constant => GenerateConstant(constant),
                 VariableNode variable => variable.Name,
-                BinaryOpNode binary when binary.Op == BinaryOperator.Add && binary.Left is VariableNode v1 && binary.Right is ConstantNode c && c.Value.Equals(1) => $"{v1.Name}++",
-                BinaryOpNode binary when binary.Op == BinaryOperator.Subtract && binary.Left is VariableNode v2 && binary.Right is ConstantNode c2 && c2.Value.Equals(1) => $"{v2.Name}--",
                 BinaryOpNode binary => $"{GenerateInlineExpression(binary.Left, sb)} {GetOperatorSymbol(binary.Op)} {GenerateInlineExpression(binary.Right, sb)}",
                 _ => throw new NotSupportedException($"Inline expression not supported: {node.GetType().Name}")
             };

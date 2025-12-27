@@ -12,6 +12,22 @@ using Optimal;
 namespace Optimal.Tests
 {
     /// <summary>
+    /// Simplified test without loop
+    /// </summary>
+    [OptimalCode]
+    public static class SimpleGradientTest
+    {
+        public static double TestFunction(double x, double y)
+        {
+            // Simple function: compute arc angle and use it
+            var chordLen = Math.Sqrt(x * x + y * y);
+            var angle = Math.Atan2(y, x);
+            var result = chordLen * angle;
+            return result;
+        }
+    }
+
+    /// <summary>
     /// Simplified Brachistochrone problem - calculates descent time for a bead sliding down a curve
     /// This version uses only primitive operations to enable automatic differentiation
     /// </summary>
@@ -19,6 +35,7 @@ namespace Optimal.Tests
     public static class SimpleBrachistochrone
     {
         private const double Gravity = 9.81;
+        private const double Epsilon = 1e-10; // Small value to prevent division by zero in gradients
 
         /// <summary>
         /// Calculates the approximate time for a bead to slide from (0, startHeight) to (endX, 0)
@@ -32,9 +49,16 @@ namespace Optimal.Tests
         public static double GetDescentTime(double radius, double startHeight, double endX, int segments)
         {
             // Calculate arc center using basic geometry
-            var chordLength = Math.Sqrt(endX * endX + startHeight * startHeight);
+            // Add epsilon to ensure values stay positive and gradients are well-defined
+            var chordLengthSq = endX * endX + startHeight * startHeight + Epsilon;
+            var chordLength = Math.Sqrt(chordLengthSq);
             var halfChord = chordLength / 2.0;
-            var distanceToCenter = Math.Sqrt(radius * radius - halfChord * halfChord);
+
+            // Ensure the value under sqrt is positive
+            var radiusSq = radius * radius;
+            var halfChordSq = halfChord * halfChord;
+            var distanceToCenterSq = radiusSq - halfChordSq + Epsilon;
+            var distanceToCenter = Math.Sqrt(distanceToCenterSq);
 
             // Center offset perpendicular to chord
             var perpX = startHeight / chordLength;
@@ -70,22 +94,25 @@ namespace Optimal.Tests
                 var x2 = centerX + radius * Math.Cos(angle2);
                 var y2 = centerY + radius * Math.Sin(angle2);
 
-                var heightDrop1 = startHeight - y1;
-                var heightDrop2 = startHeight - y2;
+                var heightDrop1 = startHeight - y1 + Epsilon;  // Add epsilon to ensure positive
+                var heightDrop2 = startHeight - y2 + Epsilon;
 
-                var startVelocity = heightDrop1 > 0.0 ? Math.Sqrt(2.0 * Gravity * heightDrop1) : 0.0;
-                var endVelocity = heightDrop2 > 0.0 ? Math.Sqrt(2.0 * Gravity * heightDrop2) : 0.0;
+                var startVelocity = Math.Sqrt(2.0 * Gravity * heightDrop1);
+                var endVelocity = Math.Sqrt(2.0 * Gravity * heightDrop2);
 
                 var velocity = (startVelocity + endVelocity) / 2.0;
 
-                if (velocity > 0.0)
-                {
-                    var dx = x2 - x1;
-                    var dy = y2 - y1;
-                    var distance = Math.Sqrt(dx * dx + dy * dy);
-                    var time = distance / velocity;
-                    totalTime += time;
-                }
+                var dx = x2 - x1;
+                var dy = y2 - y1;
+                // Add epsilon to prevent division by zero in sqrt gradient
+                var distanceSq = dx * dx + dy * dy + Epsilon;
+                var distance = Math.Sqrt(distanceSq);
+
+                // Compute time - add epsilon to denominator to prevent division by zero
+                var time = distance / (velocity + Epsilon);
+
+                // Always accumulate (no conditional that blocks gradients)
+                totalTime += time;
             }
 
             return totalTime;

@@ -9,6 +9,8 @@
     <IsTrimmable>true</IsTrimmable>
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
     <AnalysisLevel>latest-Recommended</AnalysisLevel>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
