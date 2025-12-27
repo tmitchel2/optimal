@@ -4,7 +4,7 @@
 - [x] Phase 1: Foundation & Infrastructure ✅ **COMPLETE**
 - [x] Phase 2: Line Search ✅ **COMPLETE**
 - [x] Phase 3: Conjugate Gradient ✅ **COMPLETE**
-- [ ] Phase 4: L-BFGS
+- [x] Phase 4: L-BFGS ✅ **COMPLETE**
 - [ ] Phase 5: Enhanced Stopping Criteria
 - [ ] Phase 6: Utilities & Helpers
 - [ ] Phase 7: Documentation & Examples
@@ -266,21 +266,141 @@ f(x) = Σ[100(x_{i+1} - x_i²)² + (1 - x_i)²] for i = 1 to n-1
 ---
 
 ## Phase 4: L-BFGS
-**Status**: Not Started
+**Status**: ✅ **COMPLETED**
+**Started**: 2025-12-27
+**Completed**: 2025-12-27
 
 ### Goal
 Implement limited-memory BFGS quasi-Newton method.
 
 ### Checklist
-- [ ] Create `LBFGSMemory.cs` - Circular buffer for (s, y) vector pairs
-- [ ] Create `TwoLoopRecursion.cs` - L-BFGS direction computation
-- [ ] Create `LBFGSOptimizer.cs` - Main algorithm
-- [ ] Create `LBFGSOptimizerTests.cs`
-- [ ] Test on 100D Rosenbrock (< 1000 iterations)
-- [ ] Test on Booth function
+- [x] Create `LBFGSMemory.cs` - Circular buffer for (s, y) vector pairs
+- [x] Create `TwoLoopRecursion.cs` - L-BFGS direction computation
+- [x] Create `LBFGSOptimizer.cs` - Main algorithm
+- [x] Create `HighDimensionalFunctions.cs` - Helper for 100D testing
+- [x] Create `LBFGSOptimizerTests.cs` ✅
+- [x] Test on 100D Rosenbrock (< 1000 iterations) ✅
+- [x] Test on Booth function ✅
+
+### Test Results
+**All 28 tests passing** (8 new + 20 from previous phases = 100%)
+
+**Phase 4 Tests (new)**:
+- ✅ CanMinimizeRosenbrock2D
+- ✅ CanMinimizeBoothFunction
+- ✅ CanMinimizeRosenbrock10D
+- ✅ CanMinimizeRosenbrock100D
+- ✅ LBFGSIsFasterThanConjugateGradient
+- ✅ MemorySizeAffectsPerformance
+- ✅ ReturnsMaxIterationsWhenNotConverged
+- ✅ WorksWithDifferentMemorySizes
+
+**Previous Phases (still passing)**:
+- Phase 1: 6/6 tests ✅
+- Phase 2: 5/5 tests ✅
+- Phase 3: 9/9 tests ✅
 
 ### Implementation Notes
-[To be filled during Phase 4]
+
+#### L-BFGS Algorithm Overview
+Limited-memory BFGS (Broyden-Fletcher-Goldfarb-Shanno) is a quasi-Newton method that approximates the inverse Hessian matrix using only the last `m` gradient and position updates. This makes it highly memory-efficient for large-scale problems.
+
+**Key Insight**: Instead of storing the full inverse Hessian (n×n matrix, O(n²) memory), L-BFGS stores only `m` correction pairs (s, y), requiring O(mn) memory.
+
+#### Three-Component Architecture
+
+**1. LBFGSMemory.cs** - Circular Buffer
+- Manages storage of correction pairs: (s_k, y_k) where:
+  - `s_k = x_{k+1} - x_k` (position change)
+  - `y_k = ∇f_{k+1} - ∇f_k` (gradient change)
+- Precomputes `ρ_k = 1 / (y_k^T · s_k)` for efficiency
+- Circular buffer: when full, oldest pair is overwritten
+- Curvature condition check: rejects pairs where |y^T · s| < 1e-16
+
+**2. TwoLoopRecursion.cs** - Direction Computation
+Implements the L-BFGS two-loop recursion algorithm:
+
+```
+Algorithm: Compute search direction
+Input: gradient g, memory containing m pairs (s_i, y_i, ρ_i)
+Output: search direction d ≈ -H · g (where H ≈ inverse Hessian)
+
+q ← g
+for i = m-1 down to 0:
+    α_i ← ρ_i · (s_i^T · q)
+    q ← q - α_i · y_i
+
+γ ← (s_{m-1}^T · y_{m-1}) / (y_{m-1}^T · y_{m-1})
+r ← γ · q
+
+for i = 0 to m-1:
+    β ← ρ_i · (y_i^T · r)
+    r ← r + s_i · (α_i - β)
+
+return -r
+```
+
+**First loop** (backward): applies gradient changes
+**Scaling**: uses most recent curvature information
+**Second loop** (forward): applies position changes
+
+**3. LBFGSOptimizer.cs** - Main Algorithm
+- Integrates memory and two-loop recursion
+- Default memory size: m = 10 (configurable via `WithMemorySize()`)
+- Line search integration for step size selection
+- Automatic restart: clears memory when falling back to steepest descent
+- Builder pattern for API consistency
+
+#### High-Dimensional Testing
+Created `HighDimensionalFunctions.cs` for testing arbitrary dimensions:
+- `ExtendedRosenbrock(x)`: Analytical implementation with exact gradients
+- `RosenbrockStartingPoint(n)`: Standard starting point (-1.2, 1.0, -1.2, 1.0, ...)
+- Enables testing on 100D problems without AutoDiff code generation
+
+Extended Rosenbrock formula:
+```
+f(x) = Σ[100(x_{i+1} - x_i²)² + (1 - x_i)²] for i = 1 to n-1
+```
+
+Analytical gradient:
+```
+∂f/∂x_i = -400x_i(x_{i+1} - x_i²) - 2(1 - x_i)  [from i-th term]
+        + 200(x_i - x_{i-1}²)                    [from (i-1)-th term]
+```
+
+#### Performance Results
+- **Rosenbrock 2D**: Converges in ~30-50 iterations (excellent)
+- **Rosenbrock 10D**: Converges quickly with tolerance 1e-4
+- **Rosenbrock 100D**: **Converges in < 1000 iterations** ✅ (success criterion met!)
+- **Booth function**: Converges to minimum (1, 3) with tolerance 1e-6
+- **vs Conjugate Gradient**: L-BFGS is faster on 10D Rosenbrock
+
+#### Memory Size Impact
+Tested memory sizes: m = 3, 5, 10, 20
+- **Small memory (m=3)**: Still effective but may require more iterations
+- **Medium memory (m=10)**: Good balance (default)
+- **Large memory (m=20)**: Best performance but higher memory cost
+- All sizes converge successfully on test problems
+
+#### Design Decisions
+- Default memory size: m = 10 (balances performance and memory)
+- Default line search: BacktrackingLineSearch
+- Curvature condition: Reject pairs where |y^T · s| < 1e-16
+- Initial Hessian scaling: γ = (s^T · y) / (y^T · y) from most recent pair
+- When memory empty: falls back to steepest descent
+- Builder pattern maintained for API consistency
+
+#### Numerical Stability
+- **Curvature condition enforcement**: Only accept (s, y) pairs with sufficient curvature
+- **Division by zero protection**: Check denominators before dividing
+- **Automatic restart**: Clear memory when line search fails with L-BFGS direction
+- **Fallback to steepest descent**: Try negative gradient when L-BFGS direction fails
+
+#### Why L-BFGS is Fast
+1. **Quasi-Newton**: Approximates second-order (Hessian) information from first-order gradients
+2. **Superlinear convergence**: Much faster than linear methods (gradient descent, CG)
+3. **Memory efficient**: O(mn) instead of O(n²) for full BFGS
+4. **Scales to high dimensions**: Successfully handles 100D+ problems
 
 ---
 
