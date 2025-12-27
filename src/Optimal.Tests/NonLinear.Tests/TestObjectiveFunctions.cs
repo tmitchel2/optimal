@@ -49,5 +49,35 @@ namespace Optimal.NonLinear.Tests
             return (x + 2.0 * y - 7.0) * (x + 2.0 * y - 7.0) +
                    (2.0 * x + y - 5.0) * (2.0 * x + y - 5.0);
         }
+
+        /// <summary>
+        /// Extended Rosenbrock function (4D): sum of Rosenbrock terms
+        /// Minimum: (1, 1, 1, 1), f = 0
+        /// </summary>
+        public static double Rosenbrock4D(double x1, double x2, double x3, double x4)
+        {
+            return 100.0 * (x2 - x1 * x1) * (x2 - x1 * x1) + (1.0 - x1) * (1.0 - x1) +
+                   100.0 * (x3 - x2 * x2) * (x3 - x2 * x2) + (1.0 - x2) * (1.0 - x2) +
+                   100.0 * (x4 - x3 * x3) * (x4 - x3 * x3) + (1.0 - x3) * (1.0 - x3);
+        }
+
+        /// <summary>
+        /// Extended Rosenbrock function (10D): sum of Rosenbrock terms
+        /// Minimum: (1, 1, ..., 1), f = 0
+        /// </summary>
+        public static double Rosenbrock10D(double x1, double x2, double x3, double x4, double x5,
+                                          double x6, double x7, double x8, double x9, double x10)
+        {
+            return 100.0 * (x2 - x1 * x1) * (x2 - x1 * x1) + (1.0 - x1) * (1.0 - x1) +
+                   100.0 * (x3 - x2 * x2) * (x3 - x2 * x2) + (1.0 - x2) * (1.0 - x2) +
+                   100.0 * (x4 - x3 * x3) * (x4 - x3 * x3) + (1.0 - x3) * (1.0 - x3) +
+                   100.0 * (x5 - x4 * x4) * (x5 - x4 * x4) + (1.0 - x4) * (1.0 - x4) +
+                   100.0 * (x6 - x5 * x5) * (x6 - x5 * x5) + (1.0 - x5) * (1.0 - x5) +
+                   100.0 * (x7 - x6 * x6) * (x7 - x6 * x6) + (1.0 - x6) * (1.0 - x6) +
+                   100.0 * (x8 - x7 * x7) * (x8 - x7 * x7) + (1.0 - x7) * (1.0 - x7) +
+                   100.0 * (x9 - x8 * x8) * (x9 - x8 * x8) + (1.0 - x8) * (1.0 - x8) +
+                   100.0 * (x10 - x9 * x9) * (x10 - x9 * x9) + (1.0 - x9) * (1.0 - x9);
+        }
     }
 }
+
