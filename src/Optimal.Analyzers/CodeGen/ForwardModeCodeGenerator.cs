@@ -21,7 +21,9 @@ namespace Optimal.Analyzers.CodeGen
     {
         private readonly Dictionary<IRNode, string> _nodeToVariable = new();
         private readonly Dictionary<IRNode, string> _nodeToTangentVariable = new();
+        private readonly HashSet<string> _declaredVariables = new();
         private int _tempVarCounter;
+        private string _currentIndent = "            "; // 12 spaces = 3 levels
 
         public ForwardModeCodeGenerator(ITypeSymbol doubleType)
         {
@@ -31,7 +33,14 @@ namespace Optimal.Analyzers.CodeGen
         {
             _nodeToVariable.Clear();
             _nodeToTangentVariable.Clear();
+            _declaredVariables.Clear();
             _tempVarCounter = 0;
+
+            // Mark parameters as declared
+            foreach (var param in method.Parameters)
+            {
+                _declaredVariables.Add(param.Name);
+            }
 
             var converter = new ASTToIRConverter(method.SemanticModel);
             var methodBody = converter.ConvertMethod(method.MethodSyntax, method.Parameters);
@@ -104,8 +113,17 @@ namespace Optimal.Analyzers.CodeGen
                 {
                     var (primalVar, tangentVar) = GenerateExpressionCode(assignment.Value, sb, wrtParam, doubleType);
 
-                    sb.AppendLine($"            var {assignment.TargetVariable} = {primalVar};");
-                    sb.AppendLine($"            var {assignment.TargetVariable}_tan = {tangentVar};");
+                    if (!_declaredVariables.Contains(assignment.TargetVariable))
+                    {
+                        sb.AppendLine($"            var {assignment.TargetVariable} = {primalVar};");
+                        sb.AppendLine($"            var {assignment.TargetVariable}_tan = {tangentVar};");
+                        _declaredVariables.Add(assignment.TargetVariable);
+                    }
+                    else
+                    {
+                        sb.AppendLine($"            {assignment.TargetVariable} = {primalVar};");
+                        sb.AppendLine($"            {assignment.TargetVariable}_tan = {tangentVar};");
+                    }
 
                     _nodeToVariable[assignment] = assignment.TargetVariable;
                     _nodeToTangentVariable[assignment] = $"{assignment.TargetVariable}_tan";
@@ -184,8 +202,8 @@ namespace Optimal.Analyzers.CodeGen
                 var tempVarName = $"node{_tempVarCounter++}";
                 var tempTangentVarName = $"{tempVarName}_tan";
 
-                sb.AppendLine($"            var {tempVarName} = {primalCode};");
-                sb.AppendLine($"            var {tempTangentVarName} = {tangentCode};");
+                sb.AppendLine($"{_currentIndent}var {tempVarName} = {primalCode};");
+                sb.AppendLine($"{_currentIndent}var {tempTangentVarName} = {tangentCode};");
 
                 _nodeToVariable[expression] = tempVarName;
                 _nodeToTangentVariable[expression] = tempTangentVarName;
@@ -379,6 +397,15 @@ namespace Optimal.Analyzers.CodeGen
                     return $"({exponentArg} * Math.Pow({baseArg}, {exponentArg} - 1.0) * {dBase}) + ({primalCall} * Math.Log({baseArg}) * {dExponent})";
                 }
             }
+            else if (argumentPrimals.Count == 2 && methodName == "Atan2")
+            {
+                var y = argumentPrimals[0];
+                var x = argumentPrimals[1];
+                var dy = argumentTangents[0];
+                var dx = argumentTangents[1];
+
+                return $"(({x} * {dy}) - ({y} * {dx})) / (({x} * {x}) + ({y} * {y}))";
+            }
 
             throw new NotSupportedException($"Math function not supported: {methodName}");
         }
@@ -410,10 +437,15 @@ namespace Optimal.Analyzers.CodeGen
             sb.AppendLine($"            if ({conditionPrimal})");
             sb.AppendLine("            {");
 
+            var previousIndent = _currentIndent;
+            _currentIndent = "                "; // 16 spaces = 4 levels
+
             foreach (var stmt in conditional.TrueBranch)
             {
                 GenerateStatementInBranch(stmt, sb, wrtParam, doubleType);
             }
+
+            _currentIndent = previousIndent;
 
             sb.AppendLine("            }");
 
@@ -422,10 +454,14 @@ namespace Optimal.Analyzers.CodeGen
                 sb.AppendLine("            else");
                 sb.AppendLine("            {");
 
+                _currentIndent = "                "; // 16 spaces = 4 levels
+
                 foreach (var stmt in conditional.FalseBranch)
                 {
                     GenerateStatementInBranch(stmt, sb, wrtParam, doubleType);
                 }
+
+                _currentIndent = previousIndent;
 
                 sb.AppendLine("            }");
             }
@@ -458,10 +494,15 @@ namespace Optimal.Analyzers.CodeGen
             sb.AppendLine($"            for ({initializerCode}; {conditionCode}; {incrementCode})");
             sb.AppendLine("            {");
 
+            var previousIndent = _currentIndent;
+            _currentIndent = "                "; // 16 spaces = 4 levels
+
             foreach (var stmt in loop.Body)
             {
                 GenerateStatementInBranch(stmt, sb, wrtParam, doubleType);
             }
+
+            _currentIndent = previousIndent;
 
             sb.AppendLine("            }");
         }
@@ -516,8 +557,18 @@ namespace Optimal.Analyzers.CodeGen
             {
                 var (primalVar, tangentVar) = GenerateExpressionCode(assignment.Value, sb, wrtParam, doubleType);
 
-                sb.AppendLine($"                {assignment.TargetVariable} = {primalVar};");
-                sb.AppendLine($"                {assignment.TargetVariable}_tan = {tangentVar};");
+                // Check if this is a new variable declaration
+                if (!_declaredVariables.Contains(assignment.TargetVariable))
+                {
+                    sb.AppendLine($"{_currentIndent}var {assignment.TargetVariable} = {primalVar};");
+                    sb.AppendLine($"{_currentIndent}var {assignment.TargetVariable}_tan = {tangentVar};");
+                    _declaredVariables.Add(assignment.TargetVariable);
+                }
+                else
+                {
+                    sb.AppendLine($"{_currentIndent}{assignment.TargetVariable} = {primalVar};");
+                    sb.AppendLine($"{_currentIndent}{assignment.TargetVariable}_tan = {tangentVar};");
+                }
 
                 _nodeToVariable[assignment] = assignment.TargetVariable;
                 _nodeToTangentVariable[assignment] = $"{assignment.TargetVariable}_tan";
@@ -526,34 +577,43 @@ namespace Optimal.Analyzers.CodeGen
             {
                 var (primalVar, tangentVar) = GenerateExpressionCode(returnNode.Value, sb, wrtParam, doubleType);
 
-                sb.AppendLine($"                result = {primalVar};");
-                sb.AppendLine($"                result_tan = {tangentVar};");
+                sb.AppendLine($"{_currentIndent}result = {primalVar};");
+                sb.AppendLine($"{_currentIndent}result_tan = {tangentVar};");
             }
             else if (stmt is ConditionalNode nested)
             {
                 var (conditionPrimal, _) = GenerateExpressionCode(nested.Condition, sb, wrtParam, doubleType);
 
-                sb.AppendLine($"                if ({conditionPrimal})");
-                sb.AppendLine("                {");
+                sb.AppendLine($"{_currentIndent}if ({conditionPrimal})");
+                sb.AppendLine($"{_currentIndent}{{");
+
+                var previousIndent = _currentIndent;
+                _currentIndent = _currentIndent + "    "; // Add 4 spaces for next level
 
                 foreach (var nestedStmt in nested.TrueBranch)
                 {
-                    GenerateStatementInNestedBranch(nestedStmt, sb, wrtParam, doubleType, "                    ");
+                    GenerateStatementInBranch(nestedStmt, sb, wrtParam, doubleType);
                 }
 
-                sb.AppendLine("                }");
+                _currentIndent = previousIndent;
+
+                sb.AppendLine($"{_currentIndent}}}");
 
                 if (nested.FalseBranch.Length > 0)
                 {
-                    sb.AppendLine("                else");
-                    sb.AppendLine("                {");
+                    sb.AppendLine($"{_currentIndent}else");
+                    sb.AppendLine($"{_currentIndent}{{");
+
+                    _currentIndent = _currentIndent + "    "; // Add 4 spaces for next level
 
                     foreach (var nestedStmt in nested.FalseBranch)
                     {
-                        GenerateStatementInNestedBranch(nestedStmt, sb, wrtParam, doubleType, "                    ");
+                        GenerateStatementInBranch(nestedStmt, sb, wrtParam, doubleType);
                     }
 
-                    sb.AppendLine("                }");
+                    _currentIndent = previousIndent;
+
+                    sb.AppendLine($"{_currentIndent}}}");
                 }
             }
         }

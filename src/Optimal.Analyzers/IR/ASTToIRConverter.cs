@@ -154,9 +154,22 @@ namespace Optimal.Analyzers.IR
                 PostfixUnaryExpressionSyntax postfixUnary => ConvertPostfixUnaryExpression(postfixUnary),
                 InvocationExpressionSyntax invocation => ConvertInvocation(invocation),
                 ConditionalExpressionSyntax conditional => ConvertConditionalExpression(conditional),
+                CastExpressionSyntax cast => ConvertCastExpression(cast),
                 MemberAccessExpressionSyntax memberAccess => ConvertMemberAccess(memberAccess),
                 _ => throw new NotSupportedException($"Expression type not supported: {expression.GetType().Name}")
             };
+        }
+
+        private IRNode ConvertCastExpression(CastExpressionSyntax cast)
+        {
+            // For differentiation purposes, a cast is an identity operation
+            // Casts like (double)x don't affect gradients - d/dx[(double)x] = d/dx[x]
+            var operand = ConvertExpression(cast.Expression);
+            var typeInfo = _semanticModel.GetTypeInfo(cast);
+            var targetType = typeInfo.Type ?? typeInfo.ConvertedType;
+
+            // Wrap in an identity operation to preserve the type information
+            return new UnaryOpNode(NewNodeId(), UnaryOperator.Identity, operand, targetType!);
         }
 
         private IRNode ConvertLiteral(LiteralExpressionSyntax literal)
@@ -189,6 +202,11 @@ namespace Optimal.Analyzers.IR
                 var varNode2 = new VariableNode(NewNodeId(), name, paramSymbol.Type);
                 _variables[name] = varNode2;
                 return varNode2;
+            }
+            else if (symbol is IFieldSymbol fieldSymbol && fieldSymbol.IsConst)
+            {
+                var value = fieldSymbol.ConstantValue;
+                return new ConstantNode(NewNodeId(), value!, fieldSymbol.Type);
             }
 
             throw new InvalidOperationException($"Unknown identifier: {name}");

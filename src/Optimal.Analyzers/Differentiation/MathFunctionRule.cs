@@ -49,6 +49,7 @@ namespace Optimal.Analyzers.Differentiation
                 "Log" => DifferentiateLog(methodCall, context),
                 "Pow" => DifferentiatePow(methodCall, context),
                 "Abs" => DifferentiateAbs(methodCall, context),
+                "Atan2" => DifferentiateAtan2(methodCall, context),
                 _ => throw new NotSupportedException($"Math function not supported for differentiation: {methodCall.MethodName}")
             };
         }
@@ -379,6 +380,74 @@ namespace Optimal.Analyzers.Differentiation
                 BinaryOperator.Multiply,
                 sign,
                 dArg,
+                _doubleType);
+        }
+
+        private IRNode DifferentiateAtan2(MethodCallNode methodCall, ForwardModeContext context)
+        {
+            if (methodCall.Arguments.Length != 2)
+            {
+                throw new InvalidOperationException("Atan2 requires exactly 2 arguments");
+            }
+
+            var y = methodCall.Arguments[0];
+            var x = methodCall.Arguments[1];
+
+            var dy = _differentiator.Differentiate(y, context);
+            var dx = _differentiator.Differentiate(x, context);
+
+            // Calculate x² + y²
+            var xSquared = new BinaryOpNode(
+                context.NewNodeId(),
+                BinaryOperator.Multiply,
+                x,
+                x,
+                _doubleType);
+
+            var ySquared = new BinaryOpNode(
+                context.NewNodeId(),
+                BinaryOperator.Multiply,
+                y,
+                y,
+                _doubleType);
+
+            var denominator = new BinaryOpNode(
+                context.NewNodeId(),
+                BinaryOperator.Add,
+                xSquared,
+                ySquared,
+                _doubleType);
+
+            // x * dy
+            var xTimesDy = new BinaryOpNode(
+                context.NewNodeId(),
+                BinaryOperator.Multiply,
+                x,
+                dy,
+                _doubleType);
+
+            // y * dx
+            var yTimesDx = new BinaryOpNode(
+                context.NewNodeId(),
+                BinaryOperator.Multiply,
+                y,
+                dx,
+                _doubleType);
+
+            // x*dy - y*dx
+            var numerator = new BinaryOpNode(
+                context.NewNodeId(),
+                BinaryOperator.Subtract,
+                xTimesDy,
+                yTimesDx,
+                _doubleType);
+
+            // (x*dy - y*dx) / (x² + y²)
+            return new BinaryOpNode(
+                context.NewNodeId(),
+                BinaryOperator.Divide,
+                numerator,
+                denominator,
                 _doubleType);
         }
     }

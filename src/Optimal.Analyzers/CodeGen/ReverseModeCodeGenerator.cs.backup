@@ -20,7 +20,6 @@ namespace Optimal.Analyzers.CodeGen
     public sealed class ReverseModeCodeGenerator
     {
         private readonly Dictionary<IRNode, int> _nodeToIndex = new();
-        private readonly HashSet<IRNode> _generatedNodes = new();
         private readonly Dictionary<string, int> _parameterNameToIndex = new();
         private readonly HashSet<string> _differentiableParamNames = new();
         private readonly List<object> _operations = new();
@@ -35,7 +34,6 @@ namespace Optimal.Analyzers.CodeGen
         public string GenerateMethod(MethodToTransform method, ITypeSymbol doubleType)
         {
             _nodeToIndex.Clear();
-            _generatedNodes.Clear();
             _parameterNameToIndex.Clear();
             _differentiableParamNames.Clear();
             _operations.Clear();
@@ -75,7 +73,7 @@ namespace Optimal.Analyzers.CodeGen
                 sb.AppendLine();
                 GenerateBackwardPass(sb, differentiableParams, forwardCode.resultIndex);
 
-                sb.AppendLine($"            return (nodes[{forwardCode.resultIndex}], new double[] {{ {string.Join(", ", differentiableParams.Select(p => $"adj[{_parameterNameToIndex[p.Name]}]"))} }});");
+                sb.AppendLine($"            return (node{forwardCode.resultIndex}, new double[] {{ {string.Join(", ", differentiableParams.Select(p => $"adj[{_parameterNameToIndex[p.Name]}]"))} }});");
             }
 
             sb.AppendLine("        }");
@@ -88,13 +86,6 @@ namespace Optimal.Analyzers.CodeGen
             int resultIndex = -1;
             string resultVar = "";
 
-            // Assign parameter indices first
-            foreach (var param in differentiableParams)
-            {
-                var paramIdx = _nodeCounter++;
-                _parameterNameToIndex[param.Name] = paramIdx;
-            }
-
             // Pre-scan to count total nodes needed
             CountNodes(methodBody);
 
@@ -102,11 +93,14 @@ namespace Optimal.Analyzers.CodeGen
             sb.AppendLine($"            var nodes = new double[{_nodeCounter}];");
             sb.AppendLine();
 
-            // Initialize parameter nodes
+            // Reset counter to assign indices
+            _nodeCounter = 0;
+
             foreach (var param in differentiableParams)
             {
-                var paramIdx = _parameterNameToIndex[param.Name];
+                var paramIdx = _nodeCounter++;
                 sb.AppendLine($"{_currentIndent}nodes[{paramIdx}] = {param.Name};");
+                _parameterNameToIndex[param.Name] = paramIdx;
             }
 
             foreach (var stmt in methodBody.Statements)
@@ -114,7 +108,7 @@ namespace Optimal.Analyzers.CodeGen
                 if (stmt is ReturnNode returnNode)
                 {
                     resultIndex = GenerateNodeCode(returnNode.Value, sb);
-                    resultVar = $"nodes[resultIndex]";
+                    resultVar = $"node{resultIndex}";
                 }
                 else if (stmt is AssignmentNode assignment)
                 {
@@ -122,12 +116,12 @@ namespace Optimal.Analyzers.CodeGen
 
                     if (!_declaredVariables.Contains(assignment.TargetVariable))
                     {
-                        sb.AppendLine($"            var {assignment.TargetVariable} = nodes[{valueIdx}];");
+                        sb.AppendLine($"            var {assignment.TargetVariable} = node{valueIdx};");
                         _declaredVariables.Add(assignment.TargetVariable);
                     }
                     else
                     {
-                        sb.AppendLine($"            {assignment.TargetVariable} = nodes[{valueIdx}];");
+                        sb.AppendLine($"            {assignment.TargetVariable} = node{valueIdx};");
                     }
                 }
                 else if (stmt is ConditionalNode conditional)
@@ -145,17 +139,18 @@ namespace Optimal.Analyzers.CodeGen
 
         private int GenerateNodeCode(IRNode node, StringBuilder sb)
         {
-            // Check if already generated
-            if (_generatedNodes.Contains(node))
+            if (_nodeToIndex.TryGetValue(node, out var existingIdx))
             {
-                return _nodeToIndex[node];
+                return existingIdx;
             }
 
-            // Get the node index (assigned during counting)
-            if (!_nodeToIndex.TryGetValue(node, out var nodeIdx))
+            if (node is VariableNode varNode && _parameterNameToIndex.TryGetValue(varNode.Name, out var paramIdx))
             {
-                throw new InvalidOperationException($"Node not found in index map. This should not happen.");
+                _nodeToIndex[node] = paramIdx;
+                return paramIdx;
             }
+
+            var nodeIdx = _nodeCounter++;
 
             var code = node switch
             {
@@ -170,7 +165,7 @@ namespace Optimal.Analyzers.CodeGen
 
             // Assign to nodes array (accessible from anywhere in method)
             sb.AppendLine($"{_currentIndent}nodes[{nodeIdx}] = {code};");
-            _generatedNodes.Add(node);
+            _nodeToIndex[node] = nodeIdx;
 
             return nodeIdx;
         }
@@ -226,27 +221,12 @@ namespace Optimal.Analyzers.CodeGen
                 _ => throw new NotSupportedException()
             };
 
-            var expr = $"nodes[{leftIdx}] {opSymbol} nodes[{rightIdx}]";
-
-            // Convert boolean comparisons to double (0.0 or 1.0)
-            if (IsComparisonOp(binary.Op))
-            {
-                return $"({expr}) ? 1.0 : 0.0";
-            }
-
-            return expr;
+            return $"nodes[{leftIdx}] {opSymbol} nodes[{rightIdx}]";
         }
 
         private bool IsArithmeticOp(BinaryOperator op)
         {
             return op is BinaryOperator.Add or BinaryOperator.Subtract or BinaryOperator.Multiply or BinaryOperator.Divide;
-        }
-
-        private bool IsComparisonOp(BinaryOperator op)
-        {
-            return op is BinaryOperator.GreaterThan or BinaryOperator.LessThan or
-                   BinaryOperator.GreaterThanOrEqual or BinaryOperator.LessThanOrEqual or
-                   BinaryOperator.Equal or BinaryOperator.NotEqual;
         }
 
         private string GenerateUnaryOp(UnaryOpNode unary, StringBuilder sb, int outputIdx)
@@ -323,7 +303,7 @@ namespace Optimal.Analyzers.CodeGen
             var hasReturnInTrue = HasReturnStatement(conditional.TrueBranch);
             var hasReturnInFalse = HasReturnStatement(conditional.FalseBranch);
 
-            sb.AppendLine($"{indent}if (nodes[{conditionIdx}] != 0)");
+            sb.AppendLine($"{indent}if (node{conditionIdx})");
             sb.AppendLine($"{indent}{{");
 
             if (hasReturnInTrue)
@@ -335,7 +315,7 @@ namespace Optimal.Analyzers.CodeGen
                     {
                         var resultIdx = GenerateNodeCode(returnNode.Value, sb);
                         GenerateInlineBranchBackwardPass(sb, branchOpsStart, resultIdx, indent + "    ");
-                        sb.AppendLine($"{indent}    return (nodes[{resultIdx}], new double[] {{ {string.Join(", ", _parameterNameToIndex.Keys.OrderBy(k => _parameterNameToIndex[k]).Select(k => $"adj[{_parameterNameToIndex[k]}]"))} }});");
+                        sb.AppendLine($"{indent}    return (node{resultIdx}, new double[] {{ {string.Join(", ", _parameterNameToIndex.Keys.OrderBy(k => _parameterNameToIndex[k]).Select(k => $"adj[{_parameterNameToIndex[k]}]"))} }});");
                     }
                     else if (stmt is AssignmentNode assignment)
                     {
@@ -343,12 +323,12 @@ namespace Optimal.Analyzers.CodeGen
 
                         if (!_declaredVariables.Contains(assignment.TargetVariable))
                         {
-                            sb.AppendLine($"{indent}    var {assignment.TargetVariable} = nodes[{valueIdx}];");
+                            sb.AppendLine($"{indent}    var {assignment.TargetVariable} = node{valueIdx};");
                             _declaredVariables.Add(assignment.TargetVariable);
                         }
                         else
                         {
-                            sb.AppendLine($"{indent}    {assignment.TargetVariable} = nodes[{valueIdx}];");
+                            sb.AppendLine($"{indent}    {assignment.TargetVariable} = node{valueIdx};");
                         }
                     }
                     else if (stmt is ConditionalNode nested)
@@ -367,12 +347,12 @@ namespace Optimal.Analyzers.CodeGen
 
                         if (!_declaredVariables.Contains(assignment.TargetVariable))
                         {
-                            sb.AppendLine($"{indent}    var {assignment.TargetVariable} = nodes[{valueIdx}];");
+                            sb.AppendLine($"{indent}    var {assignment.TargetVariable} = node{valueIdx};");
                             _declaredVariables.Add(assignment.TargetVariable);
                         }
                         else
                         {
-                            sb.AppendLine($"{indent}    {assignment.TargetVariable} = nodes[{valueIdx}];");
+                            sb.AppendLine($"{indent}    {assignment.TargetVariable} = node{valueIdx};");
                         }
                     }
                     else if (stmt is ConditionalNode nested)
@@ -398,7 +378,7 @@ namespace Optimal.Analyzers.CodeGen
                         {
                             var resultIdx = GenerateNodeCode(returnNode.Value, sb);
                             GenerateInlineBranchBackwardPass(sb, branchOpsStart, resultIdx, indent + "    ");
-                            sb.AppendLine($"{indent}    return (nodes[{resultIdx}], new double[] {{ {string.Join(", ", _parameterNameToIndex.Keys.OrderBy(k => _parameterNameToIndex[k]).Select(k => $"adj[{_parameterNameToIndex[k]}]"))} }});");
+                            sb.AppendLine($"{indent}    return (node{resultIdx}, new double[] {{ {string.Join(", ", _parameterNameToIndex.Keys.OrderBy(k => _parameterNameToIndex[k]).Select(k => $"adj[{_parameterNameToIndex[k]}]"))} }});");
                         }
                         else if (stmt is AssignmentNode assignment)
                         {
@@ -406,12 +386,12 @@ namespace Optimal.Analyzers.CodeGen
 
                             if (!_declaredVariables.Contains(assignment.TargetVariable))
                             {
-                                sb.AppendLine($"{indent}    var {assignment.TargetVariable} = nodes[{valueIdx}];");
+                                sb.AppendLine($"{indent}    var {assignment.TargetVariable} = node{valueIdx};");
                                 _declaredVariables.Add(assignment.TargetVariable);
                             }
                             else
                             {
-                                sb.AppendLine($"{indent}    {assignment.TargetVariable} = nodes[{valueIdx}];");
+                                sb.AppendLine($"{indent}    {assignment.TargetVariable} = node{valueIdx};");
                             }
                         }
                         else if (stmt is ConditionalNode nested)
@@ -430,12 +410,12 @@ namespace Optimal.Analyzers.CodeGen
 
                             if (!_declaredVariables.Contains(assignment.TargetVariable))
                             {
-                                sb.AppendLine($"{indent}    var {assignment.TargetVariable} = nodes[{valueIdx}];");
+                                sb.AppendLine($"{indent}    var {assignment.TargetVariable} = node{valueIdx};");
                                 _declaredVariables.Add(assignment.TargetVariable);
                             }
                             else
                             {
-                                sb.AppendLine($"{indent}    {assignment.TargetVariable} = nodes[{valueIdx}];");
+                                sb.AppendLine($"{indent}    {assignment.TargetVariable} = node{valueIdx};");
                             }
                         }
                         else if (stmt is ConditionalNode nested)
@@ -513,12 +493,12 @@ namespace Optimal.Analyzers.CodeGen
 
                     if (!_declaredVariables.Contains(assignment.TargetVariable))
                     {
-                        sb.AppendLine($"{_currentIndent}var {assignment.TargetVariable} = nodes[{valueIdx}];");
+                        sb.AppendLine($"{_currentIndent}var {assignment.TargetVariable} = node{valueIdx};");
                         _declaredVariables.Add(assignment.TargetVariable);
                     }
                     else
                     {
-                        sb.AppendLine($"{_currentIndent}{assignment.TargetVariable} = nodes[{valueIdx}];");
+                        sb.AppendLine($"{_currentIndent}{assignment.TargetVariable} = node{valueIdx};");
                     }
                 }
                 else if (stmt is ConditionalNode conditional)
@@ -611,13 +591,13 @@ namespace Optimal.Analyzers.CodeGen
                     break;
 
                 case BinaryOperator.Multiply:
-                    sb.AppendLine($"            adj[{leftIdx}] += adj[{outputIdx}] * nodes[{rightIdx}];");
-                    sb.AppendLine($"            adj[{rightIdx}] += adj[{outputIdx}] * nodes[{leftIdx}];");
+                    sb.AppendLine($"            adj[{leftIdx}] += adj[{outputIdx}] * node{rightIdx};");
+                    sb.AppendLine($"            adj[{rightIdx}] += adj[{outputIdx}] * node{leftIdx};");
                     break;
 
                 case BinaryOperator.Divide:
-                    sb.AppendLine($"            adj[{leftIdx}] += adj[{outputIdx}] / nodes[{rightIdx}];");
-                    sb.AppendLine($"            adj[{rightIdx}] -= adj[{outputIdx}] * nodes[{leftIdx}] / (nodes[{rightIdx}] * nodes[{rightIdx}]);");
+                    sb.AppendLine($"            adj[{leftIdx}] += adj[{outputIdx}] / node{rightIdx};");
+                    sb.AppendLine($"            adj[{rightIdx}] -= adj[{outputIdx}] * node{leftIdx} / (node{rightIdx} * node{rightIdx});");
                     break;
             }
         }
@@ -646,31 +626,31 @@ namespace Optimal.Analyzers.CodeGen
                 switch (methodName)
                 {
                     case "Sqrt":
-                        sb.AppendLine($"            adj[{argIdx}] += adj[{outputIdx}] / (2.0 * nodes[{outputIdx}]);");
+                        sb.AppendLine($"            adj[{argIdx}] += adj[{outputIdx}] / (2.0 * node{outputIdx});");
                         break;
 
                     case "Sin":
-                        sb.AppendLine($"            adj[{argIdx}] += adj[{outputIdx}] * Math.Cos(nodes[{argIdx}]);");
+                        sb.AppendLine($"            adj[{argIdx}] += adj[{outputIdx}] * Math.Cos(node{argIdx});");
                         break;
 
                     case "Cos":
-                        sb.AppendLine($"            adj[{argIdx}] -= adj[{outputIdx}] * Math.Sin(nodes[{argIdx}]);");
+                        sb.AppendLine($"            adj[{argIdx}] -= adj[{outputIdx}] * Math.Sin(node{argIdx});");
                         break;
 
                     case "Tan":
-                        sb.AppendLine($"            adj[{argIdx}] += adj[{outputIdx}] / (Math.Cos(nodes[{argIdx}]) * Math.Cos(nodes[{argIdx}]));");
+                        sb.AppendLine($"            adj[{argIdx}] += adj[{outputIdx}] / (Math.Cos(node{argIdx}) * Math.Cos(node{argIdx}));");
                         break;
 
                     case "Exp":
-                        sb.AppendLine($"            adj[{argIdx}] += adj[{outputIdx}] * nodes[{outputIdx}];");
+                        sb.AppendLine($"            adj[{argIdx}] += adj[{outputIdx}] * node{outputIdx};");
                         break;
 
                     case "Log":
-                        sb.AppendLine($"            adj[{argIdx}] += adj[{outputIdx}] / nodes[{argIdx}];");
+                        sb.AppendLine($"            adj[{argIdx}] += adj[{outputIdx}] / node{argIdx};");
                         break;
 
                     case "Abs":
-                        sb.AppendLine($"            adj[{argIdx}] += adj[{outputIdx}] * (nodes[{argIdx}] / nodes[{outputIdx}]);");
+                        sb.AppendLine($"            adj[{argIdx}] += adj[{outputIdx}] * (node{argIdx} / node{outputIdx});");
                         break;
 
                     default:
@@ -682,17 +662,17 @@ namespace Optimal.Analyzers.CodeGen
                 var baseIdx = argIndices[0];
                 var expIdx = argIndices[1];
 
-                sb.AppendLine($"            adj[{baseIdx}] += adj[{outputIdx}] * nodes[{expIdx}] * Math.Pow(nodes[{baseIdx}], nodes[{expIdx}] - 1.0);");
-                sb.AppendLine($"            adj[{expIdx}] += adj[{outputIdx}] * nodes[{outputIdx}] * Math.Log(nodes[{baseIdx}]);");
+                sb.AppendLine($"            adj[{baseIdx}] += adj[{outputIdx}] * node{expIdx} * Math.Pow(node{baseIdx}, node{expIdx} - 1.0);");
+                sb.AppendLine($"            adj[{expIdx}] += adj[{outputIdx}] * node{outputIdx} * Math.Log(node{baseIdx});");
             }
             else if (argIndices.Count == 2 && methodName == "Atan2")
             {
                 var yIdx = argIndices[0];
                 var xIdx = argIndices[1];
 
-                sb.AppendLine($"            var denom{outputIdx} = nodes[{xIdx}] * nodes[{xIdx}] + nodes[{yIdx}] * nodes[{yIdx}];");
-                sb.AppendLine($"            adj[{yIdx}] += adj[{outputIdx}] * nodes[{xIdx}] / denom{outputIdx};");
-                sb.AppendLine($"            adj[{xIdx}] += adj[{outputIdx}] * (-nodes[{yIdx}]) / denom{outputIdx};");
+                sb.AppendLine($"            var denom{outputIdx} = node{xIdx} * node{xIdx} + node{yIdx} * node{yIdx};");
+                sb.AppendLine($"            adj[{yIdx}] += adj[{outputIdx}] * node{xIdx} / denom{outputIdx};");
+                sb.AppendLine($"            adj[{xIdx}] += adj[{outputIdx}] * (-node{yIdx}) / denom{outputIdx};");
             }
             else
             {
@@ -702,7 +682,7 @@ namespace Optimal.Analyzers.CodeGen
 
         private void GenerateConditionalExpressionBackprop(StringBuilder sb, int outputIdx, int conditionIdx, int trueIdx, int falseIdx)
         {
-            sb.AppendLine($"            if (nodes[{conditionIdx}] != 0)");
+            sb.AppendLine($"            if (node{conditionIdx})");
             sb.AppendLine("            {");
             sb.AppendLine($"                adj[{trueIdx}] += adj[{outputIdx}];");
             sb.AppendLine("            }");
@@ -727,13 +707,13 @@ namespace Optimal.Analyzers.CodeGen
                     break;
 
                 case BinaryOperator.Multiply:
-                    sb.AppendLine($"{indent}adj[{leftIdx}] += adj[{outputIdx}] * nodes[{rightIdx}];");
-                    sb.AppendLine($"{indent}adj[{rightIdx}] += adj[{outputIdx}] * nodes[{leftIdx}];");
+                    sb.AppendLine($"{indent}adj[{leftIdx}] += adj[{outputIdx}] * node{rightIdx};");
+                    sb.AppendLine($"{indent}adj[{rightIdx}] += adj[{outputIdx}] * node{leftIdx};");
                     break;
 
                 case BinaryOperator.Divide:
-                    sb.AppendLine($"{indent}adj[{leftIdx}] += adj[{outputIdx}] / nodes[{rightIdx}];");
-                    sb.AppendLine($"{indent}adj[{rightIdx}] -= adj[{outputIdx}] * nodes[{leftIdx}] / (nodes[{rightIdx}] * nodes[{rightIdx}]);");
+                    sb.AppendLine($"{indent}adj[{leftIdx}] += adj[{outputIdx}] / node{rightIdx};");
+                    sb.AppendLine($"{indent}adj[{rightIdx}] -= adj[{outputIdx}] * node{leftIdx} / (node{rightIdx} * node{rightIdx});");
                     break;
             }
         }
@@ -762,31 +742,31 @@ namespace Optimal.Analyzers.CodeGen
                 switch (methodName)
                 {
                     case "Sqrt":
-                        sb.AppendLine($"{indent}adj[{argIdx}] += adj[{outputIdx}] / (2.0 * nodes[{outputIdx}]);");
+                        sb.AppendLine($"{indent}adj[{argIdx}] += adj[{outputIdx}] / (2.0 * node{outputIdx});");
                         break;
 
                     case "Sin":
-                        sb.AppendLine($"{indent}adj[{argIdx}] += adj[{outputIdx}] * Math.Cos(nodes[{argIdx}]);");
+                        sb.AppendLine($"{indent}adj[{argIdx}] += adj[{outputIdx}] * Math.Cos(node{argIdx});");
                         break;
 
                     case "Cos":
-                        sb.AppendLine($"{indent}adj[{argIdx}] -= adj[{outputIdx}] * Math.Sin(nodes[{argIdx}]);");
+                        sb.AppendLine($"{indent}adj[{argIdx}] -= adj[{outputIdx}] * Math.Sin(node{argIdx});");
                         break;
 
                     case "Tan":
-                        sb.AppendLine($"{indent}adj[{argIdx}] += adj[{outputIdx}] / (Math.Cos(nodes[{argIdx}]) * Math.Cos(nodes[{argIdx}]));");
+                        sb.AppendLine($"{indent}adj[{argIdx}] += adj[{outputIdx}] / (Math.Cos(node{argIdx}) * Math.Cos(node{argIdx}));");
                         break;
 
                     case "Exp":
-                        sb.AppendLine($"{indent}adj[{argIdx}] += adj[{outputIdx}] * nodes[{outputIdx}];");
+                        sb.AppendLine($"{indent}adj[{argIdx}] += adj[{outputIdx}] * node{outputIdx};");
                         break;
 
                     case "Log":
-                        sb.AppendLine($"{indent}adj[{argIdx}] += adj[{outputIdx}] / nodes[{argIdx}];");
+                        sb.AppendLine($"{indent}adj[{argIdx}] += adj[{outputIdx}] / node{argIdx};");
                         break;
 
                     case "Abs":
-                        sb.AppendLine($"{indent}adj[{argIdx}] += adj[{outputIdx}] * (nodes[{argIdx}] / nodes[{outputIdx}]);");
+                        sb.AppendLine($"{indent}adj[{argIdx}] += adj[{outputIdx}] * (node{argIdx} / node{outputIdx});");
                         break;
 
                     default:
@@ -798,17 +778,17 @@ namespace Optimal.Analyzers.CodeGen
                 var baseIdx = argIndices[0];
                 var expIdx = argIndices[1];
 
-                sb.AppendLine($"{indent}adj[{baseIdx}] += adj[{outputIdx}] * nodes[{expIdx}] * Math.Pow(nodes[{baseIdx}], nodes[{expIdx}] - 1.0);");
-                sb.AppendLine($"{indent}adj[{expIdx}] += adj[{outputIdx}] * nodes[{outputIdx}] * Math.Log(nodes[{baseIdx}]);");
+                sb.AppendLine($"{indent}adj[{baseIdx}] += adj[{outputIdx}] * node{expIdx} * Math.Pow(node{baseIdx}, node{expIdx} - 1.0);");
+                sb.AppendLine($"{indent}adj[{expIdx}] += adj[{outputIdx}] * node{outputIdx} * Math.Log(node{baseIdx});");
             }
             else if (argIndices.Count == 2 && methodName == "Atan2")
             {
                 var yIdx = argIndices[0];
                 var xIdx = argIndices[1];
 
-                sb.AppendLine($"{indent}var denom{outputIdx} = nodes[{xIdx}] * nodes[{xIdx}] + nodes[{yIdx}] * nodes[{yIdx}];");
-                sb.AppendLine($"{indent}adj[{yIdx}] += adj[{outputIdx}] * nodes[{xIdx}] / denom{outputIdx};");
-                sb.AppendLine($"{indent}adj[{xIdx}] += adj[{outputIdx}] * (-nodes[{yIdx}]) / denom{outputIdx};");
+                sb.AppendLine($"{indent}var denom{outputIdx} = node{xIdx} * node{xIdx} + node{yIdx} * node{yIdx};");
+                sb.AppendLine($"{indent}adj[{yIdx}] += adj[{outputIdx}] * node{xIdx} / denom{outputIdx};");
+                sb.AppendLine($"{indent}adj[{xIdx}] += adj[{outputIdx}] * (-node{yIdx}) / denom{outputIdx};");
             }
             else
             {
@@ -868,18 +848,8 @@ namespace Optimal.Analyzers.CodeGen
             switch (node)
             {
                 case ConstantNode:
+                case VariableNode:
                     _nodeToIndex[node] = _nodeCounter++;
-                    break;
-                case VariableNode varNode:
-                    // Check if it's a parameter
-                    if (_parameterNameToIndex.TryGetValue(varNode.Name, out var paramIdx))
-                    {
-                        _nodeToIndex[node] = paramIdx;
-                    }
-                    else
-                    {
-                        _nodeToIndex[node] = _nodeCounter++;
-                    }
                     break;
                 case BinaryOpNode binary:
                     CountNodesInExpression(binary.Left);
@@ -897,8 +867,8 @@ namespace Optimal.Analyzers.CodeGen
                     break;
                 case ConditionalExpressionNode conditional:
                     CountNodesInExpression(conditional.Condition);
-                    CountNodesInExpression(conditional.TrueExpression);
-                    CountNodesInExpression(conditional.FalseExpression);
+                    CountNodesInExpression(conditional.TrueValue);
+                    CountNodesInExpression(conditional.FalseValue);
                     _nodeToIndex[node] = _nodeCounter++;
                     break;
             }
