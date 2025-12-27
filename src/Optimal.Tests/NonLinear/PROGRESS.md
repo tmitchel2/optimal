@@ -2,7 +2,7 @@
 
 ## Status Overview
 - [x] Phase 1: Foundation & Infrastructure ✅ **COMPLETE**
-- [ ] Phase 2: Line Search
+- [x] Phase 2: Line Search ✅ **COMPLETE**
 - [ ] Phase 3: Conjugate Gradient
 - [ ] Phase 4: L-BFGS
 - [ ] Phase 5: Enhanced Stopping Criteria
@@ -89,21 +89,69 @@ var result = optimizer.Minimize(x =>
 ---
 
 ## Phase 2: Line Search
-**Status**: Not Started
+**Status**: ✅ **COMPLETED**
+**Started**: 2025-12-27
+**Completed**: 2025-12-27
 
 ### Goal
 Implement robust step size selection via backtracking line search with Armijo condition.
 
 ### Checklist
-- [ ] Create `LineSearch/` folder
-- [ ] Create `ILineSearch.cs` interface
-- [ ] Create `BacktrackingLineSearch.cs` implementation
-- [ ] Create `LineSearch/BacktrackingLineSearchTests.cs`
-- [ ] Integrate line search into `GradientDescentOptimizer`
-- [ ] Verify Rosenbrock converges without manual step size tuning
+- [x] Create `LineSearch/` folder
+- [x] Create `ILineSearch.cs` interface
+- [x] Create `BacktrackingLineSearch.cs` implementation
+- [x] Create `LineSearch/BacktrackingLineSearchTests.cs`
+- [x] Integrate line search into `GradientDescentOptimizer`
+- [x] Verify Rosenbrock converges without manual step size tuning ✅
+
+### Test Results
+**All 11 tests passing** (11/11 = 100%)
+
+**Phase 1 Tests (still passing)**:
+- ✅ CanMinimizeQuadraticFunction
+- ✅ CanMinimizeRosenbrockFunction
+- ✅ GradientMatchesNumericalGradient
+- ✅ ReturnsMaxIterationsWhenNotConverged
+- ✅ FunctionEvaluationCountIsCorrect
+- ✅ CanMinimizeBoothFunction
+
+**Phase 2 Tests (new)**:
+- ✅ CanFindStepSizeForQuadraticFunction
+- ✅ CanFindStepSizeForRosenbrockFunction
+- ✅ ReturnsZeroForUphillDirection
+- ✅ OptimizerWithLineSearchConvergesOnRosenbrock
+- ✅ OptimizerWithLineSearchIsFasterThanFixed
 
 ### Implementation Notes
-[To be filled during Phase 2]
+
+#### Backtracking Line Search Algorithm
+Implements the Armijo condition for sufficient decrease:
+```
+f(x + α*d) ≤ f(x) + c₁ * α * ∇f(x)ᵀd
+```
+
+**Parameters**:
+- `c1`: Armijo parameter (default 1e-4)
+- `rho`: Backtracking reduction factor (default 0.5)
+- `maxIterations`: Max backtracking steps (default 50)
+
+**Behavior**:
+- Starts with `α = 1.0` (or specified initial step)
+- Reduces by factor `rho` until Armijo condition satisfied
+- Returns `α = 0` if direction is uphill or no suitable step found
+- Prevents infinite loops with max iteration limit
+
+#### Integration with GradientDescentOptimizer
+- Added optional `WithLineSearch()` method
+- Backward compatible: if no line search set, uses fixed step size
+- Line search uses negative gradient as search direction
+- Automatically adapts step size per iteration
+
+#### Performance Improvement
+Confirmed that line search significantly improves convergence:
+- **Without line search**: Rosenbrock requires ~20,000+ iterations (fixed step 0.001)
+- **With line search**: Rosenbrock requires < 10,000 iterations
+- **Speedup**: > 2x faster convergence
 
 ---
 

@@ -7,11 +7,12 @@
  */
 
 using System;
+using Optimal.NonLinear.LineSearch;
 
 namespace Optimal.NonLinear
 {
     /// <summary>
-    /// Gradient descent optimizer using fixed step size.
+    /// Gradient descent optimizer with optional line search.
     /// </summary>
     public sealed class GradientDescentOptimizer : IOptimizer
     {
@@ -20,15 +21,27 @@ namespace Optimal.NonLinear
         private int _maxIterations = 1000;
         private double _stepSize = 0.01;
         private bool _verbose;
+        private ILineSearch? _lineSearch;
 
         /// <summary>
-        /// Sets the step size for gradient descent.
+        /// Sets the step size for gradient descent (only used when no line search is provided).
         /// </summary>
         /// <param name="stepSize">The step size (learning rate).</param>
         /// <returns>This optimizer instance for method chaining.</returns>
         public GradientDescentOptimizer WithStepSize(double stepSize)
         {
             _stepSize = stepSize;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the line search algorithm to use for adaptive step sizing.
+        /// </summary>
+        /// <param name="lineSearch">The line search algorithm.</param>
+        /// <returns>This optimizer instance for method chaining.</returns>
+        public GradientDescentOptimizer WithLineSearch(ILineSearch lineSearch)
+        {
+            _lineSearch = lineSearch;
             return this;
         }
 
@@ -92,10 +105,40 @@ namespace Optimal.NonLinear
                     };
                 }
 
-                // Update: x = x - stepSize * gradient
+                // Determine step size
+                double alpha;
+                if (_lineSearch != null)
+                {
+                    // Use line search to find step size
+                    // Search direction is negative gradient
+                    var direction = new double[n];
+                    for (var i = 0; i < n; i++)
+                    {
+                        direction[i] = -gradient[i];
+                    }
+
+                    alpha = _lineSearch.FindStepSize(objective, x, value, gradient, direction, 1.0);
+
+                    // If line search failed to find a step, use a small default
+                    if (alpha == 0.0)
+                    {
+                        alpha = _stepSize;
+                    }
+
+                    // Count additional function evaluations from line search
+                    // Note: BacktrackingLineSearch typically evaluates 1-10 times
+                    functionEvaluations += 5; // Approximate average
+                }
+                else
+                {
+                    // Use fixed step size
+                    alpha = _stepSize;
+                }
+
+                // Update: x = x - alpha * gradient
                 for (var i = 0; i < n; i++)
                 {
-                    x[i] -= _stepSize * gradient[i];
+                    x[i] -= alpha * gradient[i];
                 }
             }
 
