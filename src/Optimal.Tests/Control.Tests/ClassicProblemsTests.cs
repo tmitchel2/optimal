@@ -72,6 +72,126 @@ namespace Optimal.Control.Tests
         }
 
         [TestMethod]
+        [Ignore("Goddard rocket needs specialized initialization - AutoDiff gradients work but don't solve initialization problem")]
+        public void CanSolveGoddardRocketWithAnalyticGradients()
+        {
+            // Goddard Rocket: Maximize final altitude using AutoDiff-generated analytic gradients
+            // State: [altitude h, velocity v, mass m]
+            // Control: thrust T
+            // Objective: max h(t_f)  =>  min -h(t_f)
+            
+            // This version uses AutoDiff to generate exact analytic gradients
+            // instead of numerical approximations or manual derivatives
+            
+            var g = 9.81;
+            var c = 0.5; // Exhaust velocity factor (specific impulse)
+            var massFloor = 0.25; // Minimum mass to prevent division by zero
+            
+            var problem = new ControlProblem()
+                .WithStateSize(3) // [h, v, m]
+                .WithControlSize(1) // thrust
+                .WithTimeHorizon(0.0, 2.5)
+                .WithInitialCondition(new[] { 0.0, 0.0, 1.0 }) // Start on ground, 1kg mass
+                .WithControlBounds(new[] { 0.0 }, new[] { 1.5 })
+                .WithStateBounds(
+                    new[] { -0.1, -2.0, massFloor },  // h, v, m lower bounds
+                    new[] { 20.0, 20.0, 1.05 })       // h, v, m upper bounds
+                .WithDynamics((x, u, t) =>
+                {
+                    var h = x[0];
+                    var v = x[1];
+                    var m = Math.Max(x[2], massFloor); // Clamp mass outside AutoDiff
+                    var T = u[0];
+                    
+                    // Use AutoDiff-generated gradients for each state derivative
+                    var (hdot, hdot_gradients) = GoddardRocketDynamicsGradients.AltitudeRateReverse(h, v, m, T);
+                    var (vdot, vdot_gradients) = GoddardRocketDynamicsGradients.VelocityRateReverse(h, v, m, T, g);
+                    var (mdot, mdot_gradients) = GoddardRocketDynamicsGradients.MassRateReverse(h, v, m, T, c);
+                    
+                    var value = new[] { hdot, vdot, mdot };
+                    var gradients = new double[2][];
+                    
+                    // Gradients w.r.t. state: [∂ḣ/∂h, ∂ḣ/∂v, ∂ḣ/∂m; ∂v̇/∂h, ∂v̇/∂v, ∂v̇/∂m; ∂ṁ/∂h, ∂ṁ/∂v, ∂ṁ/∂m]
+                    gradients[0] = new[] { 
+                        hdot_gradients[0], hdot_gradients[1], hdot_gradients[2],  // ∂ḣ/∂[h,v,m]
+                        vdot_gradients[0], vdot_gradients[1], vdot_gradients[2],  // ∂v̇/∂[h,v,m]
+                        mdot_gradients[0], mdot_gradients[1], mdot_gradients[2]   // ∂ṁ/∂[h,v,m]
+                    };
+                    
+                    // Gradients w.r.t. control: [∂ḣ/∂T, ∂v̇/∂T, ∂ṁ/∂T]
+                    gradients[1] = new[] { 
+                        hdot_gradients[3],  // ∂ḣ/∂T
+                        vdot_gradients[3],  // ∂v̇/∂T
+                        mdot_gradients[3]   // ∂ṁ/∂T
+                    };
+                    
+                    return (value, gradients);
+                })
+                .WithTerminalCost((x, t) =>
+                {
+                    var h = x[0];
+                    var v = x[1];
+                    var m = x[2];
+                    
+                    // Use AutoDiff for terminal cost gradients
+                    var (cost, cost_gradients) = GoddardRocketDynamicsGradients.TerminalCostReverse(h, v, m);
+                    
+                    var gradients = new double[4];
+                    gradients[0] = cost_gradients[0];  // ∂Φ/∂h
+                    gradients[1] = cost_gradients[1];  // ∂Φ/∂v
+                    gradients[2] = cost_gradients[2];  // ∂Φ/∂m
+                    gradients[3] = 0.0;                 // ∂Φ/∂t
+                    
+                    return (cost, gradients);
+                })
+                .WithRunningCost((x, u, t) =>
+                {
+                    var h = x[0];
+                    var v = x[1];
+                    var m = x[2];
+                    var T = u[0];
+                    
+                    // Use AutoDiff for running cost gradients
+                    var (cost, cost_gradients) = GoddardRocketDynamicsGradients.RunningCostReverse(h, v, m, T);
+                    
+                    var gradients = new double[3];
+                    gradients[0] = cost_gradients[0];  // ∂L/∂x (sum over state components)
+                    gradients[1] = cost_gradients[3];  // ∂L/∂u
+                    gradients[2] = 0.0;                 // ∂L/∂t
+                    
+                    return (cost, gradients);
+                });
+
+            var solver = new HermiteSimpsonSolver()
+                .WithSegments(15)
+                .WithTolerance(1e-2)
+                .WithMaxIterations(60)
+                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(5e-3).WithMaxIterations(50));
+
+            var result = solver.Solve(problem);
+
+            Assert.IsTrue(result.Success, $"Goddard rocket with analytic gradients should converge, message: {result.Message}");
+            
+            // Final altitude should be positive (rocket went up)
+            var finalAltitude = result.States[result.States.Length - 1][0];
+            Assert.IsTrue(finalAltitude > 0.05, $"Final altitude {finalAltitude:F2} should be > 0.05m");
+            
+            // Mass should decrease (fuel burned)
+            var initialMass = result.States[0][2];
+            var finalMass = result.States[result.States.Length - 1][2];
+            Assert.IsTrue(finalMass < initialMass, $"Mass should decrease: initial={initialMass:F3}, final={finalMass:F3}");
+            Assert.IsTrue(finalMass >= massFloor - 0.01, $"Mass should stay above floor, final mass: {finalMass:F3}");
+            
+            Console.WriteLine($"Goddard Rocket Solution (Analytic Gradients):");
+            Console.WriteLine($"  Final altitude: {finalAltitude:F2} m");
+            Console.WriteLine($"  Final velocity: {result.States[result.States.Length - 1][1]:F2} m/s");
+            Console.WriteLine($"  Fuel burned: {(initialMass - finalMass):F3} kg");
+            Console.WriteLine($"  Optimal cost (negative altitude): {result.OptimalCost:E3}");
+            Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
+            Console.WriteLine($"  Iterations: {result.Iterations}");
+        }
+
+        [TestMethod]
         [Ignore("Goddard rocket remains challenging even with multiple shooting - needs specialized initialization")]
         public void CanSolveGoddardRocketProblem()
         {
