@@ -145,8 +145,37 @@ namespace Optimal.Control
                     cost += transcription.ComputeTerminalCost(z, TerminalCostValue);
                 }
 
-                // For now, return zero gradients (will compute numerically via optimizer)
-                var gradient = new double[z.Length];
+                // Compute gradient numerically
+                double ObjectiveValue(double[] zz)
+                {
+                    var obj = 0.0;
+
+                    if (problem.RunningCost != null)
+                    {
+                        double RunningCostValue(double[] x, double[] u, double t)
+                        {
+                            var result = problem.RunningCost(x, u, t);
+                            return result.value;
+                        }
+
+                        obj += transcription.ComputeRunningCost(zz, RunningCostValue);
+                    }
+
+                    if (problem.TerminalCost != null)
+                    {
+                        double TerminalCostValue(double[] x, double t)
+                        {
+                            var result = problem.TerminalCost(x, t);
+                            return result.value;
+                        }
+
+                        obj += transcription.ComputeTerminalCost(zz, TerminalCostValue);
+                    }
+
+                    return obj;
+                }
+
+                var gradient = NumericalGradients.ComputeGradient(ObjectiveValue, z);
                 return (cost, gradient);
             };
 
@@ -156,7 +185,15 @@ namespace Optimal.Control
                 return z =>
                 {
                     var allDefects = transcription.ComputeAllDefects(z, DynamicsValue);
-                    var gradient = new double[z.Length];
+                    
+                    // Compute gradient numerically
+                    double DefectValue(double[] zz)
+                    {
+                        var defects = transcription.ComputeAllDefects(zz, DynamicsValue);
+                        return defects[defectIndex];
+                    }
+
+                    var gradient = NumericalGradients.ComputeConstraintGradient(DefectValue, z);
                     return (allDefects[defectIndex], gradient);
                 };
             }
@@ -189,7 +226,14 @@ namespace Optimal.Control
                     constrainedOptimizer.WithEqualityConstraint(z =>
                     {
                         var x = transcription.GetState(z, 0);
-                        var gradient = new double[z.Length];
+                        
+                        double BoundaryValue(double[] zz)
+                        {
+                            var xx = transcription.GetState(zz, 0);
+                            return xx[stateIndex] - targetValue;
+                        }
+
+                        var gradient = NumericalGradients.ComputeConstraintGradient(BoundaryValue, z);
                         return (x[stateIndex] - targetValue, gradient);
                     });
                 }
@@ -204,7 +248,14 @@ namespace Optimal.Control
                     constrainedOptimizer.WithEqualityConstraint(z =>
                     {
                         var x = transcription.GetState(z, _segments);
-                        var gradient = new double[z.Length];
+                        
+                        double BoundaryValue(double[] zz)
+                        {
+                            var xx = transcription.GetState(zz, _segments);
+                            return xx[stateIndex] - targetValue;
+                        }
+
+                        var gradient = NumericalGradients.ComputeConstraintGradient(BoundaryValue, z);
                         return (x[stateIndex] - targetValue, gradient);
                     });
                 }
