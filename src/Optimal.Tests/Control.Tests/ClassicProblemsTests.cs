@@ -85,13 +85,13 @@ namespace Optimal.Control.Tests
             // - No free final state (easier for direct methods)
             // - Physical meaning: maximize altitude at apex
             // - Well-posed boundary value problem
-            
+
             var g = 9.81;
             var c = 0.5;
             var massFloor = 0.4; // Higher floor
             var T_max = 0.8; // Lower max thrust
             var T_final = 1.5; // Shorter time
-            
+
             var problem = new ControlProblem()
                 .WithStateSize(3) // [h, v, m]
                 .WithControlSize(1) // T
@@ -107,24 +107,24 @@ namespace Optimal.Control.Tests
                     var v = x[1];
                     var m = Math.Max(x[2], massFloor);
                     var T = u[0];
-                    
+
                     var hdot = v;
                     var vdot = T / m - g;
                     var mdot = -T / c;
-                    
+
                     var value = new[] { hdot, vdot, mdot };
                     var gradients = new double[2][];
-                    
+
                     gradients[0] = new[] {
                         0.0, 1.0, 0.0,
                         0.0, 0.0, -T/(m*m),
                         0.0, 0.0, 0.0
                     };
-                    
+
                     gradients[1] = new[] {
                         0.0, 1.0/m, -1.0/c
                     };
-                    
+
                     return (value, gradients);
                 })
                 .WithTerminalCost((x, t) =>
@@ -159,16 +159,16 @@ namespace Optimal.Control.Tests
             var result = solver.Solve(problem);
 
             Assert.IsTrue(result.Success, $"Constrained Goddard rocket should converge, message: {result.Message}");
-            
+
             var finalAltitude = result.States[result.States.Length - 1][0];
             var finalVelocity = result.States[result.States.Length - 1][1];
             var initialMass = result.States[0][2];
             var finalMass = result.States[result.States.Length - 1][2];
-            
+
             Assert.IsTrue(finalAltitude > 0.1, $"Final altitude {finalAltitude:F3} should be positive");
             Assert.IsTrue(Math.Abs(finalVelocity) < 1.0, $"Final velocity {finalVelocity:F3} should be near zero");
             Assert.IsTrue(finalMass <= initialMass, $"Mass should not increase");
-            
+
             Console.WriteLine($"\n🎉 GODDARD ROCKET SOLVED (Constrained Formulation)!");
             Console.WriteLine($"  Constraint: v(t_f) = 0 (apex condition)");
             Console.WriteLine($"  Final altitude: {finalAltitude:F3} m");
@@ -177,7 +177,7 @@ namespace Optimal.Control.Tests
             Console.WriteLine($"  Cost (neg. altitude): {result.OptimalCost:E3}");
             Console.WriteLine($"  Iterations: {result.Iterations}");
             Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
-            
+
             // Analyze control structure
             var maxThrust = result.Controls.Select(u => u[0]).Max();
             var avgThrust = result.Controls.Select(u => u[0]).Average();
@@ -193,13 +193,13 @@ namespace Optimal.Control.Tests
             // 1. Multiple shooting for BVP (4 intervals)
             // 2. Newton's method for quadratic convergence
             // 3. Continuation in initial costates (5 steps)
-            
+
             var g = 9.81;
             var c = 0.5;
             var massFloor = 0.3;
             var T_max = 1.0;
             var T_final = 1.8;
-            
+
             var problem = new ControlProblem()
                 .WithStateSize(3)
                 .WithControlSize(1)
@@ -214,24 +214,24 @@ namespace Optimal.Control.Tests
                     var v = x[1];
                     var m = Math.Max(x[2], massFloor);
                     var T = u[0];
-                    
+
                     var hdot = v;
                     var vdot = T / m - g;
                     var mdot = -T / c;
-                    
+
                     var value = new[] { hdot, vdot, mdot };
                     var gradients = new double[2][];
-                    
+
                     gradients[0] = new[] {
                         0.0, 1.0, 0.0,
                         0.0, 0.0, -T/(m*m),
                         0.0, 0.0, 0.0
                     };
-                    
+
                     gradients[1] = new[] {
                         0.0, 1.0/m, -1.0/c
                     };
-                    
+
                     return (value, gradients);
                 })
                 .WithTerminalCost((x, t) =>
@@ -261,13 +261,13 @@ namespace Optimal.Control.Tests
                     var m = Math.Max(x[2], massFloor);
                     var lambda2 = lambda[1];
                     var lambda3 = lambda[2];
-                    
+
                     // From ∂H/∂T = 0: T* = (c·λ₃ - m·λ₂/0.02) / 2
                     var T_unconstrained = (c * lambda3 - m * lambda2 / 0.02) / 2.0;
-                    
+
                     // Clamp to bounds
                     var T = Math.Max(0.0, Math.Min(T_max, T_unconstrained));
-                    
+
                     return new[] { T };
                 };
 
@@ -287,14 +287,14 @@ namespace Optimal.Control.Tests
             var result = solver.Solve(problem, optimalControl, initialCostates);
 
             Assert.IsTrue(result.Success, $"Advanced Pontryagin should converge, message: {result.Message}");
-            
+
             var finalAltitude = result.States[result.States.Length - 1][0];
             Assert.IsTrue(finalAltitude > 0.01, $"Final altitude {finalAltitude:F3} should be positive");
-            
+
             var initialMass = result.States[0][2];
             var finalMass = result.States[result.States.Length - 1][2];
             Assert.IsTrue(finalMass < initialMass, $"Mass should decrease");
-            
+
             Console.WriteLine($"\n🎉 GODDARD ROCKET SOLVED!");
             Console.WriteLine($"  Method: Advanced Pontryagin (multiple shooting + Newton + continuation)");
             Console.WriteLine($"  Final altitude: {finalAltitude:F3} m");
@@ -317,13 +317,13 @@ namespace Optimal.Control.Tests
             // T* = c·λ₃/2 - m·λ₂/(0.02·2)
             //
             // With bounds, this becomes bang-bang control
-            
+
             var g = 9.81;
             var c = 0.5;
             var massFloor = 0.3;
             var T_max = 1.2;
             var T_final = 2.0;
-            
+
             var problem = new ControlProblem()
                 .WithStateSize(3) // [h, v, m]
                 .WithControlSize(1) // T
@@ -338,28 +338,28 @@ namespace Optimal.Control.Tests
                     var v = x[1];
                     var m = Math.Max(x[2], massFloor);
                     var T = u[0];
-                    
+
                     var hdot = v;
                     var vdot = T / m - g;
                     var mdot = -T / c;
-                    
+
                     var value = new[] { hdot, vdot, mdot };
                     var gradients = new double[2][];
-                    
+
                     // ∂f/∂x (needed for costate equations)
                     gradients[0] = new[] {
                         0.0, 1.0, 0.0,           // ∂ḣ/∂[h,v,m]
                         0.0, 0.0, -T/(m*m),      // ∂v̇/∂[h,v,m]
                         0.0, 0.0, 0.0            // ∂ṁ/∂[h,v,m]
                     };
-                    
+
                     // ∂f/∂u (needed for optimality condition)
                     gradients[1] = new[] {
                         0.0,      // ∂ḣ/∂T
                         1.0/m,    // ∂v̇/∂T
                         -1.0/c    // ∂ṁ/∂T
                     };
-                    
+
                     return (value, gradients);
                 })
                 .WithTerminalCost((x, t) =>
@@ -392,13 +392,13 @@ namespace Optimal.Control.Tests
                     var m = Math.Max(x[2], massFloor);
                     var lambda2 = lambda[1]; // Costate for velocity
                     var lambda3 = lambda[2]; // Costate for mass
-                    
+
                     // Unconstrained optimal control
                     var T_unconstrained = (c * lambda3 - m * lambda2 / 0.02) / 2.0;
-                    
+
                     // Apply bounds (bang-bang structure)
                     var T = Math.Max(0.0, Math.Min(T_max, T_unconstrained));
-                    
+
                     return new[] { T };
                 };
 
@@ -416,14 +416,14 @@ namespace Optimal.Control.Tests
             var result = solver.Solve(problem, optimalControl, initialCostates);
 
             Assert.IsTrue(result.Success, $"Goddard rocket with Pontryagin should converge, message: {result.Message}");
-            
+
             var finalAltitude = result.States[result.States.Length - 1][0];
             Assert.IsTrue(finalAltitude > 0.01, $"Final altitude {finalAltitude:F3} should be positive");
-            
+
             var initialMass = result.States[0][2];
             var finalMass = result.States[result.States.Length - 1][2];
             Assert.IsTrue(finalMass < initialMass, $"Mass should decrease");
-            
+
             Console.WriteLine($"\n✅ GODDARD ROCKET SOLVED WITH PONTRYAGIN!");
             Console.WriteLine($"  Final altitude: {finalAltitude:F3} m");
             Console.WriteLine($"  Final velocity: {result.States[result.States.Length - 1][1]:F2} m/s");
@@ -1067,9 +1067,9 @@ namespace Optimal.Control.Tests
             // Control: Force
             // Maximum solvable: θ=0.08 rad (4.6°), T=1.5s
 
-            var M = 1.0; 
-            var m = 0.1;   
-            var L = 0.5; 
+            var M = 1.0;
+            var m = 0.1;
+            var L = 0.5;
             var g = 9.81;
             var denom = M + m;
 
@@ -1092,19 +1092,19 @@ namespace Optimal.Control.Tests
                     var cosTheta = Math.Cos(theta);
                     var sin2Theta = sinTheta * sinTheta;
                     var cos2Theta = cosTheta * cosTheta;
-                    
+
                     // Full nonlinear denominators
-                    var denom_x = M + m*sin2Theta;
-                    var denom_theta = L * (4.0/3.0 - m*cos2Theta/(M+m));
-                    
+                    var denom_x = M + m * sin2Theta;
+                    var denom_theta = L * (4.0 / 3.0 - m * cos2Theta / (M + m));
+
                     // Cart acceleration - full nonlinear form
-                    var xddot = (u[0] + m*L*thetadot*thetadot*sinTheta - m*g*sinTheta*cosTheta) / denom_x;
+                    var xddot = (u[0] + m * L * thetadot * thetadot * sinTheta - m * g * sinTheta * cosTheta) / denom_x;
                     // Pole angular acceleration - full nonlinear form
-                    var thetaddot = (g*sinTheta - cosTheta*(u[0] + m*L*thetadot*thetadot*sinTheta)/(M+m)) / denom_theta;
+                    var thetaddot = (g * sinTheta - cosTheta * (u[0] + m * L * thetadot * thetadot * sinTheta) / (M + m)) / denom_theta;
 
                     var value = new[] { x[1], xddot, x[3], thetaddot };
                     var gradients = new double[2][];
-                    
+
                     // Simplified gradients (full derivatives are complex)
                     gradients[0] = new[] {
                         0.0, 1.0, 0.0, 0.0,
@@ -1120,15 +1120,15 @@ namespace Optimal.Control.Tests
                         // ∂θ̈/∂θ̇
                         0.0
                     };
-                    
+
                     // Control gradients
-                    gradients[1] = new[] { 
-                        0.0, 
-                        1.0/denom_x, 
-                        0.0, 
+                    gradients[1] = new[] {
+                        0.0,
+                        1.0/denom_x,
+                        0.0,
                         -cosTheta/(denom_theta*(M+m))
                     };
-                    
+
                     return (value, gradients);
                 })
                 .WithRunningCost((x, u, t) =>
@@ -1157,7 +1157,7 @@ namespace Optimal.Control.Tests
             var finalState = result.States[result.States.Length - 1];
             Assert.IsTrue(Math.Abs(finalState[0]) < 0.15, $"x={Math.Abs(finalState[0]):F3}");
             Assert.IsTrue(Math.Abs(finalState[2]) < 0.15, $"θ={Math.Abs(finalState[2]):F3}");
-            
+
             Console.WriteLine($"✅ CART-POLE SOLVED! x={Math.Abs(finalState[0]):F4}, θ={Math.Abs(finalState[2]):F4}");
         }
 
