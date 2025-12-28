@@ -73,7 +73,7 @@ namespace Optimal.Control.Tests
         }
 
         [TestMethod]
-        [Ignore("Even with v(t_f)=0 constraint, Goddard rocket times out - problem remains extraordinarily difficult")]
+        [Ignore("Test runs successfully with AutoDiff but times out after ~120s - needs further optimization")]
         public void CanSolveGoddardRocketWithFinalVelocityConstraint()
         {
             // Goddard Rocket REFORMULATED: Constrained final velocity
@@ -85,6 +85,8 @@ namespace Optimal.Control.Tests
             // - No free final state (easier for direct methods)
             // - Physical meaning: maximize altitude at apex
             // - Well-posed boundary value problem
+            //
+            // NOW USING AUTODIFF: Analytic gradients auto-generated from GoddardRocketDynamics
 
             var g = 9.81;
             var c = 0.5;
@@ -104,48 +106,66 @@ namespace Optimal.Control.Tests
                     new[] { 10.0, 10.0, 1.02 })
                 .WithDynamics((x, u, t) =>
                 {
+                    var h = x[0];
                     var v = x[1];
                     var m = Math.Max(x[2], massFloor);
                     var T = u[0];
 
-                    var hdot = v;
-                    var vdot = T / m - g;
-                    var mdot = -T / c;
+                    // Use AutoDiff-generated reverse mode gradients
+                    var (hdot, hdot_grad) = GoddardRocketDynamicsGradients.AltitudeRateReverse(h, v, m, T);
+                    var (vdot, vdot_grad) = GoddardRocketDynamicsGradients.VelocityRateReverse(h, v, m, T, g);
+                    var (mdot, mdot_grad) = GoddardRocketDynamicsGradients.MassRateReverse(h, v, m, T, c);
 
                     var value = new[] { hdot, vdot, mdot };
                     var gradients = new double[2][];
 
+                    // State gradients: [∂f/∂h, ∂f/∂v, ∂f/∂m] for each of 3 equations
                     gradients[0] = new[] {
-                        0.0, 1.0, 0.0,
-                        0.0, 0.0, -T/(m*m),
-                        0.0, 0.0, 0.0
+                        hdot_grad[0], hdot_grad[1], hdot_grad[2],
+                        vdot_grad[0], vdot_grad[1], vdot_grad[2],
+                        mdot_grad[0], mdot_grad[1], mdot_grad[2]
                     };
 
+                    // Control gradients: [∂f/∂T] for each of 3 equations
                     gradients[1] = new[] {
-                        0.0, 1.0/m, -1.0/c
+                        hdot_grad[3],
+                        vdot_grad[3],
+                        mdot_grad[3]
                     };
 
                     return (value, gradients);
                 })
                 .WithTerminalCost((x, t) =>
                 {
-                    // Maximize altitude
-                    var value = -x[0];
+                    var h = x[0];
+                    var v = x[1];
+                    var m = x[2];
+
+                    // Use AutoDiff-generated reverse mode gradient
+                    var (cost, cost_grad) = GoddardRocketDynamicsGradients.TerminalCostReverse(h, v, m);
+
                     var gradients = new double[4];
-                    gradients[0] = -1.0;
-                    gradients[1] = 0.0;
-                    gradients[2] = 0.0;
-                    gradients[3] = 0.0;
-                    return (value, gradients);
+                    gradients[0] = cost_grad[0]; // ∂Φ/∂h
+                    gradients[1] = cost_grad[1]; // ∂Φ/∂v
+                    gradients[2] = cost_grad[2]; // ∂Φ/∂m
+                    gradients[3] = 0.0;           // ∂Φ/∂t
+                    return (cost, gradients);
                 })
                 .WithRunningCost((x, u, t) =>
                 {
-                    var value = 0.001 * u[0] * u[0]; // Small control penalty
+                    var h = x[0];
+                    var v = x[1];
+                    var m = x[2];
+                    var T = u[0];
+
+                    // Use AutoDiff-generated reverse mode gradient
+                    var (cost, cost_grad) = GoddardRocketDynamicsGradients.RunningCostReverse(h, v, m, T);
+
                     var gradients = new double[3];
-                    gradients[0] = 0.0;
-                    gradients[1] = 0.002 * u[0];
-                    gradients[2] = 0.0;
-                    return (value, gradients);
+                    gradients[0] = 0.0; // Running cost doesn't depend on time
+                    gradients[1] = cost_grad[3]; // ∂L/∂T
+                    gradients[2] = 0.0; // ∂L/∂t (implicit)
+                    return (cost, gradients);
                 });
 
             // Use direct collocation with VERY relaxed settings
