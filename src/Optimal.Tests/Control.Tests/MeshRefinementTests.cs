@@ -62,7 +62,7 @@ namespace Optimal.Control.Tests
             var refinement = new MeshRefinement();
             var shouldRefine = new[] { true, false, true, true, false };
 
-            var pct = refinement.ComputeRefinementPercentage(shouldRefine);
+            var pct = MeshRefinement.ComputeRefinementPercentage(shouldRefine);
 
             Assert.AreEqual(60.0, pct, 0.1);
         }

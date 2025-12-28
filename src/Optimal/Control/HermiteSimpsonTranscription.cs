@@ -16,7 +16,9 @@ namespace Optimal.Control
     /// </summary>
     public sealed class HermiteSimpsonTranscription
     {
+#pragma warning disable IDE0052 // Remove unread private members
         private readonly ControlProblem _problem;
+#pragma warning restore IDE0052 // Remove unread private members
         private readonly CollocationGrid _grid;
         private readonly int _stateDim;
         private readonly int _controlDim;

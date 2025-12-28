@@ -20,7 +20,9 @@ namespace Optimal.Control
     {
         private readonly double _defectThreshold;
         private readonly int _maxSegments;
+#pragma warning disable IDE0052 // Remove unread private members
         private readonly int _minSegments;
+#pragma warning restore IDE0052 // Remove unread private members
 
         /// <summary>
         /// Creates a mesh refinement strategy.
@@ -118,7 +120,7 @@ namespace Optimal.Control
         /// <param name="coarseGrid">Coarse collocation grid.</param>
         /// <param name="fineGrid">Fine collocation grid.</param>
         /// <returns>Initial guess on fine grid.</returns>
-        public double[] InterpolateSolution(
+        public static double[] InterpolateSolution(
             HermiteSimpsonTranscription coarseTranscription,
             HermiteSimpsonTranscription fineTranscription,
             double[] coarseSolution,
@@ -209,7 +211,7 @@ namespace Optimal.Control
         /// </summary>
         /// <param name="shouldRefine">Array of refinement indicators.</param>
         /// <returns>Percentage of segments to be refined.</returns>
-        public double ComputeRefinementPercentage(bool[] shouldRefine)
+        public static double ComputeRefinementPercentage(bool[] shouldRefine)
         {
             var count = shouldRefine.Count(x => x);
             return 100.0 * count / shouldRefine.Length;

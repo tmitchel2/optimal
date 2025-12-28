@@ -192,7 +192,7 @@ namespace Optimal.Control
                 var meshRefinement = new MeshRefinement(_refinementDefectThreshold, maxSegments: 200);
                 var shouldRefine = meshRefinement.IdentifySegmentsForRefinement(defects, problem.StateDim);
 
-                var refinementPct = meshRefinement.ComputeRefinementPercentage(shouldRefine);
+                var refinementPct = MeshRefinement.ComputeRefinementPercentage(shouldRefine);
 
                 if (_verbose)
                 {
@@ -217,7 +217,7 @@ namespace Optimal.Control
 
                 // Interpolate solution to new grid for warm start
                 var newTranscription = new HermiteSimpsonTranscription(problem, newGrid);
-                previousSolution = meshRefinement.InterpolateSolution(
+                previousSolution = MeshRefinement.InterpolateSolution(
                     transcription, newTranscription, z, grid, newGrid);
 
                 currentSegments = newSegments;
@@ -325,7 +325,7 @@ namespace Optimal.Control
                 return z =>
                 {
                     var allDefects = transcription.ComputeAllDefects(z, DynamicsValue);
-                    
+
                     // Compute gradient numerically
                     double DefectValue(double[] zz)
                     {
@@ -366,7 +366,7 @@ namespace Optimal.Control
                     constrainedOptimizer.WithEqualityConstraint(z =>
                     {
                         var x = transcription.GetState(z, 0);
-                        
+
                         double BoundaryValue(double[] zz)
                         {
                             var xx = transcription.GetState(zz, 0);
@@ -388,7 +388,7 @@ namespace Optimal.Control
                     constrainedOptimizer.WithEqualityConstraint(z =>
                     {
                         var x = transcription.GetState(z, _segments);
-                        
+
                         double BoundaryValue(double[] zz)
                         {
                             var xx = transcription.GetState(zz, _segments);

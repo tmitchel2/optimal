@@ -8,7 +8,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Optimal.NonLinear.Constraints;
 
 namespace Optimal.NonLinear
@@ -22,12 +21,14 @@ namespace Optimal.NonLinear
         private double[] _x0 = Array.Empty<double>();
         private double _tolerance = 1e-6;
         private int _maxIterations = 50;
+#pragma warning disable IDE0052 // Remove unread private members
         private bool _verbose;
+#pragma warning restore IDE0052 // Remove unread private members
         private IOptimizer _unconstrainedOptimizer = new LBFGSOptimizer();
         private readonly List<IConstraint> _constraints = new List<IConstraint>();
         private BoxConstraints? _boxConstraints;
         private double _penaltyParameter = 1.0;
-        private double _penaltyIncrease = 10.0;
+        private readonly double _penaltyIncrease = 10.0;
         private double _constraintTolerance = 1e-6;
 
         /// <summary>

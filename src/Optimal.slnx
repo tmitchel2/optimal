@@ -4,6 +4,7 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Project Path="Optimal.AutoDiff/Optimal.AutoDiff.csproj" />
   <Project Path="Optimal/Optimal.csproj" />
   <Project Path="Optimal.Tests/Optimal.Tests.csproj" />
 </Solution>

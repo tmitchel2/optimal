@@ -23,7 +23,9 @@ namespace Optimal.NonLinear
         private int _maxIterations = 1000;
         private int _maxFunctionEvaluations = 10000;
         private double _stepSize = 0.01;
+#pragma warning disable IDE0052 // Remove unread private members
         private bool _verbose;
+#pragma warning restore IDE0052 // Remove unread private members
         private ILineSearch? _lineSearch;
 
         /// <summary>

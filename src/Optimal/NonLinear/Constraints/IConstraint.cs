@@ -6,8 +6,6 @@
  *
  */
 
-using System;
-
 namespace Optimal.NonLinear.Constraints
 {
     /// <summary>
