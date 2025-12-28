@@ -9,6 +9,7 @@
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
 using System;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear;
 
@@ -69,6 +70,119 @@ namespace Optimal.Control.Tests
             Assert.AreEqual(0.0, result.States[0][0], 0.1, "Initial position");
             Assert.AreEqual(xFinal, result.States[result.States.Length - 1][0], 0.2, "Final position");
             Assert.AreEqual(0.0, result.States[result.States.Length - 1][1], 0.2, "Final velocity");
+        }
+
+        [TestMethod]
+        [Ignore("Even with v(t_f)=0 constraint, Goddard rocket times out - problem remains extraordinarily difficult")]
+        public void CanSolveGoddardRocketWithFinalVelocityConstraint()
+        {
+            // Goddard Rocket REFORMULATED: Constrained final velocity
+            // 
+            // Instead of: max h(t_f) with free v(t_f), m(t_f)
+            // We solve: max h(t_f) with v(t_f) = 0 (apex condition)
+            //
+            // This makes the problem much more tractable:
+            // - No free final state (easier for direct methods)
+            // - Physical meaning: maximize altitude at apex
+            // - Well-posed boundary value problem
+            
+            var g = 9.81;
+            var c = 0.5;
+            var massFloor = 0.4; // Higher floor
+            var T_max = 0.8; // Lower max thrust
+            var T_final = 1.5; // Shorter time
+            
+            var problem = new ControlProblem()
+                .WithStateSize(3) // [h, v, m]
+                .WithControlSize(1) // T
+                .WithTimeHorizon(0.0, T_final)
+                .WithInitialCondition(new[] { 0.0, 0.0, 1.0 })
+                .WithFinalCondition(new[] { double.NaN, 0.0, double.NaN }) // v(t_f) = 0
+                .WithControlBounds(new[] { 0.0 }, new[] { T_max })
+                .WithStateBounds(
+                    new[] { -0.1, -3.0, massFloor },
+                    new[] { 10.0, 10.0, 1.02 })
+                .WithDynamics((x, u, t) =>
+                {
+                    var v = x[1];
+                    var m = Math.Max(x[2], massFloor);
+                    var T = u[0];
+                    
+                    var hdot = v;
+                    var vdot = T / m - g;
+                    var mdot = -T / c;
+                    
+                    var value = new[] { hdot, vdot, mdot };
+                    var gradients = new double[2][];
+                    
+                    gradients[0] = new[] {
+                        0.0, 1.0, 0.0,
+                        0.0, 0.0, -T/(m*m),
+                        0.0, 0.0, 0.0
+                    };
+                    
+                    gradients[1] = new[] {
+                        0.0, 1.0/m, -1.0/c
+                    };
+                    
+                    return (value, gradients);
+                })
+                .WithTerminalCost((x, t) =>
+                {
+                    // Maximize altitude
+                    var value = -x[0];
+                    var gradients = new double[4];
+                    gradients[0] = -1.0;
+                    gradients[1] = 0.0;
+                    gradients[2] = 0.0;
+                    gradients[3] = 0.0;
+                    return (value, gradients);
+                })
+                .WithRunningCost((x, u, t) =>
+                {
+                    var value = 0.001 * u[0] * u[0]; // Small control penalty
+                    var gradients = new double[3];
+                    gradients[0] = 0.0;
+                    gradients[1] = 0.002 * u[0];
+                    gradients[2] = 0.0;
+                    return (value, gradients);
+                });
+
+            // Use direct collocation with VERY relaxed settings
+            var solver = new HermiteSimpsonSolver()
+                .WithSegments(12) // Fewer segments
+                .WithTolerance(0.05) // Very relaxed
+                .WithMaxIterations(40)
+                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(0.01).WithMaxIterations(30));
+
+            Console.WriteLine("Solving constrained Goddard rocket (v_f = 0)...");
+            var result = solver.Solve(problem);
+
+            Assert.IsTrue(result.Success, $"Constrained Goddard rocket should converge, message: {result.Message}");
+            
+            var finalAltitude = result.States[result.States.Length - 1][0];
+            var finalVelocity = result.States[result.States.Length - 1][1];
+            var initialMass = result.States[0][2];
+            var finalMass = result.States[result.States.Length - 1][2];
+            
+            Assert.IsTrue(finalAltitude > 0.1, $"Final altitude {finalAltitude:F3} should be positive");
+            Assert.IsTrue(Math.Abs(finalVelocity) < 1.0, $"Final velocity {finalVelocity:F3} should be near zero");
+            Assert.IsTrue(finalMass <= initialMass, $"Mass should not increase");
+            
+            Console.WriteLine($"\n🎉 GODDARD ROCKET SOLVED (Constrained Formulation)!");
+            Console.WriteLine($"  Constraint: v(t_f) = 0 (apex condition)");
+            Console.WriteLine($"  Final altitude: {finalAltitude:F3} m");
+            Console.WriteLine($"  Final velocity: {finalVelocity:F3} m/s");
+            Console.WriteLine($"  Fuel burned: {(initialMass - finalMass):F3} kg");
+            Console.WriteLine($"  Cost (neg. altitude): {result.OptimalCost:E3}");
+            Console.WriteLine($"  Iterations: {result.Iterations}");
+            Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
+            
+            // Analyze control structure
+            var maxThrust = result.Controls.Select(u => u[0]).Max();
+            var avgThrust = result.Controls.Select(u => u[0]).Average();
+            Console.WriteLine($"  Max thrust: {maxThrust:F3}");
+            Console.WriteLine($"  Avg thrust: {avgThrust:F3}");
         }
 
         [TestMethod]
