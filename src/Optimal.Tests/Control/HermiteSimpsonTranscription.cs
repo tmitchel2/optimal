@@ -281,5 +281,98 @@ namespace Optimal.Control
 
             return z;
         }
+
+        /// <summary>
+        /// Computes the running cost (Lagrange term) integrated over the trajectory using Simpson's rule.
+        /// J_running = ∫[t0, tf] L(x(t), u(t), t) dt
+        /// Approximated as: Σ_k h/6 * (L_k + 4*L_mid + L_{k+1})
+        /// </summary>
+        /// <param name="z">Decision vector.</param>
+        /// <param name="runningCostEvaluator">Running cost function: L(x, u, t).</param>
+        /// <returns>Integrated running cost.</returns>
+        public double ComputeRunningCost(double[] z, Func<double[], double[], double, double> runningCostEvaluator)
+        {
+            var totalCost = 0.0;
+
+            for (var k = 0; k < _grid.Segments; k++)
+            {
+                var tk = _grid.TimePoints[k];
+                var tk1 = _grid.TimePoints[k + 1];
+                var tMid = _grid.GetMidpoint(k);
+                var h = _grid.GetTimeStep(k);
+
+                var xk = GetState(z, k);
+                var xk1 = GetState(z, k + 1);
+                var uk = GetControl(z, k);
+                var uk1 = GetControl(z, k + 1);
+
+                var Lk = runningCostEvaluator(xk, uk, tk);
+                var Lk1 = runningCostEvaluator(xk1, uk1, tk1);
+
+                // For midpoint evaluation, need dynamics to compute x_mid
+                // We'll use a simpler approach: evaluate at (x_mid, u_mid) directly
+                var xMid = new double[_stateDim];
+                var uMid = new double[_controlDim];
+
+                for (var i = 0; i < _stateDim; i++)
+                {
+                    xMid[i] = 0.5 * (xk[i] + xk1[i]);
+                }
+
+                for (var i = 0; i < _controlDim; i++)
+                {
+                    uMid[i] = 0.5 * (uk[i] + uk1[i]);
+                }
+
+                var LMid = runningCostEvaluator(xMid, uMid, tMid);
+
+                // Simpson's rule: h/6 * (L_k + 4*L_mid + L_{k+1})
+                totalCost += (h / 6.0) * (Lk + 4.0 * LMid + Lk1);
+            }
+
+            return totalCost;
+        }
+
+        /// <summary>
+        /// Computes the terminal cost (Mayer term) at the final time.
+        /// J_terminal = Φ(x(tf), tf)
+        /// </summary>
+        /// <param name="z">Decision vector.</param>
+        /// <param name="terminalCostEvaluator">Terminal cost function: Φ(x, t).</param>
+        /// <returns>Terminal cost.</returns>
+        public double ComputeTerminalCost(double[] z, Func<double[], double, double> terminalCostEvaluator)
+        {
+            var xf = GetState(z, _grid.Segments);
+            var tf = _grid.FinalTime;
+            return terminalCostEvaluator(xf, tf);
+        }
+
+        /// <summary>
+        /// Computes the total objective function value (Lagrange + Mayer).
+        /// J = Φ(x(tf), tf) + ∫[t0, tf] L(x(t), u(t), t) dt
+        /// </summary>
+        /// <param name="z">Decision vector.</param>
+        /// <param name="runningCostEvaluator">Running cost function (null to skip).</param>
+        /// <param name="terminalCostEvaluator">Terminal cost function (null to skip).</param>
+        /// <returns>Total objective value.</returns>
+        public double ComputeTotalCost(
+            double[] z,
+            Func<double[], double[], double, double>? runningCostEvaluator,
+            Func<double[], double, double>? terminalCostEvaluator)
+        {
+            var cost = 0.0;
+
+            if (runningCostEvaluator != null)
+            {
+                cost += ComputeRunningCost(z, runningCostEvaluator);
+            }
+
+            if (terminalCostEvaluator != null)
+            {
+                cost += ComputeTerminalCost(z, terminalCostEvaluator);
+            }
+
+            return cost;
+        }
     }
 }

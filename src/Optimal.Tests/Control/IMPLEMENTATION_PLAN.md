@@ -7,7 +7,7 @@ Implement Hermite-Simpson collocation method for solving optimal control problem
 ## Implementation Status
 - [x] Phase 1: Foundation & Problem Definition ✅ **COMPLETED**
 - [x] Phase 2: Hermite-Simpson Transcription ✅ **COMPLETED**
-- [ ] Phase 3: Objective Function Integration
+- [x] Phase 3: Objective Function Integration ✅ **COMPLETED**
 - [ ] Phase 4: NLP Integration with Existing Solvers
 - [ ] Phase 5: Boundary Conditions & Path Constraints
 - [ ] Phase 6: Mesh Refinement
@@ -167,7 +167,7 @@ defect = x_{k+1} - x_k - h/6 * (f_k + 4*f_mid + f_{k+1})
 ---
 
 ## Phase 3: Objective Function Integration
-**Status**: Not Started
+**Status**: ✅ **COMPLETED** (2025-12-28)
 **Goal**: Add cost functional evaluation.
 
 ### Checklist
@@ -188,8 +188,129 @@ Simpson approximation:
 J ≈ Φ(x_N, t_N) + Σ_k h/6 * (L_k + 4*L_mid + L_{k+1})
 ```
 
+### Checklist
+- [x] Create `ObjectiveFunctional.cs` - Integrated into HermiteSimpsonTranscription
+- [x] Implement running cost integration: `∫ L(x, u, t) dt`
+- [x] Implement terminal cost: `Φ(x_f, t_f)`
+- [x] Use Simpson's rule for quadrature
+- [x] Test on minimum energy problem: `min ∫ u² dt`
+- [x] Test on time-optimal problem: `min t_f`
+
+### Cost Structure
+```
+J = Φ(x(t_f), t_f) + ∫[t0, tf] L(x(t), u(t), t) dt
+```
+
+Simpson approximation:
+```
+J ≈ Φ(x_N, t_N) + Σ_k h/6 * (L_k + 4*L_mid + L_{k+1})
+```
+
 ### Implementation Notes
-[To be filled during Phase 3]
+**Date Completed**: 2025-12-28
+
+**Files Created**:
+1. `Control.Tests/TestCostFunctions.cs` - AutoDiff cost functions with [OptimalCode]
+2. `Control.Tests/ObjectiveFunctionTests.cs` - Comprehensive cost integration tests (9 tests)
+
+**Code Added**:
+- Extended `HermiteSimpsonTranscription.cs` with 3 new methods (~120 lines):
+  - `ComputeRunningCost()` - Simpson's rule integration
+  - `ComputeTerminalCost()` - End-point evaluation
+  - `ComputeTotalCost()` - Combined Lagrange + Mayer
+
+**Test Results**: 9/9 new tests passing, 32/32 total tests passing (100%)
+
+**Cost Functions Implemented**:
+
+1. **QuadraticControlCost**: `L = 0.5*u²`
+   - For minimum energy problems
+   - AutoDiff gradients generated successfully
+
+2. **DoubleIntegratorEnergyCost**: `L = 0.5*u²`
+   - 2-state system variant
+
+3. **QuadraticStateAndControl**: `L = 0.5*(x² + u²)`
+   - LQR-style cost
+
+4. **UnitCost**: `L = 1`
+   - For minimum time problems
+   - Fixed AutoDiff issue with constant returns
+
+5. **DistanceFromTarget**: `Φ = 0.5*(x - target)²`
+   - Terminal cost function
+
+6. **DoubleIntegratorTerminalCost**: `Φ = 0.5*(x₀ - target)²`
+   - 2-state terminal cost
+
+**Simpson's Rule Integration**:
+```csharp
+J_running = Σ_k h/6 * (L_k + 4*L_mid + L_{k+1})
+```
+
+Where:
+- `L_k = L(x_k, u_k, t_k)` - Cost at node k
+- `L_mid = L(x_mid, u_mid, t_mid)` - Cost at midpoint
+- `h = t_{k+1} - t_k` - Time step
+- For midpoint: Simple averaging `x_mid = (x_k + x_{k+1})/2`, `u_mid = (u_k + u_{k+1})/2`
+
+**Validation Results**:
+
+1. **Constant Control** (u = 1, T = 10):
+   - Expected: ∫ 0.5*u² dt = 5.0
+   - Computed: 5.0 (exact) ✓
+
+2. **Varying Control** (u(t) = t, T = 2):
+   - Expected: ∫ 0.5*t² dt = 4/3
+   - Computed: 1.333... (error < 1e-6) ✓
+
+3. **Terminal Cost** (x_f = 3, target = 5):
+   - Expected: 0.5*(3-5)² = 2.0
+   - Computed: 2.0 (exact) ✓
+
+4. **Combined Cost** (running + terminal):
+   - Expected: 2.5 + 1.0 = 3.5
+   - Computed: 3.5 (exact) ✓
+
+5. **Minimum Energy Problem**:
+   - Problem: min ∫ u² dt, s.t. ẋ = u, x(0) = 0, x(T) = 1
+   - Optimal control: u = 1/T (constant)
+   - Expected cost: (1/T)² * T = 1/T
+   - Computed: 0.2 for T=5 (exact) ✓
+
+6. **Time Optimal Problem**:
+   - Cost: ∫ 1 dt = T
+   - Computed: 10.0 for T=10 (exact) ✓
+
+7. **Quadratic State and Control**:
+   - Cost: ∫ 0.5*(x² + u²) dt
+   - With x=1, u=2, T=4: 0.5*(1+4)*4 = 10.0
+   - Computed: 10.0 (exact) ✓
+
+**AutoDiff Integration**:
+- All cost functions marked with `[OptimalCode]`
+- Generated reverse-mode gradients successfully
+- **Key Learning**: Constants must touch input variables (e.g., `1.0 + 0.0*x` not just `1.0`)
+
+**API Design**:
+```csharp
+// Running cost only
+double cost = transcription.ComputeRunningCost(z, runningCostEvaluator);
+
+// Terminal cost only
+double cost = transcription.ComputeTerminalCost(z, terminalCostEvaluator);
+
+// Combined (either can be null)
+double cost = transcription.ComputeTotalCost(z, runningCostEvaluator, terminalCostEvaluator);
+```
+
+**Accuracy**:
+- Simpson's rule: 4th order accurate for smooth functions
+- Constant functions: Exact integration
+- Polynomial functions: Very high accuracy
+- Tested with N=10 to N=20 segments
+
+**Next Phase**: Ready for Phase 4 - NLP Integration with existing L-BFGS/CG optimizers
 
 ---
 
