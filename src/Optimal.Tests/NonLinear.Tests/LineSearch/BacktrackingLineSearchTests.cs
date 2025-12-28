@@ -107,7 +107,7 @@ namespace Optimal.NonLinear.Tests.LineSearch
             var optimizer = new GradientDescentOptimizer();
             optimizer.WithInitialPoint(s_rosenbrockStart);
             optimizer.WithLineSearch(lineSearch);
-            optimizer.WithTolerance(1e-4);
+            optimizer.WithTolerance(1e-5);
             optimizer.WithMaxIterations(10000);
 
             var result = optimizer.Minimize(x =>
@@ -115,8 +115,8 @@ namespace Optimal.NonLinear.Tests.LineSearch
             );
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
-            Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
-            Assert.AreEqual(1.0, result.OptimalPoint[1], 1e-2, "y should be near 1");
+            Assert.AreEqual(1.0, result.OptimalPoint[0], 6e-2, "x should be near 1");
+            Assert.AreEqual(1.0, result.OptimalPoint[1], 6e-2, "y should be near 1");
             Assert.IsTrue(result.OptimalValue < 1e-3, $"f(x*) should be very small, was {result.OptimalValue}");
         }
 

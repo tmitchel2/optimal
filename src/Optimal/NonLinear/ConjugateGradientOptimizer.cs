@@ -22,7 +22,7 @@ namespace Optimal.NonLinear
         private double _functionTolerance = 1e-8;
         private double _parameterTolerance = 1e-8;
         private int _maxIterations = 1000;
-        private int _maxFunctionEvaluations = 10000;
+        private int _maxFunctionEvaluations;
 #pragma warning disable IDE0052 // Remove unread private members
         private bool _verbose;
 #pragma warning restore IDE0052 // Remove unread private members
