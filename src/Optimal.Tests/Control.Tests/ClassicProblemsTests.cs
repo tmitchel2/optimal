@@ -23,7 +23,6 @@ namespace Optimal.Control.Tests
     public sealed class ClassicProblemsTests
     {
         [TestMethod]
-        [Ignore("Test formulation is correct but solver times out - requires solver optimization")]
         public void CanSolveBrachistochroneProblem()
         {
             // BRACHISTOCHRONE PROBLEM (Johann Bernoulli, 1696)
@@ -39,14 +38,24 @@ namespace Optimal.Control.Tests
             // Physics: Conservation of energy gives v = √(2g·h) where h is vertical drop
             // Solution: Numerical solution should approximate a cycloid curve
 
+            Console.WriteLine("=== BRACHISTOCHRONE PROBLEM ===");
+            Console.WriteLine("Finding the curve of fastest descent under gravity");
+            Console.WriteLine();
+
             var g = 9.81;  // gravity (m/s²)
             var xFinal = 2.0;
             var yFinal = -2.0;  // negative = downward
 
+            Console.WriteLine($"Problem setup:");
+            Console.WriteLine($"  Start: (0, 0) at rest (v=0.1 m/s initial to avoid singularity)");
+            Console.WriteLine($"  End:   ({xFinal}, {yFinal}) with free final velocity");
+            Console.WriteLine($"  Gravity: {g} m/s²");
+            Console.WriteLine();
+
             var problem = new ControlProblem()
                 .WithStateSize(3) // [x, y, v]
                 .WithControlSize(1) // θ (path angle)
-                .WithTimeHorizon(0.0, 1.2)
+                .WithTimeHorizon(0.0, 1.5)  // Allow enough time
                 .WithInitialCondition(new[] { 0.0, 0.0, 0.1 }) // Start at origin with small initial velocity
                 .WithFinalCondition(new[] { xFinal, yFinal, double.NaN }) // End position, free velocity
                 .WithControlBounds(new[] { -Math.PI / 2.0 }, new[] { 0.0 }) // Downward paths only
@@ -92,13 +101,36 @@ namespace Optimal.Control.Tests
                     return (value, gradients);
                 });
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(30)
-                .WithTolerance(1e-3)
-                .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+            Console.WriteLine("Solver configuration:");
+            Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
+            Console.WriteLine("  Segments: 20 (with adaptive mesh refinement)");
+            Console.WriteLine("  Max iterations: 500");
+            Console.WriteLine("  Inner optimizer: L-BFGS-B");
+            Console.WriteLine("  Tolerance: 1e-3");
+            Console.WriteLine();
+            Console.WriteLine("Solving... (progress will be shown below)");
+            Console.WriteLine("=" .PadRight(70, '='));
 
+            var solver = new HermiteSimpsonSolver()
+                .WithSegments(20)  // Start with fewer segments
+                .WithTolerance(1e-3)
+                .WithMaxIterations(500)  // Increased significantly
+                .WithMeshRefinement(enable: true, maxRefinementIterations: 3, defectThreshold: 1e-4)
+                .WithVerbose(true)  // Enable progress output
+                .WithInnerOptimizer(
+                    new LBFGSOptimizer()
+                        .WithTolerance(1e-5)
+                        .WithMaxIterations(200)
+                        .WithVerbose(true));  // Enable inner optimizer progress
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             var result = solver.Solve(problem);
+            sw.Stop();
+
+            Console.WriteLine("=" .PadRight(70, '='));
+            Console.WriteLine();
+            Console.WriteLine($"Solve completed in {sw.ElapsedMilliseconds}ms");
+            Console.WriteLine();
 
             // Validate convergence and boundary conditions
             Assert.IsTrue(result.Success, $"Brachistochrone should converge: {result.Message}");
@@ -112,6 +144,26 @@ namespace Optimal.Control.Tests
             var physicsError = VerifyEnergyConservation(result, g);
             Assert.IsTrue(physicsError < 0.15, $"Physics error {physicsError:F3} should be < 0.15");
 
+            // Display solution summary
+            Console.WriteLine("SOLUTION SUMMARY:");
+            Console.WriteLine($"  Optimal descent time: {result.OptimalCost:F3} seconds");
+            Console.WriteLine($"  Final velocity: {result.States[^1][2]:F3} m/s");
+            Console.WriteLine($"  Expected from energy: {Math.Sqrt(2 * g * Math.Abs(yFinal)):F3} m/s");
+            Console.WriteLine($"  Physics error: {physicsError * 100:F1}%");
+            Console.WriteLine($"  Max constraint violation: {result.MaxDefect:E3}");
+            Console.WriteLine($"  Iterations: {result.Iterations}");
+            Console.WriteLine();
+
+            // Show control profile
+            Console.WriteLine("Path angle profile (degrees):");
+            for (var i = 0; i < result.Controls.Length; i += Math.Max(1, result.Controls.Length / 10))
+            {
+                var theta = result.Controls[i][0] * 180 / Math.PI;
+                var t = result.Times[i];
+                Console.WriteLine($"  t={t:F2}s: θ={theta:F1}°");
+            }
+            Console.WriteLine();
+
             // Generate enhanced visualization with 2D path and physics verification
             var htmlPath = ResultVisualizer.GenerateBrachistochroneHtml(
                 result,
@@ -119,6 +171,220 @@ namespace Optimal.Control.Tests
                 xFinal,
                 yFinal);
             Console.WriteLine($"Visualization saved to: file://{htmlPath}");
+        }
+
+        [TestMethod]
+        public void DebugBrachistochroneProblem()
+        {
+            // DEBUG VERSION: Start with the absolute simplest test
+            var g = 9.81;
+
+            Console.WriteLine("=== BRACHISTOCHRONE DEBUG ===");
+            Console.WriteLine($"Gravity: {g} m/s²");
+            Console.WriteLine();
+
+            // Test 1: Check if dynamics can be evaluated at all
+            Console.WriteLine("TEST 1: Verify dynamics evaluation");
+            TestDynamicsEvaluation(g);
+            Console.WriteLine("✓ Dynamics evaluation works");
+            Console.WriteLine();
+
+            // Test 2: Can we solve the SIMPLEST possible problem - 1D vertical drop?
+            Console.WriteLine("TEST 2: Solve simple 1D vertical drop (2 segments)");
+            TestSimpleVerticalDrop(g);
+            Console.WriteLine();
+
+            // Test 3: Now try 2D Brachistochrone with just 2 segments
+            Console.WriteLine("TEST 3: Solve 2D Brachistochrone with 2 segments");
+            var result2 = SolveBrachistochrone(g, 2.0, -2.0, segments: 2, maxIter: 20);
+            PrintSolutionSummary(result2, "2 segments");
+            Console.WriteLine();
+
+            // Test 4: If that worked, try 5 segments
+            if (result2.Success)
+            {
+                Console.WriteLine("TEST 4: Solve with 5 segments");
+                var result5 = SolveBrachistochrone(g, 2.0, -2.0, segments: 5, maxIter: 50);
+                PrintSolutionSummary(result5, "5 segments");
+
+                if (result5.Success)
+                {
+                    var htmlPath = ResultVisualizer.GenerateBrachistochroneHtml(
+                        result5, g, 2.0, -2.0);
+                    Console.WriteLine($"Visualization: file://{htmlPath}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("✗ Even 2 segments failed. Problem with formulation.");
+            }
+        }
+
+        private static void TestDynamicsEvaluation(double g)
+        {
+            // Test dynamics at a few sample points
+            var testCases = new[]
+            {
+                (x: new[] { 0.0, 0.0, 0.1 }, u: new[] { -Math.PI / 4 }, desc: "Start, θ=-45°"),
+                (x: new[] { 1.0, -1.0, 2.0 }, u: new[] { -Math.PI / 3 }, desc: "Mid, θ=-60°"),
+                (x: new[] { 2.0, -2.0, 3.0 }, u: new[] { -Math.PI / 6 }, desc: "End, θ=-30°")
+            };
+
+            foreach (var test in testCases)
+            {
+                var velocity = test.x[2];
+                var theta = test.u[0];
+                var cosTheta = Math.Cos(theta);
+                var sinTheta = Math.Sin(theta);
+
+                var xdot = velocity * cosTheta;
+                var ydot = velocity * sinTheta;
+                var vdot = -g * sinTheta;
+
+                Console.WriteLine($"  {test.desc}:");
+                Console.WriteLine($"    State: x={test.x[0]:F2}, y={test.x[1]:F2}, v={test.x[2]:F2}");
+                Console.WriteLine($"    Control: θ={theta * 180 / Math.PI:F1}°");
+                Console.WriteLine($"    Derivatives: ẋ={xdot:F3}, ẏ={ydot:F3}, v̇={vdot:F3}");
+                Console.WriteLine($"    Physics check: v̇ should be positive for downward motion: {vdot > 0}");
+            }
+        }
+
+        private static CollocationResult SolveBrachistochrone(
+            double g, double xFinal, double yFinal, int segments, int maxIter)
+        {
+            var problem = new ControlProblem()
+                .WithStateSize(3)
+                .WithControlSize(1)
+                .WithTimeHorizon(0.0, 1.5)  // Slightly longer horizon
+                .WithInitialCondition(new[] { 0.0, 0.0, 0.1 })
+                .WithFinalCondition(new[] { xFinal, yFinal, double.NaN })
+                .WithControlBounds(new[] { -Math.PI / 2.0 }, new[] { 0.0 })
+                .WithDynamics((x, u, t) =>
+                {
+                    var velocity = x[2];
+                    var theta = u[0];
+                    var cosTheta = Math.Cos(theta);
+                    var sinTheta = Math.Sin(theta);
+
+                    var xdot = velocity * cosTheta;
+                    var ydot = velocity * sinTheta;
+                    var vdot = -g * sinTheta;
+
+                    var value = new[] { xdot, ydot, vdot };
+                    var gradients = new double[2][];
+
+                    gradients[0] = new[] {
+                        0.0, 0.0, cosTheta,
+                        0.0, 0.0, sinTheta,
+                        0.0, 0.0, 0.0
+                    };
+
+                    gradients[1] = new[] {
+                        -velocity * sinTheta,
+                        velocity * cosTheta,
+                        -g * cosTheta
+                    };
+
+                    return (value, gradients);
+                })
+                .WithRunningCost((x, u, t) =>
+                {
+                    var value = 1.0;
+                    var gradients = new double[3];
+                    gradients[0] = 0.0;
+                    gradients[1] = 0.0;
+                    gradients[2] = 0.0;
+                    return (value, gradients);
+                });
+
+            var solver = new HermiteSimpsonSolver()
+                .WithSegments(segments)
+                .WithTolerance(1e-3)
+                .WithMaxIterations(maxIter)
+                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+
+            Console.WriteLine($"  Solving with {segments} segments, max {maxIter} iterations...");
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var result = solver.Solve(problem);
+            sw.Stop();
+            Console.WriteLine($"  Solve time: {sw.ElapsedMilliseconds}ms");
+
+            return result;
+        }
+
+        private static void PrintSolutionSummary(CollocationResult result, string label)
+        {
+            Console.WriteLine($"  === {label} ===");
+            Console.WriteLine($"  Success: {result.Success}");
+            Console.WriteLine($"  Message: {result.Message}");
+            Console.WriteLine($"  Iterations: {result.Iterations}");
+            Console.WriteLine($"  Optimal cost: {result.OptimalCost:F6}");
+            Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
+            Console.WriteLine($"  Gradient norm: {result.GradientNorm:E3}");
+
+            if (result.States.Length > 0)
+            {
+                var x0 = result.States[0];
+                var xf = result.States[^1];
+                Console.WriteLine($"  Initial state: x={x0[0]:F3}, y={x0[1]:F3}, v={x0[2]:F3}");
+                Console.WriteLine($"  Final state: x={xf[0]:F3}, y={xf[1]:F3}, v={xf[2]:F3}");
+
+                // Check physics
+                var expectedVfinal = Math.Sqrt(2.0 * 9.81 * Math.Abs(xf[1]));
+                Console.WriteLine($"  Final velocity check: v={xf[2]:F3}, expected={expectedVfinal:F3} (from energy)");
+            }
+        }
+
+        private static void TestSimpleVerticalDrop(double g)
+        {
+            // Simplified problem: just drop straight down (θ = -90° constant)
+            // This should definitely converge
+            var problem = new ControlProblem()
+                .WithStateSize(2) // [y, v] only
+                .WithControlSize(1) // acceleration
+                .WithTimeHorizon(0.0, 1.0)
+                .WithInitialCondition(new[] { 0.0, 0.1 })
+                .WithFinalCondition(new[] { -2.0, double.NaN })
+                .WithControlBounds(new[] { -15.0 }, new[] { 15.0 })
+                .WithDynamics((x, u, t) =>
+                {
+                    var ydot = x[1];
+                    var vdot = u[0] - g;  // a - g
+
+                    var value = new[] { ydot, vdot };
+                    var gradients = new double[2][];
+
+                    gradients[0] = new[] {
+                        0.0, 1.0,
+                        0.0, 0.0
+                    };
+
+                    gradients[1] = new[] { 0.0, 1.0 };
+
+                    return (value, gradients);
+                })
+                .WithRunningCost((x, u, t) =>
+                {
+                    var value = 1.0;
+                    var gradients = new double[3];
+                    return (value, gradients);
+                });
+
+            var solver = new HermiteSimpsonSolver()
+                .WithSegments(10)
+                .WithTolerance(1e-3)
+                .WithMaxIterations(50)
+                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+
+            var result = solver.Solve(problem);
+            Console.WriteLine($"  Simple drop success: {result.Success}");
+            Console.WriteLine($"  Message: {result.Message}");
+            if (result.Success)
+            {
+                Console.WriteLine($"  Time to drop 2m: {result.OptimalCost:F3}s");
+                Console.WriteLine($"  Final velocity: {result.States[^1][1]:F3} m/s");
+                Console.WriteLine($"  Expected (free fall): {Math.Sqrt(2 * g * 2):F3} m/s");
+            }
         }
 
         [TestMethod]

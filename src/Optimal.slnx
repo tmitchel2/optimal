@@ -7,4 +7,5 @@
   <Project Path="Optimal.AutoDiff/Optimal.AutoDiff.csproj" />
   <Project Path="Optimal/Optimal.csproj" />
   <Project Path="Optimal.Tests/Optimal.Tests.csproj" />
+  <Project Path="OptimalCli/OptimalCli.csproj" />
 </Solution>

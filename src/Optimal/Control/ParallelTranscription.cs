@@ -387,7 +387,15 @@ namespace Optimal.Control
 
                 for (var i = 0; i < _stateDim; i++)
                 {
-                    state[i] = (1.0 - alpha) * initialState[i] + alpha * finalState[i];
+                    // Handle NaN in finalState (free/unspecified terminal condition)
+                    if (double.IsNaN(finalState[i]))
+                    {
+                        state[i] = initialState[i];
+                    }
+                    else
+                    {
+                        state[i] = (1.0 - alpha) * initialState[i] + alpha * finalState[i];
+                    }
                 }
 
                 SetState(z, k, state);

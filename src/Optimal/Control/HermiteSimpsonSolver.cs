@@ -263,6 +263,20 @@ namespace Optimal.Control
                 var xf = problem.FinalState ?? new double[problem.StateDim];
                 var u0 = new double[problem.ControlDim];
                 z0 = transcription.CreateInitialGuess(x0, xf, u0);
+
+                if (_verbose)
+                {
+                    var hasNaN = false;
+                    for (var i = 0; i < z0.Length; i++)
+                    {
+                        if (double.IsNaN(z0[i]))
+                        {
+                            hasNaN = true;
+                            break;
+                        }
+                    }
+                    Console.WriteLine($"Initial guess created: size={z0.Length}, hasNaN={hasNaN}");
+                }
             }
 
             // Extract dynamics evaluator (without gradients for now)
@@ -332,6 +346,16 @@ namespace Optimal.Control
                 }
 
                 var gradient = NumericalGradients.ComputeGradient(ObjectiveValue, z);
+
+                if (_verbose && double.IsNaN(cost))
+                {
+                    Console.WriteLine($"WARNING: Objective cost is NaN!");
+                }
+                if (_verbose && gradient.Length > 0 && double.IsNaN(gradient[0]))
+                {
+                    Console.WriteLine($"WARNING: Gradient is NaN!");
+                }
+
                 return (cost, gradient);
             };
 
@@ -367,6 +391,31 @@ namespace Optimal.Control
 
             // Add all defect constraints as equality constraints
             var totalDefects = _segments * problem.StateDim;
+
+            if (_verbose)
+            {
+                // Test objective evaluation on initial guess
+                var (testCost, testGrad) = nlpObjective(z0);
+                Console.WriteLine($"Test objective on initial guess: cost={testCost}, grad[0]={testGrad[0]}");
+
+                // Test defect evaluation on initial guess
+                var testDefects = transcription.ComputeAllDefects(z0, DynamicsValue);
+                var defectHasNaN = false;
+                for (var i = 0; i < testDefects.Length; i++)
+                {
+                    if (double.IsNaN(testDefects[i]))
+                    {
+                        Console.WriteLine($"WARNING: Defect {i} is NaN on initial guess!");
+                        defectHasNaN = true;
+                        break;
+                    }
+                }
+                if (!defectHasNaN)
+                {
+                    Console.WriteLine($"All {testDefects.Length} defects are finite on initial guess");
+                }
+            }
+
             for (var i = 0; i < totalDefects; i++)
             {
                 constrainedOptimizer.WithEqualityConstraint(DefectConstraint(i));
@@ -401,6 +450,13 @@ namespace Optimal.Control
                 {
                     var stateIndex = i;
                     var targetValue = problem.FinalState[i];
+
+                    // Skip NaN values (free terminal conditions)
+                    if (double.IsNaN(targetValue))
+                    {
+                        continue;
+                    }
+
                     constrainedOptimizer.WithEqualityConstraint(z =>
                     {
                         var x = transcription.GetState(z, _segments);

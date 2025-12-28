@@ -23,9 +23,7 @@ namespace Optimal.NonLinear
         private double _parameterTolerance = 1e-8;
         private int _maxIterations = 1000;
         private int _maxFunctionEvaluations;
-#pragma warning disable IDE0052 // Remove unread private members
         private bool _verbose;
-#pragma warning restore IDE0052 // Remove unread private members
         private ILineSearch _lineSearch = new BacktrackingLineSearch();
         private int _memorySize = 10; // Number of correction pairs to store (m parameter)
 
@@ -142,6 +140,17 @@ namespace Optimal.NonLinear
             var (value, gradient) = objective(x);
             functionEvaluations++;
 
+            if (_verbose)
+            {
+                var gradNormSq = 0.0;
+                for (var i = 0; i < n; i++)
+                {
+                    gradNormSq += gradient[i] * gradient[i];
+                }
+                var gradNorm = Math.Sqrt(gradNormSq);
+                Console.WriteLine($"L-BFGS Optimizer: Initial f={value:E6}, ||grad||={gradNorm:E3}");
+            }
+
             // Storage for previous position and gradient
             var xPrev = new double[n];
             var gradientPrev = new double[n];
@@ -153,6 +162,10 @@ namespace Optimal.NonLinear
 
                 if (convergence.HasConverged || convergence.Reason.HasValue)
                 {
+                    if (_verbose)
+                    {
+                        Console.WriteLine($"L-BFGS Converged: {convergence.Message}");
+                    }
                     return new OptimizerResult
                     {
                         OptimalPoint = x,
@@ -223,6 +236,17 @@ namespace Optimal.NonLinear
                 // Evaluate at new point
                 (value, gradient) = objective(x);
                 functionEvaluations++;
+
+                if (_verbose && (iter % 10 == 0 || iter < 5))
+                {
+                    var gradNormSq = 0.0;
+                    for (var i = 0; i < n; i++)
+                    {
+                        gradNormSq += gradient[i] * gradient[i];
+                    }
+                    var gradNorm = Math.Sqrt(gradNormSq);
+                    Console.WriteLine($"  Iter {iter + 1:D4}: f={value:E6}, ||grad||={gradNorm:E3}, α={alpha:F6}");
+                }
 
                 // Compute correction pair (s, y) and add to memory
                 var s = new double[n];

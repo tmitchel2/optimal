@@ -21,9 +21,7 @@ namespace Optimal.NonLinear
         private double[] _x0 = Array.Empty<double>();
         private double _tolerance = 1e-6;
         private int _maxIterations = 50;
-#pragma warning disable IDE0052 // Remove unread private members
         private bool _verbose;
-#pragma warning restore IDE0052 // Remove unread private members
         private IOptimizer _unconstrainedOptimizer = new LBFGSOptimizer();
         private readonly List<IConstraint> _constraints = new List<IConstraint>();
         private BoxConstraints? _boxConstraints;
@@ -145,6 +143,11 @@ namespace Optimal.NonLinear
             var totalFunctionEvaluations = 0;
             var totalIterations = 0;
 
+            if (_verbose)
+            {
+                Console.WriteLine($"Augmented Lagrangian: {_constraints.Count} constraints, initial penalty μ={mu:E2}");
+            }
+
             for (var outerIter = 0; outerIter < _maxIterations; outerIter++)
             {
                 // Build augmented Lagrangian function
@@ -232,9 +235,19 @@ namespace Optimal.NonLinear
                     maxViolation = Math.Max(maxViolation, _boxConstraints.MaxViolation(x));
                 }
 
+                if (_verbose)
+                {
+                    var (fVal, _) = objective(x);
+                    Console.WriteLine($"  Outer iter {outerIter + 1}: f={fVal:E6}, max_violation={maxViolation:E3}, μ={mu:E2}, inner_iters={subResult.Iterations}");
+                }
+
                 // Check convergence
                 if (maxViolation < _constraintTolerance)
                 {
+                    if (_verbose)
+                    {
+                        Console.WriteLine($"Augmented Lagrangian Converged: max constraint violation {maxViolation:E3} < {_constraintTolerance:E3}");
+                    }
                     var (finalValue, finalGrad) = objective(x);
                     var gradNorm = ComputeNorm(finalGrad);
                     return new OptimizerResult
