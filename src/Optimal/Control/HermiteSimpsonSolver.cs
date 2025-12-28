@@ -26,6 +26,7 @@ namespace Optimal.Control
         private bool _enableMeshRefinement;
         private int _maxRefinementIterations = 5;
         private double _refinementDefectThreshold = 1e-4;
+        private bool _enableParallelization = true;
 
         /// <summary>
         /// Sets the number of collocation segments.
@@ -103,6 +104,17 @@ namespace Optimal.Control
         }
 
         /// <summary>
+        /// Enables or disables parallel computation for transcription.
+        /// </summary>
+        /// <param name="enable">True to enable parallelization.</param>
+        /// <returns>This solver instance for method chaining.</returns>
+        public HermiteSimpsonSolver WithParallelization(bool enable = true)
+        {
+            _enableParallelization = enable;
+            return this;
+        }
+
+        /// <summary>
         /// Solves the optimal control problem.
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
@@ -169,7 +181,7 @@ namespace Optimal.Control
 
                 // Analyze defects and refine mesh
                 var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, currentSegments);
-                var transcription = new HermiteSimpsonTranscription(problem, grid);
+                var transcription = new ParallelTranscription(problem, grid, _enableParallelization);
 
                 // Extract dynamics evaluator
                 double[] DynamicsValue(double[] x, double[] u, double t)
@@ -216,9 +228,13 @@ namespace Optimal.Control
                 }
 
                 // Interpolate solution to new grid for warm start
-                var newTranscription = new HermiteSimpsonTranscription(problem, newGrid);
+                var newTranscription = new ParallelTranscription(problem, newGrid, _enableParallelization);
+                
+                // Convert to HermiteSimpsonTranscription for interpolation (shares same layout)
+                var oldTranscriptionCompat = new HermiteSimpsonTranscription(problem, grid);
+                var newTranscriptionCompat = new HermiteSimpsonTranscription(problem, newGrid);
                 previousSolution = MeshRefinement.InterpolateSolution(
-                    transcription, newTranscription, z, grid, newGrid);
+                    oldTranscriptionCompat, newTranscriptionCompat, z, grid, newGrid);
 
                 currentSegments = newSegments;
             }
@@ -233,7 +249,7 @@ namespace Optimal.Control
         {
             // Create collocation grid
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, segments);
-            var transcription = new HermiteSimpsonTranscription(problem, grid);
+            var transcription = new ParallelTranscription(problem, grid, _enableParallelization);
 
             // Create initial guess
             double[] z0;
@@ -483,7 +499,15 @@ namespace Optimal.Control
 
             // Compute final defects
             var finalDefects = transcription.ComputeAllDefects(zOpt, DynamicsValue);
-            var maxDefect = HermiteSimpsonTranscription.MaxDefect(finalDefects);
+            var maxDefect = 0.0;
+            foreach (var d in finalDefects)
+            {
+                var abs = Math.Abs(d);
+                if (abs > maxDefect)
+                {
+                    maxDefect = abs;
+                }
+            }
 
             return new CollocationResult
             {
