@@ -5,9 +5,10 @@
 - [x] Phase 2: Line Search ✅ **COMPLETE**
 - [x] Phase 3: Conjugate Gradient ✅ **COMPLETE**
 - [x] Phase 4: L-BFGS ✅ **COMPLETE**
-- [ ] Phase 5: Enhanced Stopping Criteria
-- [ ] Phase 6: Utilities & Helpers
-- [ ] Phase 7: Documentation & Examples
+- [ ] Phase 5: Constrained Optimization
+- [ ] Phase 6: Enhanced Stopping Criteria
+- [ ] Phase 7: Utilities & Helpers
+- [ ] Phase 8: Documentation & Examples
 
 ---
 
@@ -404,7 +405,141 @@ Tested memory sizes: m = 3, 5, 10, 20
 
 ---
 
-## Phase 5: Enhanced Stopping Criteria
+## Phase 5: Constrained Optimization
+**Status**: Not Started
+
+### Goal
+Implement support for equality and inequality constraints using augmented Lagrangian and penalty methods.
+
+### Checklist
+- [ ] Create `IConstraint.cs` - Base interface for constraints
+- [ ] Create `BoxConstraints.cs` - Simple bounds: `a ≤ x ≤ b`
+- [ ] Create `EqualityConstraint.cs` - Equality constraints: `h(x) = 0`
+- [ ] Create `InequalityConstraint.cs` - Inequality constraints: `g(x) ≤ 0`
+- [ ] Create `PenaltyMethod.cs` - Quadratic penalty method
+- [ ] Create `AugmentedLagrangian.cs` - Augmented Lagrangian method
+- [ ] Create `ConstrainedOptimizer.cs` - Main constrained optimizer
+- [ ] Create `ConstrainedOptimizerTests.cs`
+- [ ] Test on problems with box constraints
+- [ ] Test on problems with equality constraints
+- [ ] Test on problems with inequality constraints
+- [ ] Test on mixed constraint problems
+
+### Implementation Notes
+
+#### Constraint Types
+
+**1. Box Constraints (Bounds)**
+Simplest form: `a_i ≤ x_i ≤ b_i` for each variable.
+
+Approaches:
+- **Projected gradient**: Project onto feasible region after each step
+- **Active set method**: Identify active constraints and optimize on subspace
+- **Barrier method**: Add logarithmic barrier terms to objective
+
+**2. Equality Constraints**
+Form: `h_j(x) = 0` for j = 1, ..., m_eq
+
+Example: Optimize `f(x, y)` subject to `x + y = 1`
+
+**3. Inequality Constraints**
+Form: `g_k(x) ≤ 0` for k = 1, ..., m_ineq
+
+Example: Optimize `f(x, y)` subject to `x² + y² ≤ 1`
+
+#### Methods
+
+**Penalty Method (Exterior)**
+Convert constrained problem to unconstrained by adding penalty terms:
+```
+L(x, μ) = f(x) + μ/2 * [Σ h_j(x)² + Σ max(0, g_k(x))²]
+```
+- Start with small μ, gradually increase
+- Simple to implement but can be ill-conditioned
+- Works with any unconstrained optimizer (L-BFGS, CG, etc.)
+
+**Augmented Lagrangian Method**
+More robust than pure penalty:
+```
+L(x, λ, μ) = f(x) + Σ λ_j * h_j(x) + μ/2 * Σ h_j(x)²
+           + Σ max(0, λ_k + μ*g_k(x))²/2μ
+```
+- Maintains Lagrange multiplier estimates λ
+- Better conditioning than pure penalty
+- Industry standard for constrained optimization
+- Used in NLOPT, IPOPT, etc.
+
+**Barrier Method (Interior Point)**
+Only for inequality constraints, adds barrier inside feasible region:
+```
+B(x, μ) = f(x) - μ * Σ log(-g_k(x))
+```
+- Requires strictly feasible starting point
+- Decreases μ to approach boundary
+- Very effective for convex problems
+
+#### AutoDiff Integration
+For constraints defined with `[OptimalCode]`:
+```csharp
+[OptimalCode]
+public static class ConstraintFunctions
+{
+    // Equality: x + y - 1 = 0
+    public static double SumEqualsOne(double x, double y) => x + y - 1.0;
+
+    // Inequality: x² + y² - 1 ≤ 0 (inside unit circle)
+    public static double InsideUnitCircle(double x, double y) => x*x + y*y - 1.0;
+}
+```
+
+Generated gradients: `ConstraintFunctionsGradients.SumEqualsOneReverse(x, y)`
+
+#### API Design
+```csharp
+var optimizer = new AugmentedLagrangianOptimizer()
+    .WithUnconstrainedOptimizer(new LBFGSOptimizer())
+    .WithInitialPoint(new[] { 0.5, 0.5 })
+    .WithEqualityConstraint(x => ConstraintFunctionsGradients.SumEqualsOneReverse(x[0], x[1]))
+    .WithInequalityConstraint(x => ConstraintFunctionsGradients.InsideUnitCircleReverse(x[0], x[1]))
+    .WithTolerance(1e-6);
+
+var result = optimizer.Minimize(x => ObjectiveFunctionsGradients.MyObjectiveReverse(x[0], x[1]));
+```
+
+#### Test Problems
+
+**1. Rosenbrock with box constraints**
+- Minimize Rosenbrock subject to `-2 ≤ x ≤ 2, -2 ≤ y ≤ 2`
+- Tests projection and bounds handling
+
+**2. Circle-constrained optimization**
+- Minimize `f(x, y) = (x - 1)² + (y - 1)²` subject to `x² + y² ≤ 1`
+- Tests inequality constraints
+
+**3. Linear equality constraint**
+- Minimize Rosenbrock subject to `x + y = 1`
+- Tests equality constraints
+
+**4. Hock-Schittkowski problems**
+- Standard benchmark problems from optimization literature
+- Mix of equality and inequality constraints
+
+#### Design Decisions
+- Start with Augmented Lagrangian (most robust)
+- Support AutoDiff-generated constraint gradients
+- Builder pattern for constraint specification
+- Delegate to existing unconstrained optimizers (L-BFGS, CG)
+- Optional constraint violation tracking in results
+
+#### Performance Considerations
+- Penalty parameter adaptation strategy
+- Constraint violation tolerance
+- Inner optimization tolerance vs outer tolerance
+- Maximum outer iterations (typically 10-50)
+
+---
+
+## Phase 6: Enhanced Stopping Criteria
 **Status**: Not Started
 
 ### Goal
@@ -424,7 +559,7 @@ Sophisticated convergence detection and diagnostics.
 
 ---
 
-## Phase 6: Utilities & Helpers
+## Phase 7: Utilities & Helpers
 **Status**: Not Started
 
 ### Goal
@@ -438,11 +573,11 @@ Numerical gradient checking, benchmarking, and history tracking.
 - [ ] Test gradient correctness on all test functions
 
 ### Implementation Notes
-[To be filled during Phase 6]
+[To be filled during Phase 7]
 
 ---
 
-## Phase 7: Documentation & Examples
+## Phase 8: Documentation & Examples
 **Status**: Not Started
 
 ### Goal
