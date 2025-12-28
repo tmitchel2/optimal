@@ -28,6 +28,7 @@ namespace Optimal.Control
         private double[]? _controlUpperBounds;
         private double[]? _stateLowerBounds;
         private double[]? _stateUpperBounds;
+        private readonly System.Collections.Generic.List<Func<double[], double[], double, (double value, double[] gradients)>> _pathConstraints = new();
 
         /// <summary>
         /// Gets the dynamics function: ẋ = f(x, u, t).
@@ -94,6 +95,11 @@ namespace Optimal.Control
         /// Gets the state upper bounds (null if unconstrained).
         /// </summary>
         public double[]? StateUpperBounds => _stateUpperBounds;
+
+        /// <summary>
+        /// Gets the path inequality constraints: g(x, u, t) ≤ 0.
+        /// </summary>
+        public System.Collections.Generic.IReadOnlyList<Func<double[], double[], double, (double value, double[] gradients)>> PathConstraints => _pathConstraints;
 
         /// <summary>
         /// Sets the dynamics function.
@@ -223,6 +229,18 @@ namespace Optimal.Control
         {
             _stateLowerBounds = lower ?? throw new ArgumentNullException(nameof(lower));
             _stateUpperBounds = upper ?? throw new ArgumentNullException(nameof(upper));
+            return this;
+        }
+
+        /// <summary>
+        /// Adds a path inequality constraint: g(x, u, t) ≤ 0.
+        /// The constraint is enforced at all collocation points.
+        /// </summary>
+        /// <param name="constraint">Constraint function returning (value, gradients).</param>
+        /// <returns>This problem instance for method chaining.</returns>
+        public ControlProblem WithPathConstraint(Func<double[], double[], double, (double value, double[] gradients)> constraint)
+        {
+            _pathConstraints.Add(constraint ?? throw new ArgumentNullException(nameof(constraint)));
             return this;
         }
     }

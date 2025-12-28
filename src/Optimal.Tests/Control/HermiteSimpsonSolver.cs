@@ -290,6 +290,41 @@ namespace Optimal.Control
                 constrainedOptimizer.WithBoxConstraints(lowerBounds, upperBounds);
             }
 
+            // Add path constraints if specified
+            if (problem.PathConstraints.Count > 0)
+            {
+                // Apply each path constraint at all collocation nodes
+                for (var constraintIndex = 0; constraintIndex < problem.PathConstraints.Count; constraintIndex++)
+                {
+                    var pathConstraint = problem.PathConstraints[constraintIndex];
+
+                    for (var k = 0; k <= _segments; k++)
+                    {
+                        var nodeIndex = k;
+                        var timePoint = grid.TimePoints[k];
+
+                        constrainedOptimizer.WithInequalityConstraint(z =>
+                        {
+                            var x = transcription.GetState(z, nodeIndex);
+                            var u = transcription.GetControl(z, nodeIndex);
+                            var result = pathConstraint(x, u, timePoint);
+
+                            // Compute gradient numerically
+                            double ConstraintValue(double[] zz)
+                            {
+                                var xx = transcription.GetState(zz, nodeIndex);
+                                var uu = transcription.GetControl(zz, nodeIndex);
+                                var res = pathConstraint(xx, uu, timePoint);
+                                return res.value;
+                            }
+
+                            var gradient = NumericalGradients.ComputeConstraintGradient(ConstraintValue, z);
+                            return (result.value, gradient);
+                        });
+                    }
+                }
+            }
+
             // Solve the NLP
             var nlpResult = constrainedOptimizer.Minimize(nlpObjective);
 
