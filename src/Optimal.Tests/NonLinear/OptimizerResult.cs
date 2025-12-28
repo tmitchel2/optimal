@@ -54,5 +54,20 @@ namespace Optimal.NonLinear
         /// Gets a human-readable message describing the optimization outcome.
         /// </summary>
         public string Message { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Gets the L2 norm of the gradient at the optimal point.
+        /// </summary>
+        public double GradientNorm { get; init; }
+
+        /// <summary>
+        /// Gets the absolute change in function value from the last iteration.
+        /// </summary>
+        public double FunctionChange { get; init; }
+
+        /// <summary>
+        /// Gets the L2 norm of the parameter change from the last iteration.
+        /// </summary>
+        public double ParameterChange { get; init; }
     }
 }

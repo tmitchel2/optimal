@@ -235,6 +235,7 @@ namespace Optimal.NonLinear
                 if (maxViolation < _constraintTolerance)
                 {
                     var (finalValue, finalGrad) = objective(x);
+                    var gradNorm = ComputeNorm(finalGrad);
                     return new OptimizerResult
                     {
                         OptimalPoint = x,
@@ -244,7 +245,10 @@ namespace Optimal.NonLinear
                         FunctionEvaluations = totalFunctionEvaluations,
                         StoppingReason = StoppingReason.GradientTolerance,
                         Success = true,
-                        Message = $"Converged: max constraint violation {maxViolation:E3} < {_constraintTolerance:E3}"
+                        Message = $"Converged: max constraint violation {maxViolation:E3} < {_constraintTolerance:E3}",
+                        GradientNorm = gradNorm,
+                        FunctionChange = 0.0,
+                        ParameterChange = 0.0
                     };
                 }
 
@@ -267,6 +271,7 @@ namespace Optimal.NonLinear
 
             // Maximum iterations reached
             var (endValue, endGrad) = objective(x);
+            var endGradNorm = ComputeNorm(endGrad);
             return new OptimizerResult
             {
                 OptimalPoint = x,
@@ -276,8 +281,21 @@ namespace Optimal.NonLinear
                 FunctionEvaluations = totalFunctionEvaluations,
                 StoppingReason = StoppingReason.MaxIterations,
                 Success = false,
-                Message = "Maximum outer iterations reached without satisfying constraints"
+                Message = "Maximum outer iterations reached without satisfying constraints",
+                GradientNorm = endGradNorm,
+                FunctionChange = 0.0,
+                ParameterChange = 0.0
             };
+        }
+
+        private static double ComputeNorm(double[] vector)
+        {
+            var sum = 0.0;
+            foreach (var x in vector)
+            {
+                sum += x * x;
+            }
+            return Math.Sqrt(sum);
         }
     }
 }

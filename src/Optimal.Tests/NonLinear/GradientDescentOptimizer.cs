@@ -18,7 +18,10 @@ namespace Optimal.NonLinear
     {
         private double[] _x0 = Array.Empty<double>();
         private double _tolerance = 1e-6;
+        private double _functionTolerance = 1e-8;
+        private double _parameterTolerance = 1e-8;
         private int _maxIterations = 1000;
+        private int _maxFunctionEvaluations = 10000;
         private double _stepSize = 0.01;
         private bool _verbose;
         private ILineSearch? _lineSearch;
@@ -42,6 +45,39 @@ namespace Optimal.NonLinear
         public GradientDescentOptimizer WithLineSearch(ILineSearch lineSearch)
         {
             _lineSearch = lineSearch;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the function value change tolerance for convergence.
+        /// </summary>
+        /// <param name="tolerance">The function change tolerance.</param>
+        /// <returns>This optimizer instance for method chaining.</returns>
+        public GradientDescentOptimizer WithFunctionTolerance(double tolerance)
+        {
+            _functionTolerance = tolerance;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the parameter change tolerance for convergence.
+        /// </summary>
+        /// <param name="tolerance">The parameter change tolerance.</param>
+        /// <returns>This optimizer instance for method chaining.</returns>
+        public GradientDescentOptimizer WithParameterTolerance(double tolerance)
+        {
+            _parameterTolerance = tolerance;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the maximum number of function evaluations.
+        /// </summary>
+        /// <param name="maxEvaluations">The maximum number of function evaluations.</param>
+        /// <returns>This optimizer instance for method chaining.</returns>
+        public GradientDescentOptimizer WithMaxFunctionEvaluations(int maxEvaluations)
+        {
+            _maxFunctionEvaluations = maxEvaluations;
             return this;
         }
 
@@ -80,17 +116,26 @@ namespace Optimal.NonLinear
             var n = x.Length;
             var functionEvaluations = 0;
 
+            // Create convergence monitor
+            // Use maxFunctionEvaluations if set, otherwise use maxIterations * 20 (generous for line search)
+            var effectiveMaxFunctionEvals = _maxFunctionEvaluations > 0 ? _maxFunctionEvaluations : _maxIterations * 20;
+            var monitor = new ConvergenceMonitor(
+                gradientTolerance: _tolerance,
+                functionTolerance: _functionTolerance,
+                parameterTolerance: _parameterTolerance,
+                maxIterations: _maxIterations,
+                maxFunctionEvaluations: effectiveMaxFunctionEvals,
+                stallIterations: 10);
+
             for (var iter = 0; iter < _maxIterations; iter++)
             {
                 var (value, gradient) = objective(x);
                 functionEvaluations++;
 
-                var gradNorm = ComputeNorm(gradient);
+                // Check convergence
+                var convergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
 
-                // Note: Verbose output via Console.WriteLine removed due to analyzer restrictions
-                // Future enhancement: Add callback-based progress reporting
-
-                if (gradNorm < _tolerance)
+                if (convergence.HasConverged || convergence.Reason.HasValue)
                 {
                     return new OptimizerResult
                     {
@@ -99,9 +144,12 @@ namespace Optimal.NonLinear
                         FinalGradient = gradient,
                         Iterations = iter + 1,
                         FunctionEvaluations = functionEvaluations,
-                        StoppingReason = StoppingReason.GradientTolerance,
-                        Success = true,
-                        Message = "Converged: gradient norm below tolerance"
+                        StoppingReason = convergence.Reason ?? StoppingReason.MaxIterations,
+                        Success = convergence.HasConverged,
+                        Message = convergence.Message,
+                        GradientNorm = convergence.GradientNorm,
+                        FunctionChange = convergence.FunctionChange,
+                        ParameterChange = convergence.ParameterChange
                     };
                 }
 
@@ -146,6 +194,8 @@ namespace Optimal.NonLinear
             var finalEval = objective(x);
             functionEvaluations++;
 
+            var finalConvergence = monitor.CheckConvergence(_maxIterations, functionEvaluations, x, finalEval.value, finalEval.gradient);
+
             return new OptimizerResult
             {
                 OptimalPoint = x,
@@ -155,18 +205,11 @@ namespace Optimal.NonLinear
                 FunctionEvaluations = functionEvaluations,
                 StoppingReason = StoppingReason.MaxIterations,
                 Success = false,
-                Message = "Maximum iterations reached without convergence"
+                Message = "Maximum iterations reached without convergence",
+                GradientNorm = finalConvergence.GradientNorm,
+                FunctionChange = finalConvergence.FunctionChange,
+                ParameterChange = finalConvergence.ParameterChange
             };
-        }
-
-        private static double ComputeNorm(double[] vector)
-        {
-            var sum = 0.0;
-            foreach (var x in vector)
-            {
-                sum += x * x;
-            }
-            return Math.Sqrt(sum);
         }
     }
 }

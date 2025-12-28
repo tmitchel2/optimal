@@ -36,7 +36,12 @@ namespace Optimal.NonLinear.Tests
             Assert.AreEqual(0.0, result.OptimalPoint[0], Tolerance, "x should be near 0");
             Assert.AreEqual(0.0, result.OptimalPoint[1], Tolerance, "y should be near 0");
             Assert.AreEqual(0.0, result.OptimalValue, 1e-6, "f(x*) should be near 0");
-            Assert.AreEqual(StoppingReason.GradientTolerance, result.StoppingReason);
+            // Can converge via gradient, function, or parameter tolerance
+            Assert.IsTrue(
+                result.StoppingReason == StoppingReason.GradientTolerance ||
+                result.StoppingReason == StoppingReason.FunctionTolerance ||
+                result.StoppingReason == StoppingReason.ParameterTolerance,
+                $"Should converge via tolerance, got {result.StoppingReason}");
         }
 
         [TestMethod]
@@ -56,7 +61,12 @@ namespace Optimal.NonLinear.Tests
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
             Assert.AreEqual(1.0, result.OptimalPoint[1], 1e-2, "y should be near 1");
             Assert.IsTrue(result.OptimalValue < 1e-3, $"f(x*) should be very small, was {result.OptimalValue}");
-            Assert.AreEqual(StoppingReason.GradientTolerance, result.StoppingReason);
+            // Can converge via gradient, function, or parameter tolerance
+            Assert.IsTrue(
+                result.StoppingReason == StoppingReason.GradientTolerance ||
+                result.StoppingReason == StoppingReason.FunctionTolerance ||
+                result.StoppingReason == StoppingReason.ParameterTolerance,
+                $"Should converge via tolerance, got {result.StoppingReason}");
         }
 
         [TestMethod]
