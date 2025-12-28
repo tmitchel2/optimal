@@ -78,6 +78,25 @@ namespace Optimal.NonLinear.Tests
                    100.0 * (x9 - x8 * x8) * (x9 - x8 * x8) + (1.0 - x8) * (1.0 - x8) +
                    100.0 * (x10 - x9 * x9) * (x10 - x9 * x9) + (1.0 - x9) * (1.0 - x9);
         }
+
+        // ===== Constraint Functions =====
+
+        /// <summary>
+        /// Linear equality constraint: x + y - 1 = 0
+        /// Used for testing equality-constrained optimization.
+        /// </summary>
+        public static double LinearEqualityConstraint(double x, double y) => x + y - 1.0;
+
+        /// <summary>
+        /// Unit circle inequality constraint: x² + y² - 1 ≤ 0 (inside or on unit circle)
+        /// </summary>
+        public static double UnitCircleConstraint(double x, double y) => x * x + y * y - 1.0;
+
+        /// <summary>
+        /// Distance from origin objective: (x - 1)² + (y - 1)²
+        /// Used with constraints to test constrained optimization.
+        /// </summary>
+        public static double DistanceFromTarget(double x, double y) => (x - 1.0) * (x - 1.0) + (y - 1.0) * (y - 1.0);
     }
 }
 
