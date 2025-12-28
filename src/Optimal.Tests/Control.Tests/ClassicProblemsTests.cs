@@ -72,6 +72,289 @@ namespace Optimal.Control.Tests
         }
 
         [TestMethod]
+        [Ignore("Goddard rocket requires indirect method - direct collocation with hand-crafted guess still times out")]
+        public void CanSolveSimplifiedGoddardRocketWithBangCoastGuess()
+        {
+            // Goddard Rocket: Simplified version with explicit bang-coast initialization
+            // This uses domain knowledge: optimal control is bang-bang (thrust then coast)
+
+            var g = 9.81;
+            var c = 0.5;
+            var massFloor = 0.3; // Higher floor for more stability
+            var T_max = 1.2;
+            var T_final = 2.0; // Shorter time
+            var t_switch = 0.8; // Switch point
+
+            var problem = new ControlProblem()
+                .WithStateSize(3)
+                .WithControlSize(1)
+                .WithTimeHorizon(0.0, T_final)
+                .WithInitialCondition(new[] { 0.0, 0.0, 1.0 })
+                .WithControlBounds(new[] { 0.0 }, new[] { T_max })
+                .WithStateBounds(
+                    new[] { -0.1, -2.0, massFloor },
+                    new[] { 15.0, 15.0, 1.02 })
+                .WithDynamics((x, u, t) =>
+                {
+                    var v = x[1];
+                    var m = Math.Max(x[2], massFloor);
+                    var T = u[0];
+
+                    var hdot = v;
+                    var vdot = T / m - g;
+                    var mdot = -T / c;
+
+                    var value = new[] { hdot, vdot, mdot };
+                    var gradients = new double[2][];
+                    gradients[0] = new[] {
+                        0.0, 1.0, 0.0,
+                        0.0, 0.0, -T/(m*m),
+                        0.0, 0.0, 0.0
+                    };
+                    gradients[1] = new[] { 0.0, 1.0 / m, -1.0 / c };
+                    return (value, gradients);
+                })
+                .WithTerminalCost((x, t) =>
+                {
+                    var value = -x[0]; // Maximize altitude
+                    var gradients = new double[4];
+                    gradients[0] = -1.0;
+                    return (value, gradients);
+                })
+                .WithRunningCost((x, u, t) =>
+                {
+                    var value = 0.01 * u[0] * u[0];
+                    var gradients = new double[3];
+                    gradients[1] = 0.02 * u[0];
+                    return (value, gradients);
+                });
+
+            // Create grid and transcription
+            var grid = new CollocationGrid(0.0, T_final, 12);
+            var transcription = new HermiteSimpsonTranscription(problem, grid);
+
+            // Create bang-coast initial guess
+            var initialGuess = new double[transcription.DecisionVectorSize];
+
+            Console.WriteLine("Creating bang-coast initial guess...");
+            for (var k = 0; k <= 12; k++)
+            {
+                var t = grid.TimePoints[k];
+
+                // Control: bang then coast
+                var T_thrust = t < t_switch ? T_max * 0.9 : 0.05;
+
+                // Integrate states numerically
+                double h, v, m;
+                if (k == 0)
+                {
+                    h = 0.0;
+                    v = 0.0;
+                    m = 1.0;
+                }
+                else
+                {
+                    var prevState = transcription.GetState(initialGuess, k - 1);
+                    var prevControl = transcription.GetControl(initialGuess, k - 1);
+                    var dt = t - grid.TimePoints[k - 1];
+                    var T_prev = prevControl[0];
+                    var m_prev = Math.Max(prevState[2], massFloor);
+
+                    h = prevState[0] + dt * prevState[1];
+                    v = prevState[1] + dt * (T_prev / m_prev - g);
+                    m = prevState[2] - dt * T_prev / c;
+                    m = Math.Max(m, massFloor);
+                }
+
+                transcription.SetState(initialGuess, k, new[] { h, v, m });
+                transcription.SetControl(initialGuess, k, new[] { T_thrust });
+            }
+
+            // Solve with good initial guess
+            var solver = new HermiteSimpsonSolver()
+                .WithSegments(12)
+                .WithTolerance(2e-2) // Very relaxed
+                .WithMaxIterations(40)
+                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-2).WithMaxIterations(30));
+
+            var result = solver.SolveWithInitialGuess(problem, initialGuess);
+
+            Assert.IsTrue(result.Success, $"Simplified Goddard rocket should converge, message: {result.Message}");
+
+            var finalAltitude = result.States[result.States.Length - 1][0];
+            Assert.IsTrue(finalAltitude > 0.01, $"Final altitude {finalAltitude:F3} should be positive");
+
+            var initialMass = result.States[0][2];
+            var finalMass = result.States[result.States.Length - 1][2];
+            Assert.IsTrue(finalMass < initialMass, $"Mass should decrease");
+
+            Console.WriteLine($"\n✅ GODDARD ROCKET SOLVED!");
+            Console.WriteLine($"  Final altitude: {finalAltitude:F3} m");
+            Console.WriteLine($"  Final velocity: {result.States[result.States.Length - 1][1]:F2} m/s");
+            Console.WriteLine($"  Fuel burned: {(initialMass - finalMass):F3} kg");
+            Console.WriteLine($"  Cost (neg. altitude): {result.OptimalCost:E3}");
+            Console.WriteLine($"  Iterations: {result.Iterations}");
+        }
+
+        [TestMethod]
+        [Ignore("LQR initialization approach - deferred in favor of simpler bang-coast guess")]
+        public void CanSolveGoddardRocketWithLQRInitialization()
+        {
+            // Goddard Rocket: Maximize final altitude using LQR initialization
+            // State: [altitude h, velocity v, mass m]
+            // Control: thrust T
+            // Objective: max h(t_f)  =>  min -h(t_f)
+
+            // LQR initialization provides a better starting trajectory by:
+            // 1. Linearizing dynamics around a nominal trajectory
+            // 2. Solving for stabilizing feedback gains
+            // 3. Generating a smooth initial guess
+
+            var g = 9.81;
+            var c = 0.5; // Exhaust velocity factor
+            var massFloor = 0.25;
+
+            // For Goddard rocket, we need a good nominal trajectory
+            // Let's use a simple bang-coast structure as nominal
+            var T_final = 2.5;
+            var t_switch = 1.0; // Switch from burn to coast at 1 second
+
+            var problem = new ControlProblem()
+                .WithStateSize(3) // [h, v, m]
+                .WithControlSize(1) // thrust
+                .WithTimeHorizon(0.0, T_final)
+                .WithInitialCondition(new[] { 0.0, 0.0, 1.0 })
+                .WithControlBounds(new[] { 0.0 }, new[] { 1.5 })
+                .WithStateBounds(
+                    new[] { -0.1, -2.0, massFloor },
+                    new[] { 20.0, 20.0, 1.05 })
+                .WithDynamics((x, u, t) =>
+                {
+                    var h = x[0];
+                    var v = x[1];
+                    var m = Math.Max(x[2], massFloor);
+                    var T = u[0];
+
+                    var hdot = v;
+                    var vdot = T / m - g;
+                    var mdot = -T / c;
+
+                    var value = new[] { hdot, vdot, mdot };
+                    var gradients = new double[2][];
+
+                    // Gradients for linearization
+                    gradients[0] = new[] {
+                        0.0, 1.0, 0.0,           // ∂ḣ/∂[h,v,m]
+                        0.0, 0.0, -T/(m*m),      // ∂v̇/∂[h,v,m]
+                        0.0, 0.0, 0.0            // ∂ṁ/∂[h,v,m]
+                    };
+                    gradients[1] = new[] {
+                        0.0,                      // ∂ḣ/∂T
+                        1.0/m,                    // ∂v̇/∂T
+                        -1.0/c                    // ∂ṁ/∂T
+                    };
+
+                    return (value, gradients);
+                })
+                .WithTerminalCost((x, t) =>
+                {
+                    var value = -x[0];
+                    var gradients = new double[4];
+                    gradients[0] = -1.0;
+                    return (value, gradients);
+                })
+                .WithRunningCost((x, u, t) =>
+                {
+                    var value = 0.01 * u[0] * u[0];
+                    var gradients = new double[3];
+                    gradients[1] = 0.02 * u[0];
+                    return (value, gradients);
+                });
+
+            // Create grid
+            var grid = new CollocationGrid(0.0, T_final, 15);
+
+            // Create bang-coast nominal trajectory
+            var nominalStates = new double[16][];
+            var nominalControls = new double[16][];
+
+            for (var k = 0; k <= 15; k++)
+            {
+                var t = grid.TimePoints[k];
+                var alpha = t / T_final;
+
+                // Bang-coast control structure
+                var T_thrust = t < t_switch ? 1.2 : 0.1;
+
+                // Approximate states with simple physics
+                double h, v, m;
+                if (t < t_switch)
+                {
+                    // Burn phase: accelerating
+                    var t_burn = t;
+                    m = 1.0 - T_thrust * t_burn / c;
+                    m = Math.Max(m, massFloor);
+                    v = (T_thrust / 0.8 - g) * t_burn; // Approximate with average mass
+                    h = 0.5 * v * t_burn;
+                }
+                else
+                {
+                    // Coast phase: ballistic
+                    var t_coast = t - t_switch;
+                    m = 1.0 - T_thrust * t_switch / c;
+                    m = Math.Max(m, massFloor);
+                    var v0 = (T_thrust / 0.8 - g) * t_switch;
+                    v = v0 - g * t_coast;
+                    h = v0 * t_switch / 2 + v0 * t_coast - 0.5 * g * t_coast * t_coast;
+                }
+
+                h = Math.Max(h, 0.0);
+                nominalStates[k] = new[] { h, v, m };
+                nominalControls[k] = new[] { T_thrust };
+            }
+
+            // Generate LQR-based initial guess
+            Console.WriteLine("Generating LQR-based initial guess...");
+            var Q = new[] { 1.0, 0.1, 0.01 };  // Prioritize altitude
+            var R = new[] { 0.1 };              // Moderate control cost
+
+            var initialGuess = LQRInitializer.GenerateInitialGuess(
+                problem,
+                grid,
+                (nominalStates, nominalControls),
+                Q,
+                R);
+
+            // Solve with LQR initialization
+            var solver = new HermiteSimpsonSolver()
+                .WithSegments(15)
+                .WithTolerance(1e-2)
+                .WithMaxIterations(50)
+                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-3).WithMaxIterations(40));
+
+            var result = solver.SolveWithInitialGuess(problem, initialGuess);
+
+            Assert.IsTrue(result.Success, $"Goddard rocket with LQR initialization should converge, message: {result.Message}");
+
+            // Final altitude should be positive
+            var finalAltitude = result.States[result.States.Length - 1][0];
+            Assert.IsTrue(finalAltitude > 0.05, $"Final altitude {finalAltitude:F2} should be > 0.05m");
+
+            // Mass should decrease
+            var initialMass = result.States[0][2];
+            var finalMass = result.States[result.States.Length - 1][2];
+            Assert.IsTrue(finalMass < initialMass, $"Mass should decrease: initial={initialMass:F3}, final={finalMass:F3}");
+
+            Console.WriteLine($"Goddard Rocket Solution (LQR Initialization):");
+            Console.WriteLine($"  Final altitude: {finalAltitude:F2} m");
+            Console.WriteLine($"  Final velocity: {result.States[result.States.Length - 1][1]:F2} m/s");
+            Console.WriteLine($"  Fuel burned: {(initialMass - finalMass):F3} kg");
+            Console.WriteLine($"  Optimal cost: {result.OptimalCost:E3}");
+            Console.WriteLine($"  Iterations: {result.Iterations}");
+            Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
+        }
+
+        [TestMethod]
         [Ignore("Goddard rocket needs specialized initialization - AutoDiff gradients work but don't solve initialization problem")]
         public void CanSolveGoddardRocketWithAnalyticGradients()
         {
@@ -79,14 +362,14 @@ namespace Optimal.Control.Tests
             // State: [altitude h, velocity v, mass m]
             // Control: thrust T
             // Objective: max h(t_f)  =>  min -h(t_f)
-            
+
             // This version uses AutoDiff to generate exact analytic gradients
             // instead of numerical approximations or manual derivatives
-            
+
             var g = 9.81;
             var c = 0.5; // Exhaust velocity factor (specific impulse)
             var massFloor = 0.25; // Minimum mass to prevent division by zero
-            
+
             var problem = new ControlProblem()
                 .WithStateSize(3) // [h, v, m]
                 .WithControlSize(1) // thrust
@@ -102,29 +385,29 @@ namespace Optimal.Control.Tests
                     var v = x[1];
                     var m = Math.Max(x[2], massFloor); // Clamp mass outside AutoDiff
                     var T = u[0];
-                    
+
                     // Use AutoDiff-generated gradients for each state derivative
                     var (hdot, hdot_gradients) = GoddardRocketDynamicsGradients.AltitudeRateReverse(h, v, m, T);
                     var (vdot, vdot_gradients) = GoddardRocketDynamicsGradients.VelocityRateReverse(h, v, m, T, g);
                     var (mdot, mdot_gradients) = GoddardRocketDynamicsGradients.MassRateReverse(h, v, m, T, c);
-                    
+
                     var value = new[] { hdot, vdot, mdot };
                     var gradients = new double[2][];
-                    
+
                     // Gradients w.r.t. state: [∂ḣ/∂h, ∂ḣ/∂v, ∂ḣ/∂m; ∂v̇/∂h, ∂v̇/∂v, ∂v̇/∂m; ∂ṁ/∂h, ∂ṁ/∂v, ∂ṁ/∂m]
-                    gradients[0] = new[] { 
+                    gradients[0] = new[] {
                         hdot_gradients[0], hdot_gradients[1], hdot_gradients[2],  // ∂ḣ/∂[h,v,m]
                         vdot_gradients[0], vdot_gradients[1], vdot_gradients[2],  // ∂v̇/∂[h,v,m]
                         mdot_gradients[0], mdot_gradients[1], mdot_gradients[2]   // ∂ṁ/∂[h,v,m]
                     };
-                    
+
                     // Gradients w.r.t. control: [∂ḣ/∂T, ∂v̇/∂T, ∂ṁ/∂T]
-                    gradients[1] = new[] { 
+                    gradients[1] = new[] {
                         hdot_gradients[3],  // ∂ḣ/∂T
                         vdot_gradients[3],  // ∂v̇/∂T
                         mdot_gradients[3]   // ∂ṁ/∂T
                     };
-                    
+
                     return (value, gradients);
                 })
                 .WithTerminalCost((x, t) =>
@@ -132,16 +415,16 @@ namespace Optimal.Control.Tests
                     var h = x[0];
                     var v = x[1];
                     var m = x[2];
-                    
+
                     // Use AutoDiff for terminal cost gradients
                     var (cost, cost_gradients) = GoddardRocketDynamicsGradients.TerminalCostReverse(h, v, m);
-                    
+
                     var gradients = new double[4];
                     gradients[0] = cost_gradients[0];  // ∂Φ/∂h
                     gradients[1] = cost_gradients[1];  // ∂Φ/∂v
                     gradients[2] = cost_gradients[2];  // ∂Φ/∂m
                     gradients[3] = 0.0;                 // ∂Φ/∂t
-                    
+
                     return (cost, gradients);
                 })
                 .WithRunningCost((x, u, t) =>
@@ -150,15 +433,15 @@ namespace Optimal.Control.Tests
                     var v = x[1];
                     var m = x[2];
                     var T = u[0];
-                    
+
                     // Use AutoDiff for running cost gradients
                     var (cost, cost_gradients) = GoddardRocketDynamicsGradients.RunningCostReverse(h, v, m, T);
-                    
+
                     var gradients = new double[3];
                     gradients[0] = cost_gradients[0];  // ∂L/∂x (sum over state components)
                     gradients[1] = cost_gradients[3];  // ∂L/∂u
                     gradients[2] = 0.0;                 // ∂L/∂t
-                    
+
                     return (cost, gradients);
                 });
 
@@ -171,17 +454,17 @@ namespace Optimal.Control.Tests
             var result = solver.Solve(problem);
 
             Assert.IsTrue(result.Success, $"Goddard rocket with analytic gradients should converge, message: {result.Message}");
-            
+
             // Final altitude should be positive (rocket went up)
             var finalAltitude = result.States[result.States.Length - 1][0];
             Assert.IsTrue(finalAltitude > 0.05, $"Final altitude {finalAltitude:F2} should be > 0.05m");
-            
+
             // Mass should decrease (fuel burned)
             var initialMass = result.States[0][2];
             var finalMass = result.States[result.States.Length - 1][2];
             Assert.IsTrue(finalMass < initialMass, $"Mass should decrease: initial={initialMass:F3}, final={finalMass:F3}");
             Assert.IsTrue(finalMass >= massFloor - 0.01, $"Mass should stay above floor, final mass: {finalMass:F3}");
-            
+
             Console.WriteLine($"Goddard Rocket Solution (Analytic Gradients):");
             Console.WriteLine($"  Final altitude: {finalAltitude:F2} m");
             Console.WriteLine($"  Final velocity: {result.States[result.States.Length - 1][1]:F2} m/s");
@@ -199,14 +482,14 @@ namespace Optimal.Control.Tests
             // State: [altitude h, velocity v, mass m]
             // Control: thrust T
             // Objective: max h(t_f)  =>  min -h(t_f)
-            
+
             // Multiple shooting is better for this problem because:
             // 1. Variable mass creates instability
             // 2. Breaking into intervals allows better handling of mass decrease
-            
+
             var g = 9.81;
             var c = 0.5; // Exhaust velocity factor (specific impulse)
-            
+
             var problem = new ControlProblem()
                 .WithStateSize(3) // [h, v, m]
                 .WithControlSize(1) // thrust
@@ -221,15 +504,15 @@ namespace Optimal.Control.Tests
                     var v = x[1];
                     var m = Math.Max(x[2], 0.25); // Higher mass floor for stability
                     var T = u[0];
-                    
+
                     var hdot = v;
                     var vdot = T / m - g;
                     var mdot = -T / c;
-                    
+
                     var value = new[] { hdot, vdot, mdot };
                     var gradients = new double[2][];
                     gradients[0] = new[] { 0.0, 1.0, 0.0 };
-                    gradients[1] = new[] { 
+                    gradients[1] = new[] {
                         0.0,
                         0.0,
                         -T / (m * m),
@@ -264,17 +547,17 @@ namespace Optimal.Control.Tests
             var result = solver.Solve(problem);
 
             Assert.IsTrue(result.Success, $"Goddard rocket should converge with multiple shooting, message: {result.Message}");
-            
+
             // Final altitude should be positive (rocket went up)
             var finalAltitude = result.States[result.States.Length - 1][0];
             Assert.IsTrue(finalAltitude > 0.05, $"Final altitude {finalAltitude:F2} should be > 0.05m");
-            
+
             // Mass should decrease (fuel burned)
             var initialMass = result.States[0][2];
             var finalMass = result.States[result.States.Length - 1][2];
             Assert.IsTrue(finalMass < initialMass, $"Mass should decrease: initial={initialMass:F3}, final={finalMass:F3}");
             Assert.IsTrue(finalMass > 0.2, $"Mass should stay above floor, final mass: {finalMass:F3}");
-            
+
             Console.WriteLine($"Goddard Rocket Solution:");
             Console.WriteLine($"  Final altitude: {finalAltitude:F2} m");
             Console.WriteLine($"  Final velocity: {result.States[result.States.Length - 1][1]:F2} m/s");
