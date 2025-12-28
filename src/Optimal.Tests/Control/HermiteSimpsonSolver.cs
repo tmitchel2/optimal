@@ -23,6 +23,9 @@ namespace Optimal.Control
         private int _maxIterations = 100;
         private bool _verbose;
         private IOptimizer? _innerOptimizer;
+        private bool _enableMeshRefinement;
+        private int _maxRefinementIterations = 5;
+        private double _refinementDefectThreshold = 1e-4;
 
         /// <summary>
         /// Sets the number of collocation segments.
@@ -85,6 +88,21 @@ namespace Optimal.Control
         }
 
         /// <summary>
+        /// Enables adaptive mesh refinement.
+        /// </summary>
+        /// <param name="enable">True to enable mesh refinement.</param>
+        /// <param name="maxRefinementIterations">Maximum refinement iterations.</param>
+        /// <param name="defectThreshold">Defect threshold for refinement.</param>
+        /// <returns>This solver instance for method chaining.</returns>
+        public HermiteSimpsonSolver WithMeshRefinement(bool enable = true, int maxRefinementIterations = 5, double defectThreshold = 1e-4)
+        {
+            _enableMeshRefinement = enable;
+            _maxRefinementIterations = maxRefinementIterations;
+            _refinementDefectThreshold = defectThreshold;
+            return this;
+        }
+
+        /// <summary>
         /// Solves the optimal control problem.
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
@@ -98,16 +116,138 @@ namespace Optimal.Control
                 throw new InvalidOperationException("Problem must have dynamics defined.");
             }
 
+            if (_enableMeshRefinement)
+            {
+                return SolveWithMeshRefinement(problem);
+            }
+
+            return SolveOnFixedGrid(problem, _segments, initialGuess: null);
+        }
+
+        /// <summary>
+        /// Solves with adaptive mesh refinement.
+        /// </summary>
+        private CollocationResult SolveWithMeshRefinement(ControlProblem problem)
+        {
+            var currentSegments = _segments;
+            CollocationResult? result = null;
+            double[]? previousSolution = null;
+
+            for (var iteration = 0; iteration < _maxRefinementIterations; iteration++)
+            {
+                if (_verbose)
+                {
+                    Console.WriteLine($"Mesh refinement iteration {iteration + 1}, segments = {currentSegments}");
+                }
+
+                // Solve on current grid
+                result = SolveOnFixedGrid(problem, currentSegments, previousSolution);
+
+                if (!result.Success)
+                {
+                    if (_verbose)
+                    {
+                        Console.WriteLine("Failed to converge on current mesh");
+                    }
+                    break;
+                }
+
+                if (_verbose)
+                {
+                    Console.WriteLine($"  Max defect: {result.MaxDefect:E2}");
+                }
+
+                // Check if we should stop
+                if (result.MaxDefect < _refinementDefectThreshold)
+                {
+                    if (_verbose)
+                    {
+                        Console.WriteLine($"Converged with max defect {result.MaxDefect:E2}");
+                    }
+                    break;
+                }
+
+                // Analyze defects and refine mesh
+                var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, currentSegments);
+                var transcription = new HermiteSimpsonTranscription(problem, grid);
+
+                // Extract dynamics evaluator
+                double[] DynamicsValue(double[] x, double[] u, double t)
+                {
+                    var res = problem.Dynamics!(x, u, t);
+                    return res.value;
+                }
+
+                // Rebuild solution vector for defect computation
+                var z = new double[transcription.DecisionVectorSize];
+                for (var k = 0; k <= currentSegments; k++)
+                {
+                    transcription.SetState(z, k, result.States[k]);
+                    transcription.SetControl(z, k, result.Controls[k]);
+                }
+
+                var defects = transcription.ComputeAllDefects(z, DynamicsValue);
+
+                // Identify segments for refinement
+                var meshRefinement = new MeshRefinement(_refinementDefectThreshold, maxSegments: 200);
+                var shouldRefine = meshRefinement.IdentifySegmentsForRefinement(defects, problem.StateDim);
+
+                var refinementPct = meshRefinement.ComputeRefinementPercentage(shouldRefine);
+
+                if (_verbose)
+                {
+                    Console.WriteLine($"  Refining {refinementPct:F1}% of segments");
+                }
+
+                // If no segments need refinement, we're done
+                if (refinementPct < 0.1)
+                {
+                    break;
+                }
+
+                // Create refined grid
+                var newGrid = meshRefinement.RefineGrid(grid, shouldRefine);
+                var newSegments = newGrid.Segments;
+
+                if (newSegments == currentSegments)
+                {
+                    // Can't refine further (hit limit)
+                    break;
+                }
+
+                // Interpolate solution to new grid for warm start
+                var newTranscription = new HermiteSimpsonTranscription(problem, newGrid);
+                previousSolution = meshRefinement.InterpolateSolution(
+                    transcription, newTranscription, z, grid, newGrid);
+
+                currentSegments = newSegments;
+            }
+
+            return result ?? new CollocationResult { Success = false, Message = "Mesh refinement failed to converge" };
+        }
+
+        /// <summary>
+        /// Solves on a fixed grid (no refinement).
+        /// </summary>
+        private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segments, double[]? initialGuess)
+        {
             // Create collocation grid
-            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _segments);
+            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, segments);
             var transcription = new HermiteSimpsonTranscription(problem, grid);
 
             // Create initial guess
-            var x0 = problem.InitialState ?? new double[problem.StateDim];
-            var xf = problem.FinalState ?? new double[problem.StateDim];
-            var u0 = new double[problem.ControlDim]; // Zero control
-
-            var z0 = transcription.CreateInitialGuess(x0, xf, u0);
+            double[] z0;
+            if (initialGuess != null && initialGuess.Length == transcription.DecisionVectorSize)
+            {
+                z0 = initialGuess;
+            }
+            else
+            {
+                var x0 = problem.InitialState ?? new double[problem.StateDim];
+                var xf = problem.FinalState ?? new double[problem.StateDim];
+                var u0 = new double[problem.ControlDim];
+                z0 = transcription.CreateInitialGuess(x0, xf, u0);
+            }
 
             // Extract dynamics evaluator (without gradients for now)
             double[] DynamicsValue(double[] x, double[] u, double t)
@@ -332,10 +472,10 @@ namespace Optimal.Control
             var zOpt = nlpResult.OptimalPoint;
 
             var times = grid.TimePoints;
-            var states = new double[_segments + 1][];
-            var controls = new double[_segments + 1][];
+            var states = new double[segments + 1][];
+            var controls = new double[segments + 1][];
 
-            for (var k = 0; k <= _segments; k++)
+            for (var k = 0; k <= segments; k++)
             {
                 states[k] = transcription.GetState(zOpt, k);
                 controls[k] = transcription.GetControl(zOpt, k);
