@@ -23,9 +23,7 @@ namespace Optimal.NonLinear
         private double _parameterTolerance = 1e-8;
         private int _maxIterations = 1000;
         private int _maxFunctionEvaluations;
-#pragma warning disable IDE0052 // Remove unread private members
         private bool _verbose;
-#pragma warning restore IDE0052 // Remove unread private members
         private ILineSearch _lineSearch = new BacktrackingLineSearch();
         private ConjugateGradientFormula _formula = ConjugateGradientFormula.FletcherReeves;
         private int _restartInterval; // 0 = no periodic restart, n = restart every n iterations
@@ -146,6 +144,17 @@ namespace Optimal.NonLinear
             var (value, gradient) = objective(x);
             functionEvaluations++;
 
+            if (_verbose)
+            {
+                var gradNormSq = 0.0;
+                for (var i = 0; i < n; i++)
+                {
+                    gradNormSq += gradient[i] * gradient[i];
+                }
+                var gradNorm = Math.Sqrt(gradNormSq);
+                Console.WriteLine($"Conjugate Gradient Optimizer: formula={_formula}, Initial f={value:E6}, ||grad||={gradNorm:E3}");
+            }
+
             // Initialize search direction to negative gradient (steepest descent)
             var direction = new double[n];
             for (var i = 0; i < n; i++)
@@ -160,8 +169,17 @@ namespace Optimal.NonLinear
                 // Check convergence
                 var convergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
 
+                if (_verbose && (iter % 10 == 0 || iter < 5))
+                {
+                    Console.WriteLine($"  Iter {iter + 1:D4}: f={value:E6}, ||grad||={convergence.GradientNorm:E3}");
+                }
+
                 if (convergence.HasConverged || convergence.Reason.HasValue)
                 {
+                    if (_verbose)
+                    {
+                        Console.WriteLine($"Conjugate Gradient Converged: {convergence.Message}");
+                    }
                     return new OptimizerResult
                     {
                         OptimalPoint = x,

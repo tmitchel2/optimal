@@ -11,6 +11,7 @@
 using System.Diagnostics;
 using Optimal.Control;
 using Optimal.NonLinear;
+using Optimal.NonLinear.LineSearch;
 using OptimalCli;
 
 // BRACHISTOCHRONE PROBLEM (Johann Bernoulli, 1696)
@@ -107,15 +108,30 @@ Console.WriteLine("=".PadRight(70, '='));
 
 var solver = new HermiteSimpsonSolver()
     .WithSegments(20)  // Start with fewer segments
-    .WithTolerance(1e-4)
+    .WithTolerance(1e-1)
     .WithMaxIterations(200)  // Increased significantly
-    .WithMeshRefinement(enable: true, maxRefinementIterations: 3, defectThreshold: 1e-4)
+                             // .WithMeshRefinement(enable: true, maxRefinementIterations: 3, defectThreshold: 1e-3)
     .WithVerbose(true)  // Enable progress output
     .WithInnerOptimizer(
         new LBFGSOptimizer()
-            .WithTolerance(1e-6)
+            .WithTolerance(1e-4)
             .WithMaxIterations(200)
             .WithVerbose(true));  // Enable inner optimizer progress
+
+// .WithInnerOptimizer(
+//     new GradientDescentOptimizer()
+//         .WithLineSearch(new BacktrackingLineSearch())
+//         .WithTolerance(1e-4)
+//         .WithMaxIterations(200)
+//         .WithVerbose(true));
+
+// .WithInnerOptimizer(
+//     new ConjugateGradientOptimizer()
+//         .WithLineSearch(new BacktrackingLineSearch())
+//         .WithTolerance(1e-4)
+//         .WithMaxIterations(200)
+//         .WithVerbose(true));
+
 
 var sw = Stopwatch.StartNew();
 var result = solver.Solve(problem);

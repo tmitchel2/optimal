@@ -23,9 +23,7 @@ namespace Optimal.NonLinear
         private int _maxIterations = 1000;
         private int _maxFunctionEvaluations;
         private double _stepSize = 0.01;
-#pragma warning disable IDE0052 // Remove unread private members
         private bool _verbose;
-#pragma warning restore IDE0052 // Remove unread private members
         private ILineSearch? _lineSearch;
 
         /// <summary>
@@ -129,6 +127,12 @@ namespace Optimal.NonLinear
                 maxFunctionEvaluations: effectiveMaxFunctionEvals,
                 stallIterations: 10);
 
+            if (_verbose)
+            {
+                var lineSearchMode = _lineSearch != null ? "with line search" : $"fixed step α={_stepSize}";
+                Console.WriteLine($"Gradient Descent Optimizer: {lineSearchMode}");
+            }
+
             for (var iter = 0; iter < _maxIterations; iter++)
             {
                 var (value, gradient) = objective(x);
@@ -137,8 +141,17 @@ namespace Optimal.NonLinear
                 // Check convergence
                 var convergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
 
+                if (_verbose && (iter % 10 == 0 || iter < 5))
+                {
+                    Console.WriteLine($"  Iter {iter + 1:D4}: f={value:E6}, ||grad||={convergence.GradientNorm:E3}");
+                }
+
                 if (convergence.HasConverged || convergence.Reason.HasValue)
                 {
+                    if (_verbose)
+                    {
+                        Console.WriteLine($"Gradient Descent Converged: {convergence.Message}");
+                    }
                     return new OptimizerResult
                     {
                         OptimalPoint = x,
