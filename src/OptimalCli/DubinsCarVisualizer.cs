@@ -12,23 +12,25 @@ using System.Text;
 namespace OptimalCli;
 
 /// <summary>
-/// Renders a real-time pseudo-graphical display of a 2D path in the console.
+/// Renders a real-time pseudo-graphical display of a Dubins car path in the console.
 /// </summary>
-internal static class ConsolePathVisualizer
+internal static class DubinsCarVisualizer
 {
     private const int Width = 80;
     private const int Height = 25;
+    private const int AnimationHeight = 18;  // Rows for the path grid (total 25 = 4 header + 18 grid + 3 footer)
     private static readonly object _lock = new object();
 
     /// <summary>
-    /// Renders a path in the console as ASCII art.
+    /// Renders a Dubins car path in the console as ASCII art.
     /// </summary>
     /// <param name="xData">X coordinates of the path.</param>
     /// <param name="yData">Y coordinates of the path.</param>
-    /// <param name="title">Title to display above the visualization.</param>
+    /// <param name="headings">Heading angles (θ) in radians.</param>
+    /// <param name="turnRate">Current turning rate (ω) in rad/s.</param>
     /// <param name="iteration">Current iteration number.</param>
     /// <param name="cost">Current cost value.</param>
-    public static void RenderPath(double[] xData, double[] yData, string title, int iteration, double cost)
+    public static void RenderPath(double[] xData, double[] yData, double[] headings, double turnRate, int iteration, double cost)
     {
         if (xData.Length == 0 || yData.Length == 0)
         {
@@ -37,14 +39,13 @@ internal static class ConsolePathVisualizer
 
         lock (_lock)
         {
-            // Clear previous display (move cursor to top-left and clear screen)
             Console.SetCursorPosition(0, 0);
 
-            var sb = new StringBuilder();
+            var sb = new StringBuilder(2000);
 
             // Header
             sb.AppendLine($"╔{'═'.ToString().PadRight(Width - 2, '═')}╗");
-            sb.AppendLine($"║ {title.PadRight(Width - 4)}║");
+            sb.AppendLine($"║ {"DUBINS CAR OPTIMIZATION - Minimum Path with Curvature Constraint".PadRight(Width - 4)}║");
             sb.AppendLine($"║ Iteration: {iteration,-10} Cost: {cost:F6}{string.Empty.PadRight(Width - 40)}║");
             sb.AppendLine($"╚{'═'.ToString().PadRight(Width - 2, '═')}╝");
 
@@ -88,8 +89,8 @@ internal static class ConsolePathVisualizer
             yMax = yCenter + paddedRange / 2.0;
 
             // Create character grid
-            var grid = new char[Height, Width];
-            for (var row = 0; row < Height; row++)
+            var grid = new char[AnimationHeight, Width];
+            for (var row = 0; row < AnimationHeight; row++)
             {
                 for (var col = 0; col < Width; col++)
                 {
@@ -98,10 +99,10 @@ internal static class ConsolePathVisualizer
             }
 
             // Draw axes
-            var zeroRow = Height - 1 - (int)((0 - yMin) / (yMax - yMin) * (Height - 1));
+            var zeroRow = AnimationHeight - 1 - (int)((0 - yMin) / (yMax - yMin) * (AnimationHeight - 1));
             var zeroCol = (int)((0 - xMin) / (xMax - xMin) * (Width - 1));
 
-            if (zeroRow >= 0 && zeroRow < Height)
+            if (zeroRow >= 0 && zeroRow < AnimationHeight)
             {
                 for (var col = 0; col < Width; col++)
                 {
@@ -111,18 +112,18 @@ internal static class ConsolePathVisualizer
 
             if (zeroCol >= 0 && zeroCol < Width)
             {
-                for (var row = 0; row < Height; row++)
+                for (var row = 0; row < AnimationHeight; row++)
                 {
                     grid[row, zeroCol] = '│';
                 }
             }
 
-            if (zeroRow >= 0 && zeroRow < Height && zeroCol >= 0 && zeroCol < Width)
+            if (zeroRow >= 0 && zeroRow < AnimationHeight && zeroCol >= 0 && zeroCol < Width)
             {
                 grid[zeroRow, zeroCol] = '┼';
             }
 
-            // Draw the path
+            // Draw the path with line segments
             for (var i = 0; i < xData.Length; i++)
             {
                 var x = xData[i];
@@ -135,24 +136,7 @@ internal static class ConsolePathVisualizer
 
                 // Map to grid coordinates (flip y because console row 0 is at top)
                 var col = (int)((x - xMin) / (xMax - xMin) * (Width - 1));
-                var row = Height - 1 - (int)((y - yMin) / (yMax - yMin) * (Height - 1));
-
-                if (row >= 0 && row < Height && col >= 0 && col < Width)
-                {
-                    if (i == 0)
-                    {
-                        grid[row, col] = 'S'; // Start
-                    }
-                    else if (i == xData.Length - 1)
-                    {
-                        grid[row, col] = 'E'; // End
-                    }
-                    else
-                    {
-                        // Use different characters based on path density
-                        grid[row, col] = '●';
-                    }
-                }
+                var row = AnimationHeight - 1 - (int)((y - yMin) / (yMax - yMin) * (AnimationHeight - 1));
 
                 // Draw line segments between points
                 if (i > 0)
@@ -163,16 +147,34 @@ internal static class ConsolePathVisualizer
                     if (!double.IsNaN(prevX) && !double.IsInfinity(prevX) && !double.IsNaN(prevY) && !double.IsInfinity(prevY))
                     {
                         var prevCol = (int)((prevX - xMin) / (xMax - xMin) * (Width - 1));
-                        var prevRow = Height - 1 - (int)((prevY - yMin) / (yMax - yMin) * (Height - 1));
+                        var prevRow = AnimationHeight - 1 - (int)((prevY - yMin) / (yMax - yMin) * (AnimationHeight - 1));
 
-                        // Simple line drawing (Bresenham-like)
                         DrawLine(grid, prevRow, prevCol, row, col);
+                    }
+                }
+
+                // Draw position markers
+                if (row >= 0 && row < AnimationHeight && col >= 0 && col < Width)
+                {
+                    if (i == 0)
+                    {
+                        grid[row, col] = 'S'; // Start
+                    }
+                    else if (i == xData.Length - 1)
+                    {
+                        // Draw car at final position with heading direction
+                        var heading = headings[i];
+                        grid[row, col] = GetCarCharacter(heading);
+                    }
+                    else if (grid[row, col] == ' ' || grid[row, col] == '·')
+                    {
+                        grid[row, col] = '·'; // Path point
                     }
                 }
             }
 
             // Render grid to string
-            for (var row = 0; row < Height; row++)
+            for (var row = 0; row < AnimationHeight; row++)
             {
                 for (var col = 0; col < Width; col++)
                 {
@@ -181,8 +183,17 @@ internal static class ConsolePathVisualizer
                 sb.AppendLine();
             }
 
-            // Footer with axis labels
-            sb.AppendLine($"X: [{xMin:F2}, {xMax:F2}]  Y: [{yMin:F2}, {yMax:F2}]");
+            // Footer with metrics
+            var finalX = xData[^1];
+            var finalY = yData[^1];
+            var finalHeading = headings[^1] * 180.0 / Math.PI;
+
+            sb.AppendLine($"┌{"─".PadRight(Width - 2, '─')}┐");
+            var footerText = $"│ Pos: ({finalX,5:F2},{finalY,5:F2}) │ Head: {finalHeading,6:F1}° │ Turn: {turnRate,5:F2} rad/s";
+            sb.Append(footerText);
+            sb.Append(string.Empty.PadRight(Width - footerText.Length - 1));
+            sb.AppendLine("│");
+            sb.AppendLine($"└{"─".PadRight(Width - 2, '─')}┘");
 
             // Output the entire frame at once
             Console.Write(sb.ToString());
@@ -190,8 +201,22 @@ internal static class ConsolePathVisualizer
     }
 
     /// <summary>
-    /// Draws a line between two points on the character grid.
+    /// Clears the console for a fresh visualization.
     /// </summary>
+    public static void Initialize()
+    {
+        Console.Clear();
+        Console.CursorVisible = false;
+    }
+
+    /// <summary>
+    /// Restores console state after visualization.
+    /// </summary>
+    public static void Cleanup()
+    {
+        Console.CursorVisible = true;
+    }
+
     private static void DrawLine(char[,] grid, int row0, int col0, int row1, int col1)
     {
         var height = grid.GetLength(0);
@@ -235,20 +260,51 @@ internal static class ConsolePathVisualizer
         }
     }
 
-    /// <summary>
-    /// Clears the console for a fresh visualization.
-    /// </summary>
-    public static void Initialize()
+    private static char GetCarCharacter(double heading)
     {
-        Console.Clear();
-        Console.CursorVisible = false;
-    }
+        // Normalize heading to [0, 2π)
+        var angle = heading % (2.0 * Math.PI);
+        if (angle < 0)
+        {
+            angle += 2.0 * Math.PI;
+        }
 
-    /// <summary>
-    /// Restores console state after visualization.
-    /// </summary>
-    public static void Cleanup()
-    {
-        Console.CursorVisible = true;
+        // Convert to degrees for easier comparison
+        var degrees = angle * 180.0 / Math.PI;
+
+        // Map heading to arrow character
+        // 0° = East (right), 90° = North (up), 180° = West (left), 270° = South (down)
+        if (degrees >= 337.5 || degrees < 22.5)
+        {
+            return '→'; // East
+        }
+        else if (degrees >= 22.5 && degrees < 67.5)
+        {
+            return '↗'; // Northeast
+        }
+        else if (degrees >= 67.5 && degrees < 112.5)
+        {
+            return '↑'; // North
+        }
+        else if (degrees >= 112.5 && degrees < 157.5)
+        {
+            return '↖'; // Northwest
+        }
+        else if (degrees >= 157.5 && degrees < 202.5)
+        {
+            return '←'; // West
+        }
+        else if (degrees >= 202.5 && degrees < 247.5)
+        {
+            return '↙'; // Southwest
+        }
+        else if (degrees >= 247.5 && degrees < 292.5)
+        {
+            return '↓'; // South
+        }
+        else // degrees >= 292.5 && degrees < 337.5
+        {
+            return '↘'; // Southeast
+        }
     }
 }

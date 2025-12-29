@@ -85,20 +85,46 @@ public sealed class PendulumSwingUpProblemSolver : IProblemSolver
         Console.WriteLine("  Inner optimizer: L-BFGS-B");
         Console.WriteLine("  Tolerance: 1e-2");
         Console.WriteLine();
-        Console.WriteLine("Solving... (this may take a while for full swing-up)");
+        Console.WriteLine("Solving... (real-time visualization will be shown below)");
+        Console.WriteLine("=".PadRight(70, '='));
+        Console.WriteLine();
+
+        // Initialize pendulum visualizer
+        PendulumVisualizer.Initialize();
 
         var solver = new HermiteSimpsonSolver()
             .WithSegments(25) // More segments for complex trajectory
             .WithTolerance(1e-2) // Slightly relaxed for this difficult problem
             .WithMaxIterations(150) // More iterations for convergence
-            .WithVerbose(true)
+            .WithVerbose(false)  // Disable to avoid interference with visualizer
             .WithInnerOptimizer(new LBFGSOptimizer()
                 .WithTolerance(1e-3)
                 .WithMaxIterations(100)
-                .WithVerbose(true));
+                .WithVerbose(false))  // Disable verbose for cleaner visualization
+            .WithProgressCallback((iteration, cost, states, controls, times) =>
+            {
+                // Extract final state (most interesting for visualization)
+                var finalState = states[^1];
+                var finalControl = controls[^1];
+                var theta = finalState[0];      // Angle (rad)
+                var thetaDot = finalState[1];   // Angular velocity (rad/s)
+                var torque = finalControl[0];   // Torque (N·m)
+
+                PendulumVisualizer.RenderPendulum(theta, thetaDot, torque, iteration, cost);
+
+                // Throttle updates (every 5 iterations)
+                if (iteration % 5 == 0)
+                {
+                    System.Threading.Thread.Sleep(50);
+                }
+            });
 
         var result = solver.Solve(problem);
 
+        // Restore console
+        PendulumVisualizer.Cleanup();
+
+        Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
         Console.WriteLine("SOLUTION SUMMARY:");
         Console.WriteLine($"  Success: {result.Success}");
