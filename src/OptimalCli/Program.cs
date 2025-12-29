@@ -8,10 +8,10 @@
 
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
-using System;
 using System.Diagnostics;
 using Optimal.Control;
 using Optimal.NonLinear;
+using OptimalCli;
 
 // BRACHISTOCHRONE PROBLEM (Johann Bernoulli, 1696)
 // Question: What curve gives the fastest descent under gravity between two points?
@@ -49,44 +49,50 @@ var problem = new ControlProblem()
     .WithControlBounds(new[] { -Math.PI / 2.0 }, new[] { 0.0 }) // Downward paths only
     .WithDynamics((x, u, t) =>
     {
+        var xPos = x[0];
+        var yPos = x[1];
         var velocity = x[2];
         var theta = u[0];
-        var cosTheta = Math.Cos(theta);
-        var sinTheta = Math.Sin(theta);
 
-        // State derivatives
-        var xdot = velocity * cosTheta;
-        var ydot = velocity * sinTheta;
-        var vdot = -g * sinTheta;  // Negative because gravity accelerates downward (θ < 0)
+        // Use AutoDiff-generated gradients for each state derivative
+        var (xdot, xdot_gradients) = BrachistochroneDynamicsGradients.XRateReverse(xPos, yPos, velocity, theta);
+        var (ydot, ydot_gradients) = BrachistochroneDynamicsGradients.YRateReverse(xPos, yPos, velocity, theta);
+        var (vdot, vdot_gradients) = BrachistochroneDynamicsGradients.VelocityRateReverse(xPos, yPos, velocity, theta, g);
 
         var value = new[] { xdot, ydot, vdot };
         var gradients = new double[2][];
 
-        // ∂f/∂x (state jacobian): [∂ẋ/∂x, ∂ẋ/∂y, ∂ẋ/∂v; ∂ẏ/∂x, ∂ẏ/∂y, ∂ẏ/∂v; ∂v̇/∂x, ∂v̇/∂y, ∂v̇/∂v]
+        // Gradients w.r.t. state: [∂ẋ/∂x, ∂ẋ/∂y, ∂ẋ/∂v; ∂ẏ/∂x, ∂ẏ/∂y, ∂ẏ/∂v; ∂v̇/∂x, ∂v̇/∂y, ∂v̇/∂v]
         gradients[0] = new[] {
-            0.0, 0.0, cosTheta,        // ∂ẋ/∂[x,y,v]
-            0.0, 0.0, sinTheta,        // ∂ẏ/∂[x,y,v]
-            0.0, 0.0, 0.0              // ∂v̇/∂[x,y,v]
+            xdot_gradients[0], xdot_gradients[1], xdot_gradients[2],  // ∂ẋ/∂[x,y,v]
+            ydot_gradients[0], ydot_gradients[1], ydot_gradients[2],  // ∂ẏ/∂[x,y,v]
+            vdot_gradients[0], vdot_gradients[1], vdot_gradients[2]   // ∂v̇/∂[x,y,v]
         };
 
-        // ∂f/∂u (control jacobian): [∂ẋ/∂θ, ∂ẏ/∂θ, ∂v̇/∂θ]
+        // Gradients w.r.t. control: [∂ẋ/∂θ, ∂ẏ/∂θ, ∂v̇/∂θ]
         gradients[1] = new[] {
-            -velocity * sinTheta,      // ∂ẋ/∂θ
-            velocity * cosTheta,       // ∂ẏ/∂θ
-            -g * cosTheta              // ∂v̇/∂θ (derivative of -g·sin(θ))
+            xdot_gradients[3],  // ∂ẋ/∂θ
+            ydot_gradients[3],  // ∂ẏ/∂θ
+            vdot_gradients[3]   // ∂v̇/∂θ
         };
 
         return (value, gradients);
     })
     .WithRunningCost((x, u, t) =>
     {
-        // Minimize time: L = 1
-        var value = 1.0;
+        var xPos = x[0];
+        var yPos = x[1];
+        var velocity = x[2];
+        var theta = u[0];
+
+        // Use AutoDiff for running cost gradients
+        var (cost, cost_gradients) = BrachistochroneDynamicsGradients.RunningCostReverse(xPos, yPos, velocity, theta);
+
         var gradients = new double[3];
-        gradients[0] = 0.0;  // ∂L/∂x (state components)
-        gradients[1] = 0.0;  // ∂L/∂u
-        gradients[2] = 0.0;  // ∂L/∂t
-        return (value, gradients);
+        gradients[0] = cost_gradients[0] + cost_gradients[1] + cost_gradients[2];  // ∂L/∂x (sum over state components)
+        gradients[1] = cost_gradients[3];  // ∂L/∂u
+        gradients[2] = 0.0;                 // ∂L/∂t
+        return (cost, gradients);
     });
 
 Console.WriteLine("Solver configuration:");
