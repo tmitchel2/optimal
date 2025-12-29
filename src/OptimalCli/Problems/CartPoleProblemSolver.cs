@@ -41,8 +41,8 @@ public sealed class CartPoleProblemSolver : IProblemSolver
         Console.WriteLine($"  Pole mass: {m} kg");
         Console.WriteLine($"  Pole length: {L} m");
         Console.WriteLine($"  Gravity: {g} m/s²");
-        Console.WriteLine($"  Initial state: x=0.1m, θ=0.08rad (4.6°)");
-        Console.WriteLine($"  Target: Origin (all states zero)");
+        Console.WriteLine($"  Initial state: x=0.1m, θ=0.08rad (4.6° from upright)");
+        Console.WriteLine($"  Target: θ=0 (perfectly upright), x=0, all velocities zero");
         Console.WriteLine($"  Time horizon: 1.5 seconds");
         Console.WriteLine();
 
@@ -58,60 +58,55 @@ public sealed class CartPoleProblemSolver : IProblemSolver
                 new[] { 1.0, 2.0, 0.3, 2.0 })
             .WithDynamics((x, u, t) =>
             {
+                var xPos = x[0];
+                var xdot = x[1];
                 var theta = x[2];
                 var thetadot = x[3];
-                var sinTheta = Math.Sin(theta);
-                var cosTheta = Math.Cos(theta);
-                var sin2Theta = sinTheta * sinTheta;
-                var cos2Theta = cosTheta * cosTheta;
+                var force = u[0];
 
-                // Full nonlinear denominators
-                var denom_x = M + m * sin2Theta;
-                var denom_theta = L * (4.0 / 3.0 - m * cos2Theta / (M + m));
+                // Use AutoDiff-generated gradients for each state derivative
+                var (xrate, xrate_gradients) = CartPoleDynamicsGradients.XRateReverse(xPos, xdot, theta, thetadot, force, M, m, L, g);
+                var (xddot, xddot_gradients) = CartPoleDynamicsGradients.XddotRateReverse(xPos, xdot, theta, thetadot, force, M, m, L, g);
+                var (thetarate, thetarate_gradients) = CartPoleDynamicsGradients.ThetaRateReverse(xPos, xdot, theta, thetadot, force, M, m, L, g);
+                var (thetaddot, thetaddot_gradients) = CartPoleDynamicsGradients.ThetaddotRateReverse(xPos, xdot, theta, thetadot, force, M, m, L, g);
 
-                // Cart acceleration - full nonlinear form
-                var xddot = (u[0] + m * L * thetadot * thetadot * sinTheta - m * g * sinTheta * cosTheta) / denom_x;
-                // Pole angular acceleration - full nonlinear form
-                var thetaddot = (g * sinTheta - cosTheta * (u[0] + m * L * thetadot * thetadot * sinTheta) / (M + m)) / denom_theta;
-
-                var value = new[] { x[1], xddot, x[3], thetaddot };
+                var value = new[] { xrate, xddot, thetarate, thetaddot };
                 var gradients = new double[2][];
 
-                // Simplified gradients (full derivatives are complex)
+                // Gradients w.r.t. state: [∂ẋ/∂x, ∂ẋ/∂ẋ, ∂ẋ/∂θ, ∂ẋ/∂θ̇; ∂ẍ/∂x, ∂ẍ/∂ẋ, ∂ẍ/∂θ, ∂ẍ/∂θ̇; ...]
                 gradients[0] = new[] {
-                    0.0, 1.0, 0.0, 0.0,
-                    0.0, 0.0,
-                    // ∂ẍ/∂θ (simplified)
-                    (m*L*thetadot*thetadot*cosTheta - m*g*(cos2Theta - sin2Theta))/denom_x,
-                    // ∂ẍ/∂θ̇
-                    2.0*m*L*thetadot*sinTheta/denom_x,
-                    0.0, 0.0, 0.0, 1.0,
-                    0.0, 0.0,
-                    // ∂θ̈/∂θ (simplified)
-                    (g*cosTheta + u[0]*sinTheta)/denom_theta,
-                    // ∂θ̈/∂θ̇
-                    0.0
+                    xrate_gradients[0], xrate_gradients[1], xrate_gradients[2], xrate_gradients[3],           // ∂ẋ/∂[x,ẋ,θ,θ̇]
+                    xddot_gradients[0], xddot_gradients[1], xddot_gradients[2], xddot_gradients[3],           // ∂ẍ/∂[x,ẋ,θ,θ̇]
+                    thetarate_gradients[0], thetarate_gradients[1], thetarate_gradients[2], thetarate_gradients[3],  // ∂θ̇/∂[x,ẋ,θ,θ̇]
+                    thetaddot_gradients[0], thetaddot_gradients[1], thetaddot_gradients[2], thetaddot_gradients[3]   // ∂θ̈/∂[x,ẋ,θ,θ̇]
                 };
 
-                // Control gradients
+                // Gradients w.r.t. control: [∂ẋ/∂F, ∂ẍ/∂F, ∂θ̇/∂F, ∂θ̈/∂F]
                 gradients[1] = new[] {
-                    0.0,
-                    1.0/denom_x,
-                    0.0,
-                    -cosTheta/(denom_theta*(M+m))
+                    xrate_gradients[4],      // ∂ẋ/∂F
+                    xddot_gradients[4],      // ∂ẍ/∂F
+                    thetarate_gradients[4],  // ∂θ̇/∂F
+                    thetaddot_gradients[4]   // ∂θ̈/∂F
                 };
 
                 return (value, gradients);
             })
             .WithRunningCost((x, u, t) =>
             {
-                var value = 20.0 * x[0] * x[0] + 2.0 * x[1] * x[1] +
-                            50.0 * x[2] * x[2] + 2.0 * x[3] * x[3] +
-                            0.5 * u[0] * u[0];
-                var gradients = new[] {
-                    40.0 * x[0], 4.0 * x[1], 100.0 * x[2], 4.0 * x[3], 1.0 * u[0]
-                };
-                return (value, gradients);
+                var xPos = x[0];
+                var xdot = x[1];
+                var theta = x[2];
+                var thetadot = x[3];
+                var force = u[0];
+
+                // Use AutoDiff for running cost gradients
+                var (cost, cost_gradients) = CartPoleDynamicsGradients.RunningCostReverse(xPos, xdot, theta, thetadot, force);
+
+                var gradients = new double[3];
+                gradients[0] = cost_gradients[0] + cost_gradients[1] + cost_gradients[2] + cost_gradients[3];  // ∂L/∂x (sum over state components)
+                gradients[1] = cost_gradients[4];  // ∂L/∂u
+                gradients[2] = 0.0;                 // ∂L/∂t
+                return (cost, gradients);
             });
 
         Console.WriteLine("Solver configuration:");
@@ -121,18 +116,36 @@ public sealed class CartPoleProblemSolver : IProblemSolver
         Console.WriteLine("  Inner optimizer: L-BFGS-B");
         Console.WriteLine("  Tolerance: 2e-2");
         Console.WriteLine();
-        Console.WriteLine("Solving...");
+        Console.WriteLine("Solving... (real-time visualization will be shown below)");
+        Console.WriteLine("=".PadRight(70, '='));
+        Console.WriteLine();
+
+        // Initialize cart-pole visualizer
+        CartPoleVisualizer.Initialize();
 
         var solver = new HermiteSimpsonSolver()
             .WithSegments(12)
             .WithTolerance(2e-2) // Very relaxed
             .WithMaxIterations(30)
+            .WithMeshRefinement(true, 5, 0.0001)
+            .WithVerbose(false)  // Disable to avoid interference with visualizer
             .WithInnerOptimizer(new LBFGSOptimizer()
                 .WithTolerance(1e-2)
-                .WithMaxIterations(40));
+                .WithMaxIterations(40)
+                .WithVerbose(false))  // Disable verbose for cleaner visualization
+            .WithProgressCallback((iteration, cost, states, controls, times) =>
+            {
+                // Animate the entire trajectory, looping for ~1.5 seconds
+                // This shows the cart and pole moving through the optimized motion
+                CartPoleVisualizer.RenderTrajectory(states, controls, iteration, cost, displayDurationMs: 1500);
+            });
 
         var result = solver.Solve(problem);
 
+        // Restore console
+        CartPoleVisualizer.Cleanup();
+
+        Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
         Console.WriteLine("SOLUTION SUMMARY:");
         Console.WriteLine($"  Success: {result.Success}");

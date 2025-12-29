@@ -12,18 +12,19 @@ using System.Text;
 namespace OptimalCli;
 
 /// <summary>
-/// Renders a real-time pseudo-graphical display of a pendulum in the console.
+/// Renders a real-time pseudo-graphical display of a cart-pole system in the console.
 /// </summary>
-internal static class PendulumVisualizer
+internal static class CartPoleVisualizer
 {
     private const int Width = 80;
     private const int Height = 25;
     private const int AnimationHeight = 17;  // Rows 4-20
-    private const int PendulumLength = 8;    // Character length of pendulum rod
+    private const int PoleLength = 7;        // Character length of pole
+    private const int CartWidth = 6;         // Width of cart in characters
     private static readonly object _lock = new object();
 
     /// <summary>
-    /// Renders an animated trajectory of the pendulum system.
+    /// Renders an animated trajectory of the cart-pole system.
     /// Plays through the entire trajectory and loops until the display duration is reached.
     /// </summary>
     /// <param name="states">Array of states over time [time_index][state_vars].</param>
@@ -31,7 +32,7 @@ internal static class PendulumVisualizer
     /// <param name="iteration">Current iteration number.</param>
     /// <param name="cost">Current cost value.</param>
     /// <param name="displayDurationMs">Total time to display/loop the animation in milliseconds.</param>
-    public static void RenderTrajectory(double[][] states, double[][] controls, int iteration, double cost, int displayDurationMs = 1500)
+    public static void RenderTrajectory(double[][] states, double[][] controls, int iteration, double cost, int displayDurationMs = 1000)
     {
         if (states.Length == 0 || controls.Length == 0)
         {
@@ -48,11 +49,13 @@ internal static class PendulumVisualizer
                 var state = states[i];
                 var control = controls[i];
 
-                var theta = state[0];
-                var thetaDot = state[1];
-                var torque = control[0];
+                var cartPos = state[0];
+                var cartVel = state[1];
+                var poleAngle = state[2];
+                var poleVel = state[3];
+                var force = control[0];
 
-                RenderPendulum(theta, thetaDot, torque, iteration, cost, i, states.Length);
+                RenderCartPole(cartPos, cartVel, poleAngle, poleVel, force, iteration, cost, i, states.Length);
 
                 System.Threading.Thread.Sleep(frameDelayMs);
 
@@ -69,22 +72,24 @@ internal static class PendulumVisualizer
     }
 
     /// <summary>
-    /// Renders a single frame of the pendulum system in the console as ASCII art.
+    /// Renders a single frame of the cart-pole system in the console as ASCII art.
     /// </summary>
-    /// <param name="theta">Angular position in radians (0=down, π=up).</param>
-    /// <param name="thetaDot">Angular velocity in rad/s.</param>
-    /// <param name="torque">Control torque in N·m.</param>
+    /// <param name="cartPos">Cart position in meters.</param>
+    /// <param name="cartVel">Cart velocity in m/s.</param>
+    /// <param name="poleAngle">Pole angle in radians (0=down, π=up).</param>
+    /// <param name="poleVel">Pole angular velocity in rad/s.</param>
+    /// <param name="force">Control force in N.</param>
     /// <param name="iteration">Current iteration number.</param>
     /// <param name="cost">Current cost value.</param>
     /// <param name="frameIndex">Current frame index in trajectory (optional).</param>
     /// <param name="totalFrames">Total frames in trajectory (optional).</param>
-    public static void RenderPendulum(double theta, double thetaDot, double torque, int iteration, double cost, int frameIndex = -1, int totalFrames = -1)
+    public static void RenderCartPole(double cartPos, double cartVel, double poleAngle, double poleVel, double force, int iteration, double cost, int frameIndex = -1, int totalFrames = -1)
     {
         lock (_lock)
         {
             Console.SetCursorPosition(0, 0);
 
-            var sb = new StringBuilder(2000);  // Pre-allocate capacity
+            var sb = new StringBuilder(2000);
 
             // Header (rows 0-3)
             AppendHeader(sb, iteration, cost, frameIndex, totalFrames);
@@ -92,14 +97,14 @@ internal static class PendulumVisualizer
             // Create animation grid (17 rows × 80 columns)
             var grid = new char[AnimationHeight, Width];
             InitializeGrid(grid);
-            DrawReferenceLines(grid);
-            DrawPendulum(grid, theta);
+            DrawTrack(grid);
+            DrawCartPole(grid, cartPos, poleAngle);
 
             // Append grid to output
             AppendGrid(sb, grid);
 
             // Footer (rows 21-24)
-            AppendFooter(sb, theta, thetaDot, torque);
+            AppendFooter(sb, cartPos, cartVel, poleAngle, poleVel, force);
 
             // Output the entire frame at once
             Console.Write(sb.ToString());
@@ -126,12 +131,12 @@ internal static class PendulumVisualizer
     private static void AppendHeader(StringBuilder sb, int iteration, double cost, int frameIndex = -1, int totalFrames = -1)
     {
         sb.AppendLine($"╔{'═'.ToString().PadRight(Width - 2, '═')}╗");
-        sb.AppendLine($"║ {"PENDULUM SWING-UP OPTIMIZATION".PadRight(Width - 4)}║");
+        sb.AppendLine($"║ {"CART-POLE STABILIZATION - Inverted Pendulum Balance".PadRight(Width - 4)}║");
 
         if (frameIndex >= 0 && totalFrames > 0)
         {
-            var progress = $"Frame: {frameIndex + 1}/{totalFrames} (0=down)";
-            sb.AppendLine($"║ Iteration: {iteration,-10} Cost: {cost:F6}  {progress}{string.Empty.PadRight(Width - 65)}║");
+            var progress = $"Frame: {frameIndex + 1}/{totalFrames} (0=start)";
+            sb.AppendLine($"║ Iteration: {iteration,-10} Cost: {cost:F6}  {progress}{string.Empty.PadRight(Width - 67)}║");
         }
         else
         {
@@ -141,13 +146,13 @@ internal static class PendulumVisualizer
         sb.AppendLine($"╚{'═'.ToString().PadRight(Width - 2, '═')}╝");
     }
 
-    private static void AppendFooter(StringBuilder sb, double theta, double thetaDot, double torque)
+    private static void AppendFooter(StringBuilder sb, double cartPos, double cartVel, double poleAngle, double poleVel, double force)
     {
-        var angleDegrees = theta * 180.0 / Math.PI;
+        var angleDegrees = poleAngle * 180.0 / Math.PI;
 
         sb.AppendLine();
         sb.AppendLine($"┌{"─".PadRight(Width - 2, '─')}┐");
-        var footerText = $"│ θ:{angleDegrees,6:F1}° (0°=down, 180°=up) θ̇:{thetaDot,5:F2}r/s │ τ:{torque,5:F2}N·m";
+        var footerText = $"│ x:{cartPos,5:F2}m ẋ:{cartVel,5:F2}m/s │ θ:{angleDegrees,6:F1}° (0°=up) θ̇:{poleVel,5:F2}r/s │ F:{force,5:F2}N";
         sb.Append(footerText);
         sb.Append(string.Empty.PadRight(Width - footerText.Length - 1));
         sb.AppendLine("│");
@@ -165,63 +170,81 @@ internal static class PendulumVisualizer
         }
     }
 
-    private static void DrawReferenceLines(char[,] grid)
+    private static void DrawTrack(char[,] grid)
     {
-        var centerRow = 8;  // Middle of 17-row grid
-        var centerCol = 40; // Middle of 80-column width
+        var trackRow = AnimationHeight - 3;  // Track near bottom
 
-        // Draw horizontal reference line through pivot
-        for (var col = centerCol - 10; col <= centerCol + 10; col++)
+        // Draw horizontal track
+        for (var col = 5; col < Width - 5; col++)
         {
-            if (InBounds(grid, centerRow, col))
-            {
-                grid[centerRow, col] = '─';
-            }
-        }
-
-        // Draw vertical reference line (downward direction, θ=0)
-        for (var row = centerRow + 1; row < AnimationHeight && row < centerRow + 4; row++)
-        {
-            if (InBounds(grid, row, centerCol))
-            {
-                grid[row, centerCol] = '│';
-            }
+            grid[trackRow, col] = '═';
         }
     }
 
-    private static void DrawPendulum(char[,] grid, double theta)
+    private static void DrawCartPole(char[,] grid, double cartPos, double poleAngle)
     {
-        var centerRow = 8;  // Middle of 17-row grid
-        var centerCol = 40; // Middle of 80-column width
+        var trackRow = AnimationHeight - 3;
+        var cartRow = trackRow - 1;  // Cart sits on track
 
-        // Normalize angle to [-π, π]
-        var angle = NormalizeAngle(theta);
+        // Map cart position to screen coordinates
+        // Assume cartPos range is roughly [-1, 1] meters
+        var centerCol = Width / 2;
+        var scale = 20.0;  // pixels per meter
+        var cartCol = centerCol + (int)(cartPos * scale);
 
-        // Compute bob position
-        // Note: In screen coordinates, rows increase downward
-        // θ=0 should point down (positive row offset), θ=π should point up (negative row offset)
-        var bobCol = centerCol + (int)Math.Round(PendulumLength * Math.Sin(angle));
-        var bobRow = centerRow + (int)Math.Round(PendulumLength * Math.Cos(angle));
+        // Clamp cart position to visible area
+        cartCol = Math.Max(CartWidth / 2 + 5, Math.Min(Width - CartWidth / 2 - 5, cartCol));
 
-        // Draw pivot
-        if (InBounds(grid, centerRow, centerCol))
+        // Draw cart body
+        var cartLeft = cartCol - CartWidth / 2;
+        var cartRight = cartCol + CartWidth / 2;
+
+        if (InBounds(grid, cartRow, cartLeft) && InBounds(grid, cartRow, cartRight))
         {
-            grid[centerRow, centerCol] = '┼';
+            for (var col = cartLeft; col <= cartRight; col++)
+            {
+                if (InBounds(grid, cartRow, col))
+                {
+                    grid[cartRow, col] = '█';
+                }
+            }
         }
 
-        // Draw rod using Bresenham line algorithm
-        DrawLine(grid, centerRow, centerCol, bobRow, bobCol, angle);
-
-        // Draw bob (overwrites line endpoint)
-        if (InBounds(grid, bobRow, bobCol))
+        // Draw cart wheels
+        if (InBounds(grid, trackRow, cartLeft))
         {
-            grid[bobRow, bobCol] = '●';
+            grid[trackRow, cartLeft] = 'o';
+        }
+        if (InBounds(grid, trackRow, cartRight))
+        {
+            grid[trackRow, cartRight] = 'o';
+        }
+
+        // Draw pole from cart center
+        // Note: In cart-pole convention, theta = 0 is UPRIGHT (inverted), theta = π is DOWN (hanging)
+        // In screen coordinates, row increases downward, so we need to negate the cos term
+        var poleStartRow = cartRow;
+        var poleStartCol = cartCol;
+
+        // Compute pole endpoint
+        // theta=0 (upright) should point upward (negative row direction)
+        // theta=π (down) should point downward (positive row direction)
+        var poleEndCol = poleStartCol + (int)(PoleLength * Math.Sin(poleAngle));
+        var poleEndRow = poleStartRow - (int)(PoleLength * Math.Cos(poleAngle));  // Note: minus for upright at θ=0
+
+        // Draw pole
+        DrawPole(grid, poleStartRow, poleStartCol, poleEndRow, poleEndCol, poleAngle);
+
+        // Draw pole bob/tip
+        if (InBounds(grid, poleEndRow, poleEndCol))
+        {
+            grid[poleEndRow, poleEndCol] = '●';
         }
     }
 
-    private static void DrawLine(char[,] grid, int row0, int col0, int row1, int col1, double theta)
+    private static void DrawPole(char[,] grid, int row0, int col0, int row1, int col1, double theta)
     {
-        var lineChar = GetLineCharacter(theta);
+        var lineChar = GetPoleCharacter(theta);
 
         var dx = Math.Abs(col1 - col0);
         var dy = Math.Abs(row1 - row0);
@@ -236,8 +259,8 @@ internal static class PendulumVisualizer
         {
             if (InBounds(grid, currentRow, currentCol))
             {
-                // Don't overwrite pivot or reference axes
-                if (grid[currentRow, currentCol] == ' ')
+                // Don't overwrite cart
+                if (grid[currentRow, currentCol] == ' ' || grid[currentRow, currentCol] == '─')
                 {
                     grid[currentRow, currentCol] = lineChar;
                 }
@@ -262,9 +285,9 @@ internal static class PendulumVisualizer
         }
     }
 
-    private static char GetLineCharacter(double theta)
+    private static char GetPoleCharacter(double theta)
     {
-        // Normalize angle to [-π, π]
+        // Normalize theta to [-π, π]
         var angle = NormalizeAngle(theta);
 
         // Convert to degrees for easier angle range checking

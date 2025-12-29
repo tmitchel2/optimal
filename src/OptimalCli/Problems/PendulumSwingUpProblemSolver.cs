@@ -94,29 +94,19 @@ public sealed class PendulumSwingUpProblemSolver : IProblemSolver
 
         var solver = new HermiteSimpsonSolver()
             .WithSegments(25) // More segments for complex trajectory
-            .WithTolerance(1e-2) // Slightly relaxed for this difficult problem
+            .WithTolerance(1e-1) // Slightly relaxed for this difficult problem
             .WithMaxIterations(150) // More iterations for convergence
+            .WithMeshRefinement(true, 5, 1e-1)
             .WithVerbose(false)  // Disable to avoid interference with visualizer
             .WithInnerOptimizer(new LBFGSOptimizer()
-                .WithTolerance(1e-3)
+                .WithTolerance(1e-2)
                 .WithMaxIterations(100)
                 .WithVerbose(false))  // Disable verbose for cleaner visualization
             .WithProgressCallback((iteration, cost, states, controls, times) =>
             {
-                // Extract final state (most interesting for visualization)
-                var finalState = states[^1];
-                var finalControl = controls[^1];
-                var theta = finalState[0];      // Angle (rad)
-                var thetaDot = finalState[1];   // Angular velocity (rad/s)
-                var torque = finalControl[0];   // Torque (N·m)
-
-                PendulumVisualizer.RenderPendulum(theta, thetaDot, torque, iteration, cost);
-
-                // Throttle updates (every 5 iterations)
-                if (iteration % 5 == 0)
-                {
-                    System.Threading.Thread.Sleep(50);
-                }
+                // Animate the entire trajectory, looping for ~1.5 seconds
+                // This shows the pendulum swinging through the optimized motion
+                PendulumVisualizer.RenderTrajectory(states, controls, iteration, cost, displayDurationMs: 1500);
             });
 
         var result = solver.Solve(problem);
