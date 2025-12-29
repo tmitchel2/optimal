@@ -103,23 +103,55 @@ public sealed class BrachistochroneProblemSolver : IProblemSolver
         Console.WriteLine("  Inner optimizer: L-BFGS-B");
         Console.WriteLine("  Tolerance: 1e-3");
         Console.WriteLine();
-        Console.WriteLine("Solving... (progress will be shown below)");
+        Console.WriteLine("Solving... (real-time visualization will be shown below)");
         Console.WriteLine("=".PadRight(70, '='));
+        Console.WriteLine();
+
+        // Initialize console visualizer
+        ConsolePathVisualizer.Initialize();
 
         var solver = new HermiteSimpsonSolver()
             .WithSegments(20)  // Start with fewer segments
             .WithTolerance(1e-1)
             .WithMaxIterations(200)  // Increased significantly
-            .WithVerbose(true)  // Enable progress output
+            .WithVerbose(false)  // Disable verbose to avoid interference with visualizer
             .WithInnerOptimizer(
                 new LBFGSOptimizer()
                     .WithTolerance(1e-4)
                     .WithMaxIterations(200)
-                    .WithVerbose(true));  // Enable inner optimizer progress
+                    .WithVerbose(false))  // Disable verbose for cleaner visualization
+            .WithProgressCallback((iteration, cost, states, controls, times) =>
+            {
+                // Extract x and y coordinates from states
+                var xData = new double[states.Length];
+                var yData = new double[states.Length];
+                for (var i = 0; i < states.Length; i++)
+                {
+                    xData[i] = states[i][0];  // x position
+                    yData[i] = states[i][1];  // y position
+                }
+
+                // Render the path
+                ConsolePathVisualizer.RenderPath(
+                    xData,
+                    yData,
+                    "Brachistochrone Problem - Curve of Fastest Descent",
+                    iteration,
+                    cost);
+
+                // Add a small delay to make visualization visible (throttle updates)
+                if (iteration % 5 == 0)
+                {
+                    System.Threading.Thread.Sleep(50);
+                }
+            });
 
         var sw = Stopwatch.StartNew();
         var result = solver.Solve(problem);
         sw.Stop();
+
+        // Restore console
+        ConsolePathVisualizer.Cleanup();
 
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();

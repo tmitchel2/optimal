@@ -12,6 +12,16 @@ using Optimal.NonLinear;
 namespace Optimal.Control
 {
     /// <summary>
+    /// Callback invoked during optimization to report progress.
+    /// </summary>
+    /// <param name="iteration">Current iteration number.</param>
+    /// <param name="cost">Current cost value.</param>
+    /// <param name="states">Current state trajectory.</param>
+    /// <param name="controls">Current control trajectory.</param>
+    /// <param name="times">Time points.</param>
+    public delegate void ProgressCallback(int iteration, double cost, double[][] states, double[][] controls, double[] times);
+
+    /// <summary>
     /// Solves optimal control problems using Hermite-Simpson collocation.
     /// Converts the continuous problem into a nonlinear programming (NLP) problem
     /// and solves it using existing nonlinear optimizers.
@@ -27,6 +37,7 @@ namespace Optimal.Control
         private int _maxRefinementIterations = 5;
         private double _refinementDefectThreshold = 1e-4;
         private bool _enableParallelization = true;
+        private ProgressCallback? _progressCallback;
 
         /// <summary>
         /// Sets the number of collocation segments.
@@ -111,6 +122,17 @@ namespace Optimal.Control
         public HermiteSimpsonSolver WithParallelization(bool enable = true)
         {
             _enableParallelization = enable;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets a callback to be invoked during optimization progress.
+        /// </summary>
+        /// <param name="callback">Progress callback function.</param>
+        /// <returns>This solver instance for method chaining.</returns>
+        public HermiteSimpsonSolver WithProgressCallback(ProgressCallback? callback)
+        {
+            _progressCallback = callback;
             return this;
         }
 
@@ -286,6 +308,9 @@ namespace Optimal.Control
                 return result.value;
             }
 
+            // Iteration counter for progress callback
+            var iterationCount = 0;
+
             // Build objective function for NLP
             Func<double[], (double value, double[] gradient)> nlpObjective = z =>
             {
@@ -354,6 +379,20 @@ namespace Optimal.Control
                 if (_verbose && gradient.Length > 0 && double.IsNaN(gradient[0]))
                 {
                     Console.WriteLine($"WARNING: Gradient is NaN!");
+                }
+
+                // Invoke progress callback
+                if (_progressCallback != null)
+                {
+                    iterationCount++;
+                    var states = new double[segments + 1][];
+                    var controls = new double[segments + 1][];
+                    for (var k = 0; k <= segments; k++)
+                    {
+                        states[k] = transcription.GetState(z, k);
+                        controls[k] = transcription.GetControl(z, k);
+                    }
+                    _progressCallback(iterationCount, cost, states, controls, grid.TimePoints);
                 }
 
                 return (cost, gradient);
