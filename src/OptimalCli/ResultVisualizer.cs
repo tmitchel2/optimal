@@ -276,4 +276,199 @@ internal static class ResultVisualizer
 
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Generates a generic HTML visualization for any optimal control problem.
+    /// </summary>
+    public static string GenerateHtml(
+        CollocationResult result,
+        string problemName,
+        string[] stateLabels,
+        string[] controlLabels,
+        string? outputPath = null)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(problemName);
+        ArgumentNullException.ThrowIfNull(stateLabels);
+        ArgumentNullException.ThrowIfNull(controlLabels);
+
+        // Determine output path
+        var defaultDir = Path.Combine(
+            Directory.GetCurrentDirectory(),
+            "visualizations");
+
+        var outputDir = outputPath ?? defaultDir;
+        Directory.CreateDirectory(outputDir);
+
+        var fileName = $"{problemName.Replace(" ", "_")}_{DateTime.Now:yyyyMMdd_HHmmss}.html";
+        var filePath = Path.Combine(outputDir, fileName);
+
+        // Build HTML with generic visualizations
+        var html = BuildGenericHtmlContent(result, problemName, stateLabels, controlLabels);
+
+        File.WriteAllText(filePath, html);
+
+        return filePath;
+    }
+
+    private static string BuildGenericHtmlContent(
+        CollocationResult result,
+        string problemName,
+        string[] stateLabels,
+        string[] controlLabels)
+    {
+        var sb = new StringBuilder();
+
+        var times = string.Join(", ", result.Times.Select(t => t.ToString("F6")));
+
+        // HTML header
+        sb.AppendLine("<!DOCTYPE html>");
+        sb.AppendLine("<html lang=\"en\">");
+        sb.AppendLine("<head>");
+        sb.AppendLine("    <meta charset=\"UTF-8\">");
+        sb.AppendLine("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
+        sb.AppendLine($"    <title>{problemName} - Optimal Control Solution</title>");
+        sb.AppendLine("    <script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js\"></script>");
+        sb.AppendLine("    <style>");
+        sb.AppendLine("        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background: #f5f5f5; }");
+        sb.AppendLine("        .container { max-width: 1600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }");
+        sb.AppendLine("        h1 { color: #333; border-bottom: 3px solid #4CAF50; padding-bottom: 10px; }");
+        sb.AppendLine("        h2 { color: #555; margin-top: 30px; }");
+        sb.AppendLine("        .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }");
+        sb.AppendLine("        .metric-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }");
+        sb.AppendLine("        .metric-card.success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }");
+        sb.AppendLine("        .metric-card.warning { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }");
+        sb.AppendLine("        .metric-label { font-size: 0.9em; opacity: 0.9; margin-bottom: 5px; }");
+        sb.AppendLine("        .metric-value { font-size: 1.8em; font-weight: bold; }");
+        sb.AppendLine("        .chart-container { position: relative; height: 400px; margin: 20px 0; }");
+        sb.AppendLine("        .success-badge { display: inline-block; padding: 5px 15px; background: #4CAF50; color: white; border-radius: 20px; font-weight: bold; }");
+        sb.AppendLine("        .failure-badge { display: inline-block; padding: 5px 15px; background: #f44336; color: white; border-radius: 20px; font-weight: bold; }");
+        sb.AppendLine("    </style>");
+        sb.AppendLine("</head>");
+        sb.AppendLine("<body>");
+        sb.AppendLine("    <div class=\"container\">");
+
+        // Title and status
+        sb.AppendLine($"        <h1>{problemName}</h1>");
+        var statusBadge = result.Success ? "success-badge\">SUCCESS" : "failure-badge\">FAILED";
+        sb.AppendLine($"        <p><span class=\"{statusBadge}</span> {result.Message}</p>");
+
+        // Metrics
+        sb.AppendLine("        <h2>Solution Metrics</h2>");
+        sb.AppendLine("        <div class=\"metrics\">");
+        sb.AppendLine("            <div class=\"metric-card success\">");
+        sb.AppendLine("                <div class=\"metric-label\">Optimal Cost</div>");
+        sb.AppendLine($"                <div class=\"metric-value\">{result.OptimalCost:E3}</div>");
+        sb.AppendLine("            </div>");
+        sb.AppendLine("            <div class=\"metric-card\">");
+        sb.AppendLine("                <div class=\"metric-label\">Iterations</div>");
+        sb.AppendLine($"                <div class=\"metric-value\">{result.Iterations}</div>");
+        sb.AppendLine("            </div>");
+        sb.AppendLine($"            <div class=\"metric-card {(result.MaxDefect < 1e-2 ? "success" : "warning")}\">");
+        sb.AppendLine("                <div class=\"metric-label\">Max Defect</div>");
+        sb.AppendLine($"                <div class=\"metric-value\">{result.MaxDefect:E3}</div>");
+        sb.AppendLine("            </div>");
+        sb.AppendLine("            <div class=\"metric-card\">");
+        sb.AppendLine("                <div class=\"metric-label\">Gradient Norm</div>");
+        sb.AppendLine($"                <div class=\"metric-value\">{result.GradientNorm:E3}</div>");
+        sb.AppendLine("            </div>");
+        sb.AppendLine("        </div>");
+
+        // State trajectories
+        sb.AppendLine("        <h2>State Trajectories</h2>");
+        sb.AppendLine("        <div class=\"chart-container\">");
+        sb.AppendLine("            <canvas id=\"stateChart\"></canvas>");
+        sb.AppendLine("        </div>");
+
+        // Control trajectories
+        sb.AppendLine("        <h2>Control Trajectories</h2>");
+        sb.AppendLine("        <div class=\"chart-container\">");
+        sb.AppendLine("            <canvas id=\"controlChart\"></canvas>");
+        sb.AppendLine("        </div>");
+
+        // JavaScript for charts
+        sb.AppendLine("        <script>");
+
+        // State chart
+        sb.AppendLine("        const stateCtx = document.getElementById('stateChart').getContext('2d');");
+        sb.AppendLine("        new Chart(stateCtx, {");
+        sb.AppendLine("            type: 'line',");
+        sb.AppendLine("            data: {");
+        sb.AppendLine($"                labels: [{times}],");
+        sb.AppendLine("                datasets: [");
+
+        var colors = new[] { "#2196F3", "#4CAF50", "#FF9800", "#9C27B0", "#F44336", "#00BCD4" };
+        for (var i = 0; i < stateLabels.Length; i++)
+        {
+            var stateData = string.Join(", ", result.States.Select(s => s[i].ToString("F6")));
+            var color = colors[i % colors.Length];
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        label: '{stateLabels[i]}',");
+            sb.AppendLine($"                        data: [{stateData}],");
+            sb.AppendLine($"                        borderColor: '{color}',");
+            sb.AppendLine($"                        backgroundColor: '{color}33',");
+            sb.AppendLine("                        borderWidth: 2,");
+            sb.AppendLine("                        fill: false,");
+            sb.AppendLine("                        tension: 0.4");
+            sb.AppendLine(i < stateLabels.Length - 1 ? "                    }," : "                    }");
+        }
+
+        sb.AppendLine("                ]");
+        sb.AppendLine("            },");
+        sb.AppendLine("            options: {");
+        sb.AppendLine("                responsive: true,");
+        sb.AppendLine("                maintainAspectRatio: false,");
+        sb.AppendLine("                plugins: { legend: { position: 'top' } },");
+        sb.AppendLine("                scales: {");
+        sb.AppendLine("                    x: { title: { display: true, text: 'Time (s)' } },");
+        sb.AppendLine("                    y: { title: { display: true, text: 'State Values' } }");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
+        sb.AppendLine("        });");
+
+        // Control chart
+        sb.AppendLine();
+        sb.AppendLine("        const controlCtx = document.getElementById('controlChart').getContext('2d');");
+        sb.AppendLine("        new Chart(controlCtx, {");
+        sb.AppendLine("            type: 'line',");
+        sb.AppendLine("            data: {");
+        sb.AppendLine($"                labels: [{times}],");
+        sb.AppendLine("                datasets: [");
+
+        for (var i = 0; i < controlLabels.Length; i++)
+        {
+            var controlData = string.Join(", ", result.Controls.Select(c => c[i].ToString("F6")));
+            var color = colors[i % colors.Length];
+            sb.AppendLine("                    {");
+            sb.AppendLine($"                        label: '{controlLabels[i]}',");
+            sb.AppendLine($"                        data: [{controlData}],");
+            sb.AppendLine($"                        borderColor: '{color}',");
+            sb.AppendLine($"                        backgroundColor: '{color}33',");
+            sb.AppendLine("                        borderWidth: 2,");
+            sb.AppendLine("                        fill: false,");
+            sb.AppendLine("                        tension: 0.4,");
+            sb.AppendLine("                        stepped: 'before'");
+            sb.AppendLine(i < controlLabels.Length - 1 ? "                    }," : "                    }");
+        }
+
+        sb.AppendLine("                ]");
+        sb.AppendLine("            },");
+        sb.AppendLine("            options: {");
+        sb.AppendLine("                responsive: true,");
+        sb.AppendLine("                maintainAspectRatio: false,");
+        sb.AppendLine("                plugins: { legend: { position: 'top' } },");
+        sb.AppendLine("                scales: {");
+        sb.AppendLine("                    x: { title: { display: true, text: 'Time (s)' } },");
+        sb.AppendLine("                    y: { title: { display: true, text: 'Control Values' } }");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
+        sb.AppendLine("        });");
+
+        sb.AppendLine("        </script>");
+        sb.AppendLine("    </div>");
+        sb.AppendLine("</body>");
+        sb.AppendLine("</html>");
+
+        return sb.ToString();
+    }
 }
