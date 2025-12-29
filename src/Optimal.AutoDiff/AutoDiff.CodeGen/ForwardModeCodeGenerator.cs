@@ -83,13 +83,26 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
 
             var gradientVarName = _nodeToTangentVariable.ContainsKey(methodBody.Statements.Last())
                 ? _nodeToTangentVariable[methodBody.Statements.Last()]
-                : $"{resultVarName}_tan";
+                : IsConstantLiteral(resultVarName) ? "0.0" : $"{resultVarName}_tan";
 
             sb.AppendLine();
             sb.AppendLine($"            return ({resultVarName}, {gradientVarName});");
             sb.AppendLine("        }");
 
             return sb.ToString();
+        }
+
+        private bool IsConstantLiteral(string expression)
+        {
+            // Check if the expression is a numeric literal (constant)
+            // Matches: 1.0, 0.0, 3.14159, etc.
+            if (string.IsNullOrWhiteSpace(expression))
+            {
+                return false;
+            }
+
+            return double.TryParse(expression, System.Globalization.NumberStyles.Float, 
+                System.Globalization.CultureInfo.InvariantCulture, out _);
         }
 
         private string GeneratePrimalCode(MethodBodyNode methodBody, StringBuilder sb, string wrtParam, ITypeSymbol doubleType, ITypeSymbol returnType)
