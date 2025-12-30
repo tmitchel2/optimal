@@ -19,7 +19,9 @@ namespace Optimal.Control
     /// <param name="states">Current state trajectory.</param>
     /// <param name="controls">Current control trajectory.</param>
     /// <param name="times">Time points.</param>
-    public delegate void ProgressCallback(int iteration, double cost, double[][] states, double[][] controls, double[] times);
+    /// <param name="maxViolation">Maximum constraint violation.</param>
+    /// <param name="constraintTolerance">Constraint tolerance for convergence.</param>
+    public delegate void ProgressCallback(int iteration, double cost, double[][] states, double[][] controls, double[] times, double maxViolation, double constraintTolerance);
 
     /// <summary>
     /// Solves optimal control problems using Hermite-Simpson collocation.
@@ -392,7 +394,20 @@ namespace Optimal.Control
                         states[k] = transcription.GetState(z, k);
                         controls[k] = transcription.GetControl(z, k);
                     }
-                    _progressCallback(iterationCount, cost, states, controls, grid.TimePoints);
+
+                    // Compute maximum constraint violation from defects
+                    var allDefects = transcription.ComputeAllDefects(z, DynamicsValue);
+                    var maxViolation = 0.0;
+                    foreach (var d in allDefects)
+                    {
+                        var abs = Math.Abs(d);
+                        if (abs > maxViolation)
+                        {
+                            maxViolation = abs;
+                        }
+                    }
+
+                    _progressCallback(iterationCount, cost, states, controls, grid.TimePoints, maxViolation, _tolerance);
                 }
 
                 return (cost, gradient);

@@ -12,15 +12,12 @@ using Radiant;
 namespace OptimalCli;
 
 /// <summary>
-/// Renders a real-time graphical display of a pendulum using Radiant.
+/// Renders a real-time graphical display of a Dubins car path using Radiant.
 /// </summary>
-internal static class RadiantPendulumVisualizer
+internal static class RadiantDubinsCarVisualizer
 {
     private const int WindowWidth = 800;
     private const int WindowHeight = 600;
-    private const float PendulumLength = 200.0f; // Length in pixels
-    private const float PivotX = 0.0f;
-    private const float PivotY = -100.0f;
 
     private static double[][]? s_currentStates;
     private static double[][]? s_currentControls;
@@ -93,12 +90,12 @@ internal static class RadiantPendulumVisualizer
         try
         {
             using var app = new RadiantApplication();
-            app.Run("Pendulum Swing-Up Optimization", WindowWidth, WindowHeight, RenderFrame, Colors.Slate900);
+            app.Run("Dubins Car Path Optimization", WindowWidth, WindowHeight, RenderFrame, Colors.Slate900);
         }
         finally
         {
             // Signal cancellation when window closes
-            if (s_cancellationTokenSource != null && !s_cancellationTokenSource.IsCancellationRequested)
+            if (s_cancellationTokenSource?.IsCancellationRequested == false)
             {
                 Console.WriteLine("[VIZ] Window closed - requesting optimization cancellation");
                 s_cancellationTokenSource.Cancel();
@@ -107,34 +104,6 @@ internal static class RadiantPendulumVisualizer
             s_cancellationTokenSource?.Dispose();
             s_cancellationTokenSource = null;
         }
-    }
-
-    /// <summary>
-    /// Renders an animated trajectory of the pendulum system (blocking call).
-    /// </summary>
-    /// <param name="states">Array of states over time [time_index][state_vars].</param>
-    /// <param name="controls">Array of controls over time [time_index][control_vars].</param>
-    /// <param name="iteration">Current iteration number.</param>
-    /// <param name="cost">Current cost value.</param>
-    public static void RenderTrajectory(double[][] states, double[][] controls, int iteration, double cost)
-    {
-        if (states.Length == 0 || controls.Length == 0)
-        {
-            return;
-        }
-
-        lock (s_lock)
-        {
-            s_currentStates = states;
-            s_currentControls = controls;
-            s_currentIteration = iteration;
-            s_currentCost = cost;
-            s_currentFrameIndex = 0;
-            s_animationStartTime = DateTime.Now;
-        }
-
-        using var app = new RadiantApplication();
-        app.Run("Pendulum Swing-Up Optimization", WindowWidth, WindowHeight, RenderFrame, Colors.Slate900);
     }
 
     private static void RenderFrame(Radiant.Graphics2D.Renderer2D renderer)
@@ -177,7 +146,6 @@ internal static class RadiantPendulumVisualizer
 
             // Calculate elapsed time and determine current frame
             var elapsed = (DateTime.Now - s_animationStartTime).TotalMilliseconds;
-            // Slower animation: show each frame for ~100ms for better visibility
             const double FrameDuration = 100.0;
             var totalFrames = s_currentStates.Length;
             var frameInSequence = (int)(elapsed / FrameDuration);
@@ -215,72 +183,204 @@ internal static class RadiantPendulumVisualizer
             frameIndex = s_currentFrameIndex;
         }
 
+        // Extract current state and control
         var state = states[frameIndex];
         var control = controls[frameIndex];
 
-        var theta = state[0];
-        var torque = control[0];
+        var x = state[0];
+        var y = state[1];
+        var heading = state[2];
+        var turnRate = control[0];
 
-        // Draw reference axes
-        DrawReferenceAxes(renderer);
+        // Draw the path trace
+        DrawPathTrace(renderer, states, frameIndex);
 
-        // Draw pendulum
-        DrawPendulum(renderer, theta);
+        // Draw the car
+        DrawCar(renderer, x, y, heading);
+
+        // Draw start and goal markers
+        DrawMarkers(renderer, states);
 
         // Draw information text
-        DrawInformation(renderer, theta, torque, iteration, cost, maxViolation, constraintTolerance, frameIndex, states.Length);
+        DrawInformation(renderer, x, y, heading, turnRate, iteration, cost, maxViolation, constraintTolerance, frameIndex, states.Length);
     }
 
-    private static void DrawReferenceAxes(Radiant.Graphics2D.Renderer2D renderer)
+    private static void DrawPathTrace(Radiant.Graphics2D.Renderer2D renderer, double[][] states, int currentFrame)
     {
-        // Draw horizontal line through pivot
-        renderer.DrawLine(
-            new Vector2(PivotX - 150, PivotY),
-            new Vector2(PivotX + 150, PivotY),
-            new Vector4(0.3f, 0.3f, 0.3f, 1.0f));
+        // Find bounds for scaling
+        var xMin = double.MaxValue;
+        var xMax = double.MinValue;
+        var yMin = double.MaxValue;
+        var yMax = double.MinValue;
 
-        // Draw vertical reference line (downward direction, θ=0)
-        // In math coords, Y increases upward, so -Y is down
-        renderer.DrawLine(
-            new Vector2(PivotX, PivotY),
-            new Vector2(PivotX, PivotY - 50),
-            new Vector4(0.3f, 0.3f, 0.3f, 1.0f));
+        for (var i = 0; i < states.Length; i++)
+        {
+            var x = states[i][0];
+            var y = states[i][1];
+            xMin = Math.Min(xMin, x);
+            xMax = Math.Max(xMax, x);
+            yMin = Math.Min(yMin, y);
+            yMax = Math.Max(yMax, y);
+        }
 
-        // Draw upward reference line (θ=π)
-        renderer.DrawLine(
-            new Vector2(PivotX, PivotY),
-            new Vector2(PivotX, PivotY + 50),
-            new Vector4(0.3f, 0.5f, 0.3f, 1.0f));
+        // Add padding and ensure equal scaling
+        var xRange = xMax - xMin;
+        var yRange = yMax - yMin;
+        if (xRange < 1e-6) xRange = 1.0;
+        if (yRange < 1e-6) yRange = 1.0;
+
+        var maxRange = Math.Max(xRange, yRange);
+        var xCenter = (xMin + xMax) / 2.0;
+        var yCenter = (yMin + yMax) / 2.0;
+
+        var paddedRange = maxRange * 1.2;
+
+        // Calculate scale to fit in window
+        const float DrawSize = 500.0f;
+        var scale = (float)(DrawSize / paddedRange);
+
+        // Draw the path up to current frame
+        for (var i = 0; i < currentFrame; i++)
+        {
+            var x1 = (float)((states[i][0] - xCenter) * scale);
+            var y1 = (float)((states[i][1] - yCenter) * scale);
+            var x2 = (float)((states[i + 1][0] - xCenter) * scale);
+            var y2 = (float)((states[i + 1][1] - yCenter) * scale);
+
+            // Color gradient from start (green) to current (cyan)
+            var t = (float)i / currentFrame;
+            var color = new Vector4(0.3f + (0.3f * t), 0.8f - (0.3f * t), 0.8f, 0.8f);
+
+            renderer.DrawLine(
+                new Vector2(x1, -y1),  // Negate Y for screen coords
+                new Vector2(x2, -y2),
+                color);
+        }
+
+        // Draw remaining path in gray
+        for (var i = currentFrame; i < states.Length - 1; i++)
+        {
+            var x1 = (float)((states[i][0] - xCenter) * scale);
+            var y1 = (float)((states[i][1] - yCenter) * scale);
+            var x2 = (float)((states[i + 1][0] - xCenter) * scale);
+            var y2 = (float)((states[i + 1][1] - yCenter) * scale);
+
+            renderer.DrawLine(
+                new Vector2(x1, -y1),
+                new Vector2(x2, -y2),
+                new Vector4(0.3f, 0.3f, 0.3f, 0.5f));
+        }
     }
 
-    private static void DrawPendulum(Radiant.Graphics2D.Renderer2D renderer, double theta)
+    private static void DrawCar(Radiant.Graphics2D.Renderer2D renderer, double x, double y, double heading)
     {
-        // Calculate bob position
-        // θ=0 should point down, θ=π should point up
-        // Radiant uses math coordinates (Y increases upward), so we negate the Y offset
-        var bobX = PivotX + (float)(PendulumLength * Math.Sin(theta));
-        var bobY = PivotY - (float)(PendulumLength * Math.Cos(theta));
+        // Find bounds for scaling (recompute from current states)
+        var xMin = double.MaxValue;
+        var xMax = double.MinValue;
+        var yMin = double.MaxValue;
+        var yMax = double.MinValue;
 
-        // Draw pivot point
-        renderer.DrawCircleFilled(PivotX, PivotY, 8, Colors.Slate400, 16);
+        if (s_currentStates != null)
+        {
+            for (var i = 0; i < s_currentStates.Length; i++)
+            {
+                var sx = s_currentStates[i][0];
+                var sy = s_currentStates[i][1];
+                xMin = Math.Min(xMin, sx);
+                xMax = Math.Max(xMax, sx);
+                yMin = Math.Min(yMin, sy);
+                yMax = Math.Max(yMax, sy);
+            }
+        }
 
-        // Draw rod
-        renderer.DrawLine(
-            new Vector2(PivotX, PivotY),
-            new Vector2(bobX, bobY),
-            new Vector4(0.9f, 0.9f, 0.9f, 1.0f));
+        var xRange = xMax - xMin;
+        var yRange = yMax - yMin;
+        if (xRange < 1e-6) xRange = 1.0;
+        if (yRange < 1e-6) yRange = 1.0;
 
-        // Draw bob
-        renderer.DrawCircleFilled(bobX, bobY, 20, Colors.Sky500, 32);
+        var maxRange = Math.Max(xRange, yRange);
+        var xCenter = (xMin + xMax) / 2.0;
+        var yCenter = (yMin + yMax) / 2.0;
 
-        // Draw bob outline
-        renderer.DrawCircleOutline(bobX, bobY, 20, Colors.Sky300, 32);
+        var paddedRange = maxRange * 1.2;
+        const float DrawSize = 500.0f;
+        var scale = (float)(DrawSize / paddedRange);
 
-        // Draw velocity indicator (angular velocity)
-        // Not drawn in this simple version, but could show as an arrow
+        var carX = (float)((x - xCenter) * scale);
+        var carY = -(float)((y - yCenter) * scale);
+
+        // Draw car as a triangle pointing in heading direction
+        const float CarSize = 15.0f;
+        var frontX = carX + (float)(CarSize * Math.Cos(heading));
+        var frontY = carY - (float)(CarSize * Math.Sin(heading));  // Negate for screen coords
+
+        var angle1 = heading + (2.5 * Math.PI / 3.0);
+        var angle2 = heading - (2.5 * Math.PI / 3.0);
+
+        var backLeft = carX + (float)(CarSize * 0.7 * Math.Cos(angle1));
+        var backLeftY = carY - (float)(CarSize * 0.7 * Math.Sin(angle1));
+
+        var backRightX = carX + (float)(CarSize * 0.7 * Math.Cos(angle2));
+        var backRightY = carY - (float)(CarSize * 0.7 * Math.Sin(angle2));
+
+        // Draw triangle using lines (Radiant doesn't have triangle primitives)
+        renderer.DrawLine(new Vector2(frontX, frontY), new Vector2(backLeft, backLeftY), Colors.Cyan500);
+        renderer.DrawLine(new Vector2(backLeft, backLeftY), new Vector2(backRightX, backRightY), Colors.Cyan500);
+        renderer.DrawLine(new Vector2(backRightX, backRightY), new Vector2(frontX, frontY), Colors.Cyan500);
+
+        // Draw center circle to make it more visible
+        renderer.DrawCircleFilled(carX, carY, 8, Colors.Cyan300, 16);
     }
 
-    private static void DrawInformation(Radiant.Graphics2D.Renderer2D renderer, double theta, double torque, int iteration, double cost, double maxViolation, double constraintTolerance, int frameIndex, int totalFrames)
+    private static void DrawMarkers(Radiant.Graphics2D.Renderer2D renderer, double[][] states)
+    {
+        if (states.Length < 2) return;
+
+        // Find bounds for scaling
+        var xMin = double.MaxValue;
+        var xMax = double.MinValue;
+        var yMin = double.MaxValue;
+        var yMax = double.MinValue;
+
+        for (var i = 0; i < states.Length; i++)
+        {
+            var sx = states[i][0];
+            var sy = states[i][1];
+            xMin = Math.Min(xMin, sx);
+            xMax = Math.Max(xMax, sx);
+            yMin = Math.Min(yMin, sy);
+            yMax = Math.Max(yMax, sy);
+        }
+
+        var xRange = xMax - xMin;
+        var yRange = yMax - yMin;
+        if (xRange < 1e-6) xRange = 1.0;
+        if (yRange < 1e-6) yRange = 1.0;
+
+        var maxRange = Math.Max(xRange, yRange);
+        var xCenter = (xMin + xMax) / 2.0;
+        var yCenter = (yMin + yMax) / 2.0;
+
+        var paddedRange = maxRange * 1.2;
+        const float DrawSize = 500.0f;
+        var scale = (float)(DrawSize / paddedRange);
+
+        // Start position (green)
+        var startX = (float)((states[0][0] - xCenter) * scale);
+        var startY = -(float)((states[0][1] - yCenter) * scale);
+        renderer.DrawCircleFilled(startX, startY, 12, Colors.Emerald500, 24);
+        renderer.DrawCircleOutline(startX, startY, 12, Colors.Emerald300, 24);
+        renderer.DrawText("START", startX - 30, startY - 25, 2, Colors.Emerald400);
+
+        // Goal position (red)
+        var goalX = (float)((states[^1][0] - xCenter) * scale);
+        var goalY = -(float)((states[^1][1] - yCenter) * scale);
+        renderer.DrawCircleFilled(goalX, goalY, 12, Colors.Rose500, 24);
+        renderer.DrawCircleOutline(goalX, goalY, 12, Colors.Rose300, 24);
+        renderer.DrawText("GOAL", goalX - 25, goalY + 20, 2, Colors.Rose400);
+    }
+
+    private static void DrawInformation(Radiant.Graphics2D.Renderer2D renderer, double x, double y, double heading, double turnRate, int iteration, double cost, double maxViolation, double constraintTolerance, int frameIndex, int totalFrames)
     {
         // Draw text information at the top
         const float TopY = -270.0f;
@@ -312,59 +412,14 @@ internal static class RadiantPendulumVisualizer
         // Frame info
         renderer.DrawText($"FRAME: {frameIndex + 1}/{totalFrames}", 200, TopY, 2, Colors.Amber400);
 
-        // Angle in degrees
-        var angleDegrees = theta * 180.0 / Math.PI;
-        renderer.DrawText($"ANGLE: {angleDegrees:F1} DEG", 200, TopY + 20, 2, Colors.Purple400);
+        // Position
+        renderer.DrawText($"X: {x:F2}  Y: {y:F2}", 200, TopY + 20, 2, Colors.Purple400);
 
-        // Torque
-        renderer.DrawText($"TORQUE: {torque:F2} NM", 200, TopY + 40, 2, Colors.Rose400);
+        // Heading in degrees
+        var headingDegrees = heading * 180.0 / Math.PI;
+        renderer.DrawText($"HEADING: {headingDegrees:F1} DEG", 200, TopY + 40, 2, Colors.Cyan400);
 
-        // Draw a progress bar at the bottom showing angle
-        var normalizedAngle = (angleDegrees + 180.0) / 360.0; // Map -180..180 to 0..1
-
-        const float BarWidth = 600.0f;
-        const float BarHeight = 20.0f;
-        const float BarX = -BarWidth / 2;
-        const float BarY = 250.0f;
-
-        // Background bar
-        renderer.DrawRectangleFilled(BarX, BarY, BarWidth, BarHeight, Colors.Slate700);
-
-        // Progress indicator
-        var progressX = BarX + (float)(normalizedAngle * BarWidth);
-        renderer.DrawCircleFilled(progressX, BarY + (BarHeight / 2), 15, Colors.Emerald500, 16);
-
-        // Draw markers at 0° and 180°
-        const float Marker0 = BarX + (float)(180.0 / 360.0 * BarWidth);
-        const float Marker180 = BarX + (float)(360.0 / 360.0 * BarWidth);
-        renderer.DrawLine(
-            new Vector2(Marker0, BarY - 5),
-            new Vector2(Marker0, BarY + BarHeight + 5),
-            new Vector4(0.8f, 0.3f, 0.3f, 1.0f));
-        renderer.DrawLine(
-            new Vector2(Marker180, BarY - 5),
-            new Vector2(Marker180, BarY + BarHeight + 5),
-            new Vector4(0.3f, 0.8f, 0.3f, 1.0f));
-
-        // Frame counter bar
-        if (totalFrames > 0)
-        {
-            const float FrameBarHeight = 8.0f;
-            const float FrameBarY = 270.0f;
-            renderer.DrawRectangleFilled(BarX, FrameBarY, BarWidth, FrameBarHeight, Colors.Slate700);
-            var frameProgress = (float)frameIndex / totalFrames * BarWidth;
-            renderer.DrawRectangleFilled(BarX, FrameBarY, frameProgress, FrameBarHeight, Colors.Sky600);
-        }
-
-        // Draw torque indicator (as a colored circle)
-        var torqueIndicatorRadius = (float)Math.Abs(torque) * 5.0f;
-        var torqueColor = torque > 0
-            ? new Vector4(0.3f, 0.8f, 0.3f, 0.8f) // Green for positive
-            : new Vector4(0.8f, 0.3f, 0.3f, 0.8f); // Red for negative
-
-        if (torqueIndicatorRadius > 1.0f)
-        {
-            renderer.DrawCircleOutline(PivotX, PivotY, torqueIndicatorRadius + 15, torqueColor, 32);
-        }
+        // Turn rate
+        renderer.DrawText($"TURN RATE: {turnRate:F2} RAD-S", 200, TopY + 60, 2, Colors.Rose400);
     }
 }

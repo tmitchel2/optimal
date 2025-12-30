@@ -106,7 +106,7 @@ public sealed class PendulumSwingUpProblemSolver : IProblemSolver
                         .WithTolerance(1e-2)
                         .WithMaxIterations(20)  // Reduced from 100 to make cancellation more responsive
                         .WithVerbose(false))
-                    .WithProgressCallback((iteration, cost, states, controls, _) =>
+                    .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                     {
                         // Check if visualization was closed
                         var token = RadiantPendulumVisualizer.CancellationToken;
@@ -117,7 +117,7 @@ public sealed class PendulumSwingUpProblemSolver : IProblemSolver
                         }
 
                         // Update the live visualization with the current trajectory
-                        RadiantPendulumVisualizer.UpdateTrajectory(states, controls, iteration, cost);
+                        RadiantPendulumVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
                     });
 
                 var result = solver.Solve(problem);

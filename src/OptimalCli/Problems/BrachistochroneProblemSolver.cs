@@ -120,7 +120,7 @@ public sealed class BrachistochroneProblemSolver : IProblemSolver
                     .WithTolerance(1e-4)
                     .WithMaxIterations(200)
                     .WithVerbose(false))  // Disable verbose for cleaner visualization
-            .WithProgressCallback((iteration, cost, states, controls, times) =>
+            .WithProgressCallback((iteration, cost, states, controls, times, _, __) =>
             {
                 // Extract x and y coordinates from states
                 var xData = new double[states.Length];

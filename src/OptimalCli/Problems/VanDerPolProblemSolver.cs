@@ -80,6 +80,7 @@ public sealed class VanDerPolProblemSolver : IProblemSolver
             .WithSegments(25)
             .WithTolerance(1e-3)
             .WithMaxIterations(100)
+            .WithMeshRefinement(true, 5, 1e-3)
             .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
 
         var result = solver.Solve(problem);
