@@ -22,7 +22,6 @@ internal static class RadiantCartPoleVisualizer
     private const float TrackLength = 600.0f;
     private const float CartWidth = 60.0f;
     private const float CartHeight = 40.0f;
-    private const float PoleLength = 150.0f;
     private const float PixelsPerMeter = 100.0f;
 
     private static double[][]? s_currentStates;
@@ -31,6 +30,7 @@ internal static class RadiantCartPoleVisualizer
     private static double s_currentCost;
     private static double s_currentMaxViolation;
     private static double s_currentConstraintTolerance;
+    private static double s_currentPoleLength;  // Pole length in meters
     private static int s_currentFrameIndex;
     private static DateTime s_animationStartTime;
     private static readonly object s_lock = new();
@@ -42,6 +42,7 @@ internal static class RadiantCartPoleVisualizer
     private static double s_nextCost;
     private static double s_nextMaxViolation;
     private static double s_nextConstraintTolerance;
+    private static double s_nextPoleLength;  // Pole length in meters
     private static bool s_hasNextTrajectory;
 
     // Cancellation token for stopping optimization when window closes
@@ -61,7 +62,8 @@ internal static class RadiantCartPoleVisualizer
     /// <param name="cost">Current cost value.</param>
     /// <param name="maxViolation">Maximum constraint violation.</param>
     /// <param name="constraintTolerance">Constraint tolerance for convergence.</param>
-    public static void UpdateTrajectory(double[][] states, double[][] controls, int iteration, double cost, double maxViolation, double constraintTolerance)
+    /// <param name="poleLength">Pole length in meters.</param>
+    public static void UpdateTrajectory(double[][] states, double[][] controls, int iteration, double cost, double maxViolation, double constraintTolerance, double poleLength)
     {
         if (states.Length == 0 || controls.Length == 0)
         {
@@ -77,6 +79,7 @@ internal static class RadiantCartPoleVisualizer
             s_nextCost = cost;
             s_nextMaxViolation = maxViolation;
             s_nextConstraintTolerance = constraintTolerance;
+            s_nextPoleLength = poleLength;
             s_hasNextTrajectory = true;
 
             // Debug output
@@ -96,7 +99,7 @@ internal static class RadiantCartPoleVisualizer
         try
         {
             using var app = new RadiantApplication();
-            app.Run("Cart-Pole Swing-Up Optimization", WindowWidth, WindowHeight, RenderFrame, Colors.Slate900);
+            app.Run("Cart-Pole stabilization Optimization", WindowWidth, WindowHeight, RenderFrame, Colors.Slate900);
         }
         finally
         {
@@ -120,6 +123,7 @@ internal static class RadiantCartPoleVisualizer
         double cost;
         double maxViolation;
         double constraintTolerance;
+        double poleLength;
         int frameIndex;
 
         lock (s_lock)
@@ -136,6 +140,7 @@ internal static class RadiantCartPoleVisualizer
                     s_currentCost = s_nextCost;
                     s_currentMaxViolation = s_nextMaxViolation;
                     s_currentConstraintTolerance = s_nextConstraintTolerance;
+                    s_currentPoleLength = s_nextPoleLength;
                     s_currentFrameIndex = 0;
                     s_animationStartTime = DateTime.Now;
                     s_hasNextTrajectory = false;
@@ -166,6 +171,7 @@ internal static class RadiantCartPoleVisualizer
                 s_currentCost = s_nextCost;
                 s_currentMaxViolation = s_nextMaxViolation;
                 s_currentConstraintTolerance = s_nextConstraintTolerance;
+                s_currentPoleLength = s_nextPoleLength;
                 s_currentFrameIndex = 0;
                 s_animationStartTime = DateTime.Now;
                 s_hasNextTrajectory = false;
@@ -186,6 +192,7 @@ internal static class RadiantCartPoleVisualizer
             cost = s_currentCost;
             maxViolation = s_currentMaxViolation;
             constraintTolerance = s_currentConstraintTolerance;
+            poleLength = s_currentPoleLength;
             frameIndex = s_currentFrameIndex;
         }
 
@@ -200,7 +207,7 @@ internal static class RadiantCartPoleVisualizer
         DrawTrack(renderer);
 
         // Draw cart and pole
-        DrawCartPole(renderer, cartPos, poleAngle, force);
+        DrawCartPole(renderer, cartPos, poleAngle, force, poleLength);
 
         // Draw information text
         DrawInformation(renderer, cartPos, poleAngle, force, iteration, cost, maxViolation, constraintTolerance, frameIndex, states.Length);
@@ -213,6 +220,7 @@ internal static class RadiantCartPoleVisualizer
         renderer.DrawRectangleFilled(-TrackLength / 2, TrackY - TrackThickness / 2, TrackLength, TrackThickness, Colors.Gray600);
 
         // Draw position markers at -2m, -1m, 0m, 1m, 2m
+        // Left-hand coordinate system: +X = right
         for (var pos = -2; pos <= 2; pos++)
         {
             var x = pos * PixelsPerMeter;
@@ -226,9 +234,10 @@ internal static class RadiantCartPoleVisualizer
         }
     }
 
-    private static void DrawCartPole(Radiant.Graphics2D.Renderer2D renderer, double cartPos, double poleAngle, double force)
+    private static void DrawCartPole(Radiant.Graphics2D.Renderer2D renderer, double cartPos, double poleAngle, double force, double poleLength)
     {
         // Cart position on screen
+        // Left-hand coordinate system: +X = right, +Y = up
         var cartX = (float)(cartPos * PixelsPerMeter);
         var cartY = TrackY;
 
@@ -255,9 +264,10 @@ internal static class RadiantCartPoleVisualizer
 
         // Calculate pole end position
         // poleAngle: 0 = upright (pointing up), π = down
-        // In Radiant coordinates, Y increases upward
-        var poleEndX = cartX + (float)(PoleLength * Math.Sin(poleAngle));
-        var poleEndY = cartY - (float)(PoleLength * Math.Cos(poleAngle));
+        // In Radiant coordinates, Y increases upward, so + for upward
+        var poleLengthPixels = (float)(poleLength * PixelsPerMeter);
+        var poleEndX = cartX + (float)(poleLengthPixels * Math.Sin(poleAngle));
+        var poleEndY = cartY + (float)(poleLengthPixels * Math.Cos(poleAngle));
 
         // Draw pole
         renderer.DrawLine(
@@ -273,6 +283,7 @@ internal static class RadiantCartPoleVisualizer
         if (Math.Abs(force) > 0.1)
         {
             var forceScale = 0.5f;
+            // Left-hand coordinate system: positive force = right
             var arrowLength = (float)(force * forceScale);
             var arrowY = cartY + 40;
 

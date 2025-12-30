@@ -33,7 +33,7 @@ public sealed class CartPoleProblemSolver : IProblemSolver
 
         var M = 1.0;  // Cart mass
         var m = 0.1;  // Pole mass
-        var L = 0.5;  // Pole length
+        var L = 2;  // Pole length
         var g = 9.81; // Gravity
 
         Console.WriteLine($"Problem setup:");
@@ -50,7 +50,7 @@ public sealed class CartPoleProblemSolver : IProblemSolver
             .WithStateSize(4)
             .WithControlSize(1)
             .WithTimeHorizon(0.0, 1.5)
-            .WithInitialCondition(new[] { 0.1, 0.0, 0.08, 0.0 }) // Maximum before timeout
+            .WithInitialCondition(new[] { 0.1, 0.0, 0.4, 0.0 }) // Maximum before timeout
             .WithFinalCondition(new[] { 0.0, 0.0, 0.0, 0.0 })
             .WithControlBounds(new[] { -3.0 }, new[] { 3.0 })
             .WithStateBounds(
@@ -111,10 +111,10 @@ public sealed class CartPoleProblemSolver : IProblemSolver
 
         Console.WriteLine("Solver configuration:");
         Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
-        Console.WriteLine("  Segments: 12");
-        Console.WriteLine("  Max iterations: 30");
+        Console.WriteLine("  Segments: 20");
+        Console.WriteLine("  Max iterations: 100");
         Console.WriteLine("  Inner optimizer: L-BFGS-B");
-        Console.WriteLine("  Tolerance: 2e-2");
+        Console.WriteLine("  Tolerance: 1e-1");
         Console.WriteLine();
         Console.WriteLine("Solving...");
         Console.WriteLine("Opening live visualization window...");
@@ -128,10 +128,10 @@ public sealed class CartPoleProblemSolver : IProblemSolver
             try
             {
                 var solver = new HermiteSimpsonSolver()
-                    .WithSegments(12)
-                    .WithTolerance(2e-2) // Very relaxed
-                    .WithMaxIterations(30)
-                    .WithMeshRefinement(true, 5, 0.0001)
+                    .WithSegments(20)  // More segments for complex 4-state problem
+                    .WithTolerance(1e-1)  // Relaxed like pendulum
+                    .WithMaxIterations(100)  // More iterations
+                    .WithMeshRefinement(true, 5, 1e-1)  // Relaxed refinement threshold
                     .WithVerbose(true)  // Enable verbose output
                     .WithInnerOptimizer(new LBFGSOptimizer()
                         .WithTolerance(1e-2)
@@ -148,7 +148,7 @@ public sealed class CartPoleProblemSolver : IProblemSolver
                         }
 
                         // Update the live visualization with the current trajectory
-                        RadiantCartPoleVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+                        RadiantCartPoleVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, L);
                     });
 
                 var result = solver.Solve(problem);
