@@ -85,35 +85,105 @@ public sealed class PendulumSwingUpProblemSolver : IProblemSolver
         Console.WriteLine("  Inner optimizer: L-BFGS-B");
         Console.WriteLine("  Tolerance: 1e-2");
         Console.WriteLine();
-        Console.WriteLine("Solving... (real-time visualization will be shown below)");
+        Console.WriteLine("Solving...");
+        Console.WriteLine("Opening live visualization window...");
+        Console.WriteLine("(Close window when done viewing)");
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
-        // Initialize pendulum visualizer
-        PendulumVisualizer.Initialize();
-
-        var solver = new HermiteSimpsonSolver()
-            .WithSegments(25) // More segments for complex trajectory
-            .WithTolerance(1e-1) // Slightly relaxed for this difficult problem
-            .WithMaxIterations(150) // More iterations for convergence
-            .WithMeshRefinement(true, 5, 1e-1)
-            .WithVerbose(false)  // Disable to avoid interference with visualizer
-            .WithInnerOptimizer(new LBFGSOptimizer()
-                .WithTolerance(1e-2)
-                .WithMaxIterations(100)
-                .WithVerbose(false))  // Disable verbose for cleaner visualization
-            .WithProgressCallback((iteration, cost, states, controls, times) =>
+        // Run the optimizer in a background task
+        var optimizationTask = Task.Run(() =>
+        {
+            try
             {
-                // Animate the entire trajectory, looping for ~1.5 seconds
-                // This shows the pendulum swinging through the optimized motion
-                PendulumVisualizer.RenderTrajectory(states, controls, iteration, cost, displayDurationMs: 1500);
-            });
+                var solver = new HermiteSimpsonSolver()
+                    .WithSegments(25) // More segments for complex trajectory
+                    .WithTolerance(1e-1) // Slightly relaxed for this difficult problem
+                    .WithMaxIterations(150) // More iterations for convergence
+                    .WithMeshRefinement(true, 5, 1e-1)
+                    .WithVerbose(true)  // Enable verbose output
+                    .WithInnerOptimizer(new LBFGSOptimizer()
+                        .WithTolerance(1e-2)
+                        .WithMaxIterations(20)  // Reduced from 100 to make cancellation more responsive
+                        .WithVerbose(false))
+                    .WithProgressCallback((iteration, cost, states, controls, _) =>
+                    {
+                        // Check if visualization was closed
+                        var token = RadiantPendulumVisualizer.CancellationToken;
+                        if (token.IsCancellationRequested)
+                        {
+                            Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
+                            throw new OperationCanceledException(token);
+                        }
 
-        var result = solver.Solve(problem);
+                        // Update the live visualization with the current trajectory
+                        RadiantPendulumVisualizer.UpdateTrajectory(states, controls, iteration, cost);
+                    });
 
-        // Restore console
-        PendulumVisualizer.Cleanup();
+                var result = solver.Solve(problem);
+                Console.WriteLine("[SOLVER] Optimization completed successfully");
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("[SOLVER] Caught OperationCanceledException - optimization cancelled");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SOLVER] Caught exception during solve: {ex.GetType().Name}: {ex.Message}");
+                throw;
+            }
+        }, RadiantPendulumVisualizer.CancellationToken);
 
+        // Run the visualization window on the main thread (blocks until window closed)
+        RadiantPendulumVisualizer.RunVisualizationWindow();
+
+        // Check if optimization is still running after window closed
+        if (!optimizationTask.IsCompleted)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Window closed - waiting for optimization to stop...");
+
+            // Give the optimization a chance to respond to cancellation
+            // Wait up to 5 seconds for graceful shutdown
+            if (optimizationTask.Wait(TimeSpan.FromSeconds(5)))
+            {
+                Console.WriteLine("Optimization stopped gracefully");
+            }
+            else
+            {
+                Console.WriteLine("Optimization did not stop - returning to console");
+                Console.WriteLine("(The background optimization will continue but results will be discarded)");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("=".PadRight(70, '='));
+            Console.WriteLine();
+            Console.WriteLine("OPTIMIZATION CANCELLED");
+            Console.WriteLine("  Window was closed before optimization completed");
+            Console.WriteLine();
+            return;
+        }
+
+        // Optimization completed - get the result
+        CollocationResult result;
+        try
+        {
+            result = optimizationTask.Result;
+        }
+        catch (AggregateException ex) when (ex.InnerException is OperationCanceledException)
+        {
+            Console.WriteLine();
+            Console.WriteLine("=".PadRight(70, '='));
+            Console.WriteLine();
+            Console.WriteLine("OPTIMIZATION CANCELLED");
+            Console.WriteLine("  Optimization was cancelled");
+            Console.WriteLine();
+            return;
+        }
+
+        Console.WriteLine();
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
         Console.WriteLine("SOLUTION SUMMARY:");
@@ -125,12 +195,12 @@ public sealed class PendulumSwingUpProblemSolver : IProblemSolver
         Console.WriteLine($"  Iterations: {result.Iterations}");
         Console.WriteLine();
 
-        // Generate visualization
+        // Generate HTML visualization
         var htmlPath = ResultVisualizer.GenerateHtml(
             result,
             "Pendulum Swing-Up",
             new[] { "θ (rad)", "θ̇ (rad/s)" },
             new[] { "torque (N·m)" });
-        Console.WriteLine($"Visualization saved to: file://{htmlPath}");
+        Console.WriteLine($"HTML visualization saved to: file://{htmlPath}");
     }
 }

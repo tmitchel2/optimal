@@ -12,6 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Optimal.AutoDiff\Optimal.AutoDiff.csproj"  ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
     <ProjectReference Include="..\Optimal\Optimal.csproj" />
+    <ProjectReference Include="..\..\lib\radiant\src\Radiant\Radiant.csproj" />
   </ItemGroup>
 
 </Project>
