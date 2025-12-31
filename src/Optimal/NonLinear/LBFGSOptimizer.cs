@@ -39,6 +39,25 @@ namespace Optimal.NonLinear
         }
 
         /// <summary>
+        /// Enables parallel line search for improved CPU utilization.
+        /// </summary>
+        /// <param name="enable">True to enable parallel line search (default).</param>
+        /// <param name="batchSize">Number of step sizes to evaluate in parallel (default 4).</param>
+        /// <returns>This optimizer instance for method chaining.</returns>
+        public LBFGSOptimizer WithParallelLineSearch(bool enable = true, int batchSize = 4)
+        {
+            if (enable)
+            {
+                _lineSearch = new ParallelBacktrackingLineSearch(parallelBatchSize: batchSize);
+            }
+            else
+            {
+                _lineSearch = new BacktrackingLineSearch();
+            }
+            return this;
+        }
+
+        /// <summary>
         /// Sets the memory size (number of correction pairs to store).
         /// </summary>
         /// <param name="memorySize">Memory size (typically 3-20, default 10).</param>

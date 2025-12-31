@@ -39,7 +39,7 @@ public sealed class GoddardRocketProblemSolver : IProblemSolver
         var Tmax = 3.5;      // Maximum thrust
         var mInitial = 1.0;  // Initial mass (rocket + fuel)
         var mEmpty = 0.6;    // Empty mass (rocket without fuel)
-        var finalTime = 0.2; // Final time (free parameter, this is just for normalization)
+        var finalTime = 5; // Final time - enough for thrust phase + coast to peak
 
         Console.WriteLine("Problem setup:");
         Console.WriteLine($"  Initial altitude: 0 m");
@@ -53,6 +53,7 @@ public sealed class GoddardRocketProblemSolver : IProblemSolver
         Console.WriteLine($"  Drag coefficient: {Dc}");
         Console.WriteLine($"  Atmosphere scale height: {h0} m");
         Console.WriteLine($"  Time horizon: {finalTime} s");
+        Console.WriteLine($"  Final condition: velocity = 0 (at peak altitude)");
         Console.WriteLine($"  Objective: Maximize final altitude");
         Console.WriteLine();
 
@@ -61,6 +62,7 @@ public sealed class GoddardRocketProblemSolver : IProblemSolver
             .WithControlSize(1)
             .WithTimeHorizon(0.0, finalTime)
             .WithInitialCondition(new[] { 0.0, 0.0, mInitial })  // Start at ground, zero velocity, full mass
+            .WithFinalCondition(new[] { double.NaN, 0.0, double.NaN })  // Free altitude, zero velocity at peak, free mass
             .WithControlBounds(new[] { 0.0 }, new[] { Tmax })  // Thrust between 0 and Tmax
             .WithStateBounds(
                 new[] { 0.0, -2.0, mEmpty },  // h >= 0, reasonable v bounds, mass >= empty mass
@@ -150,8 +152,80 @@ public sealed class GoddardRocketProblemSolver : IProblemSolver
         Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
         Console.WriteLine("  Segments: 30");
         Console.WriteLine("  Max iterations: 200");
-        Console.WriteLine("  Inner optimizer: L-BFGS-B");
+        Console.WriteLine("  Inner optimizer: L-BFGS-B with parallel line search");
+        Console.WriteLine("  Parallel line search: 4 candidates per batch");
         Console.WriteLine("  Tolerance: 1e-3");
+        Console.WriteLine();
+
+        // Generate nominal trajectory for LQR initialization
+        Console.WriteLine("Generating LQR-based initial guess...");
+        const int segments = 30;
+        var grid = new CollocationGrid(0.0, finalTime, segments);
+        var nPoints = segments + 1;
+        var nominalStates = new double[nPoints][];
+        var nominalControls = new double[nPoints][];
+
+        // Simple nominal trajectory: thrust phase followed by coast to zero velocity
+        for (var k = 0; k < nPoints; k++)
+        {
+            var t = grid.TimePoints[k];
+            var tRatio = t / finalTime;
+
+            // Split trajectory: thrust for first 60%, coast for last 40%
+            var thrustPhaseRatio = 0.6;
+            double T_thrust, m, v, h;
+
+            if (tRatio < thrustPhaseRatio)
+            {
+                // Thrust phase
+                var tThrust = t;
+                T_thrust = Tmax * 0.7;
+                m = mInitial - (mInitial - mEmpty) * (tRatio / thrustPhaseRatio) * 0.9;
+                m = Math.Max(m, mEmpty);
+
+                var a = (T_thrust / m - g);
+                v = a * tThrust;
+                h = 0.5 * a * tThrust * tThrust;
+            }
+            else
+            {
+                // Coast phase (no thrust, decelerate to zero velocity)
+                T_thrust = 0.0;
+                m = mEmpty;
+
+                // At end of thrust phase
+                var tThrustEnd = finalTime * thrustPhaseRatio;
+                var aThrustPhase = (Tmax * 0.7 / mInitial - g);
+                var vThrustEnd = aThrustPhase * tThrustEnd;
+                var hThrustEnd = 0.5 * aThrustPhase * tThrustEnd * tThrustEnd;
+
+                // Coast phase: decelerate linearly to zero
+                var tCoast = t - tThrustEnd;
+                var tCoastTotal = finalTime * (1 - thrustPhaseRatio);
+                var coastRatio = tCoast / tCoastTotal;
+
+                v = vThrustEnd * (1.0 - coastRatio);  // Linear decrease to zero
+                h = hThrustEnd + vThrustEnd * tCoast - 0.5 * g * tCoast * tCoast;
+            }
+
+            h = Math.Max(h, 0.0);
+
+            nominalStates[k] = new[] { h, v, m };
+            nominalControls[k] = new[] { T_thrust };
+        }
+
+        // LQR weights: prioritize altitude, penalize control
+        var Q = new[] { 10.0, 1.0, 0.1 };  // [h, v, m] - prioritize altitude
+        var R = new[] { 0.1 };              // [T] - moderate control cost
+
+        var initialGuess = LQRInitializer.GenerateInitialGuess(
+            problem,
+            grid,
+            (nominalStates, nominalControls),
+            Q,
+            R);
+
+        Console.WriteLine($"  LQR initial guess generated: {initialGuess.Length} decision variables");
         Console.WriteLine();
         Console.WriteLine("Solving...");
         Console.WriteLine("Opening live visualization window...");
@@ -164,16 +238,19 @@ public sealed class GoddardRocketProblemSolver : IProblemSolver
         {
             try
             {
+                var innerOptimizer = new LBFGSOptimizer()
+                    .WithParallelLineSearch(enable: true, batchSize: 4)
+                    .WithTolerance(1e-1)
+                    .WithMaxIterations(30)
+                    .WithVerbose(false);
+
                 var solver = new HermiteSimpsonSolver()
-                    .WithSegments(25)
-                    .WithTolerance(1e-2)
-                    .WithMaxIterations(150)
-                    // .WithMeshRefinement(true, 5, 1e-3)
+                    .WithSegments(30)
+                    .WithTolerance(1e-1)
+                    .WithMaxIterations(30)
+                    .WithMeshRefinement(true, 5, 1e-1)
                     .WithVerbose(true)
-                    .WithInnerOptimizer(new LBFGSOptimizer()
-                        .WithTolerance(1e-2)
-                        .WithMaxIterations(50)
-                        .WithVerbose(false))
+                    .WithInnerOptimizer(innerOptimizer)
                     .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                     {
                         // Check if visualization was closed
@@ -186,7 +263,8 @@ public sealed class GoddardRocketProblemSolver : IProblemSolver
 
                         // Update the live visualization with the current trajectory
                         RadiantGoddardRocketVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, h0);
-                    });
+                    })
+                    ;
 
                 var result = solver.Solve(problem);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");

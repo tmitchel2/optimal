@@ -450,9 +450,9 @@ internal static class RadiantGoddardRocketVisualizer
         maxVal += range * 0.1;
         range = maxVal - minVal;
 
-        // Draw min/max labels
-        renderer.DrawText($"{maxVal:F2}", x - 35, y, 1.2f, Colors.Gray500);
-        renderer.DrawText($"{minVal:F2}", x - 35, y + height - 10, 1.2f, Colors.Gray500);
+        // Draw min/max labels (in Radiant: +Y is up, so max is at top)
+        renderer.DrawText($"{maxVal:F2}", x - 35, y + height, 1.2f, Colors.Gray500);
+        renderer.DrawText($"{minVal:F2}", x - 35, y, 1.2f, Colors.Gray500);
 
         // Draw the graph line
         for (var i = 1; i < data.Length; i++)
@@ -461,10 +461,11 @@ internal static class RadiantGoddardRocketVisualizer
             var val2 = data[i][stateIndex];
 
             // Normalize to graph coordinates
+            // In Radiant: +Y is up, so higher values = higher Y position
             var x1 = x + (float)(i - 1) / (data.Length - 1) * width;
             var x2 = x + (float)i / (data.Length - 1) * width;
-            var y1 = y + height - (float)((val1 - minVal) / range) * height;
-            var y2 = y + height - (float)((val2 - minVal) / range) * height;
+            var y1 = y + (float)((val1 - minVal) / range) * height;
+            var y2 = y + (float)((val2 - minVal) / range) * height;
 
             // Dim the line if it's past current frame
             var lineColor = i <= currentFrame ? color : new Vector4(color.X * 0.3f, color.Y * 0.3f, color.Z * 0.3f, 0.5f);
@@ -477,7 +478,7 @@ internal static class RadiantGoddardRocketVisualizer
         {
             var currentVal = data[currentFrame][stateIndex];
             var markerX = x + (float)currentFrame / (data.Length - 1) * width;
-            var markerY = y + height - (float)((currentVal - minVal) / range) * height;
+            var markerY = y + (float)((currentVal - minVal) / range) * height;
             renderer.DrawCircleFilled(markerX, markerY, 3, color, 8);
         }
     }
@@ -514,14 +515,14 @@ internal static class RadiantGoddardRocketVisualizer
         maxVal += range * 0.1;
         range = maxVal - minVal;
 
-        // Draw min/max labels
-        renderer.DrawText($"{maxVal:F2}", x - 35, y, 1.2f, Colors.Gray500);
-        renderer.DrawText($"{minVal:F2}", x - 35, y + height - 10, 1.2f, Colors.Gray500);
+        // Draw min/max labels (in Radiant: +Y is up, so max is at top)
+        renderer.DrawText($"{maxVal:F2}", x - 35, y + height, 1.2f, Colors.Gray500);
+        renderer.DrawText($"{minVal:F2}", x - 35, y, 1.2f, Colors.Gray500);
 
         // Draw zero line if in range
         if (minVal <= 0 && maxVal >= 0)
         {
-            var zeroY = y + height - (float)((0 - minVal) / range) * height;
+            var zeroY = y + (float)((0 - minVal) / range) * height;
             renderer.DrawLine(
                 new Vector2(x, zeroY),
                 new Vector2(x + width, zeroY),
@@ -534,10 +535,11 @@ internal static class RadiantGoddardRocketVisualizer
             var val1 = controls[i - 1][0];
             var val2 = controls[i][0];
 
+            // In Radiant: +Y is up, so higher values = higher Y position
             var x1 = x + (float)(i - 1) / (controls.Length - 1) * width;
             var x2 = x + (float)i / (controls.Length - 1) * width;
-            var y1 = y + height - (float)((val1 - minVal) / range) * height;
-            var y2 = y + height - (float)((val2 - minVal) / range) * height;
+            var y1 = y + (float)((val1 - minVal) / range) * height;
+            var y2 = y + (float)((val2 - minVal) / range) * height;
 
             var lineColor = i <= currentFrame ? color : new Vector4(color.X * 0.3f, color.Y * 0.3f, color.Z * 0.3f, 0.5f);
 
@@ -549,7 +551,7 @@ internal static class RadiantGoddardRocketVisualizer
         {
             var currentVal = controls[currentFrame][0];
             var markerX = x + (float)currentFrame / (controls.Length - 1) * width;
-            var markerY = y + height - (float)((currentVal - minVal) / range) * height;
+            var markerY = y + (float)((currentVal - minVal) / range) * height;
             renderer.DrawCircleFilled(markerX, markerY, 3, color, 8);
         }
     }

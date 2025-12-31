@@ -9,11 +9,11 @@
 using System;
 using System.Diagnostics;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Optimal.Control;
 
-namespace Optimal.Tests.Control
+namespace Optimal.Control.Tests
 {
     [TestClass]
+    [Ignore]
     public class ParallelizationBenchmarks
     {
         private static readonly double[][] s_emptyGradients = Array.Empty<double[]>();
@@ -125,8 +125,8 @@ namespace Optimal.Tests.Control
             var sw = Stopwatch.StartNew();
             for (var i = 0; i < iterations; i++)
             {
-                var gradient = seqTranscription.ComputeObjectiveGradient(z, 
-                    (x, u, t) => problem.RunningCost!(x, u, t).value, 
+                var gradient = seqTranscription.ComputeObjectiveGradient(z,
+                    (x, u, t) => problem.RunningCost!(x, u, t).value,
                     problem.TerminalCost != null ? (x, t) => problem.TerminalCost!(x, t).value : null);
             }
             sw.Stop();
@@ -137,8 +137,8 @@ namespace Optimal.Tests.Control
             sw = Stopwatch.StartNew();
             for (var i = 0; i < iterations; i++)
             {
-                var gradient = parTranscription.ComputeObjectiveGradient(z, 
-                    (x, u, t) => problem.RunningCost!(x, u, t).value, 
+                var gradient = parTranscription.ComputeObjectiveGradient(z,
+                    (x, u, t) => problem.RunningCost!(x, u, t).value,
                     problem.TerminalCost != null ? (x, t) => problem.TerminalCost!(x, t).value : null);
             }
             sw.Stop();

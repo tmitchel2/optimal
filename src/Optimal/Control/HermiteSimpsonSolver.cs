@@ -38,7 +38,7 @@ namespace Optimal.Control
         private bool _enableMeshRefinement;
         private int _maxRefinementIterations = 5;
         private double _refinementDefectThreshold = 1e-4;
-        private bool _enableParallelization;
+        private bool _enableParallelization = true;
         private ProgressCallback? _progressCallback;
 
         /// <summary>

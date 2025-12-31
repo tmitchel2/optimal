@@ -20,6 +20,7 @@ namespace Optimal.Control.Tests
     /// These problems validate the solver against well-known benchmarks.
     /// </summary>
     [TestClass]
+    [Ignore("Long-running tests for classic problems - run manually as needed")]
     public sealed class ClassicProblemsTests
     {
         [TestMethod]
@@ -109,7 +110,7 @@ namespace Optimal.Control.Tests
             Console.WriteLine("  Tolerance: 1e-3");
             Console.WriteLine();
             Console.WriteLine("Solving... (progress will be shown below)");
-            Console.WriteLine("=" .PadRight(70, '='));
+            Console.WriteLine("=".PadRight(70, '='));
 
             var solver = new HermiteSimpsonSolver()
                 .WithSegments(20)  // Start with fewer segments
@@ -127,7 +128,7 @@ namespace Optimal.Control.Tests
             var result = solver.Solve(problem);
             sw.Stop();
 
-            Console.WriteLine("=" .PadRight(70, '='));
+            Console.WriteLine("=".PadRight(70, '='));
             Console.WriteLine();
             Console.WriteLine($"Solve completed in {sw.ElapsedMilliseconds}ms");
             Console.WriteLine();

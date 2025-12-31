@@ -33,11 +33,12 @@ namespace OptimalCli.Problems.Goddard
         /// <summary>
         /// Velocity rate: v̇ = (T - D(h,v))/m - g
         /// where D(h,v) = Dc·v²·exp(-h/h0) is the drag force
+        /// NOTE: Drag expression is inlined (no intermediate variable) to ensure proper AutoDiff gradient propagation.
+        ///       Using an intermediate variable breaks the gradient chain in the code generator.
         /// </summary>
         public static double VelocityRate(double h, double v, double m, double T, double g, double Dc, double c, double h0)
         {
-            var drag = Dc * v * v * Math.Exp(-h / h0);
-            return (T - drag) / m - g;
+            return (T - Dc * v * v * Math.Exp(-h / h0)) / m - g;
         }
 
         /// <summary>
