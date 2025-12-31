@@ -119,13 +119,13 @@ public sealed class DubinsCarProblemSolver : IProblemSolver
             {
                 var solver = new HermiteSimpsonSolver()
                     .WithSegments(20)
-                    .WithTolerance(1e-2)
-                    .WithMaxIterations(100)
-                    .WithMeshRefinement(true, 5, 1e-1)
+                    .WithTolerance(1e-5)
+                    .WithMaxIterations(150)
+                    .WithMeshRefinement(true, 5, 1e-5)
                     .WithVerbose(true)  // Enable verbose output
                     .WithInnerOptimizer(new LBFGSOptimizer()
-                        .WithTolerance(1e-2)
-                        .WithMaxIterations(20)  // Reduced for cancellation responsiveness
+                        .WithTolerance(1e-5)
+                        .WithMaxIterations(150)  // Reduced for cancellation responsiveness
                         .WithVerbose(false))
                     .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                     {
