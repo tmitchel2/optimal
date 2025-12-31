@@ -62,7 +62,7 @@ public sealed class GoddardRocketProblemSolver : IProblemSolver
             .WithControlSize(1)
             .WithTimeHorizon(0.0, finalTime)
             .WithInitialCondition(new[] { 0.0, 0.0, mInitial })  // Start at ground, zero velocity, full mass
-            .WithFinalCondition(new[] { double.NaN, 0.0, double.NaN })  // Free altitude, zero velocity at peak, free mass
+            .WithFinalCondition(new[] { double.NaN, 0.0, mEmpty })  // Free altitude, zero velocity at peak, free mass
             .WithControlBounds(new[] { 0.0 }, new[] { Tmax })  // Thrust between 0 and Tmax
             .WithStateBounds(
                 new[] { 0.0, -2.0, mEmpty },  // h >= 0, reasonable v bounds, mass >= empty mass
@@ -157,76 +157,76 @@ public sealed class GoddardRocketProblemSolver : IProblemSolver
         Console.WriteLine("  Tolerance: 1e-3");
         Console.WriteLine();
 
-        // Generate nominal trajectory for LQR initialization
-        Console.WriteLine("Generating LQR-based initial guess...");
+        // Create bespoke initial guess
+        Console.WriteLine("Creating initial guess...");
         const int segments = 30;
         var grid = new CollocationGrid(0.0, finalTime, segments);
-        var nPoints = segments + 1;
-        var nominalStates = new double[nPoints][];
-        var nominalControls = new double[nPoints][];
+        var transcription = new HermiteSimpsonTranscription(problem, grid);
+        var initialGuess = new double[transcription.DecisionVectorSize];
 
-        // Simple nominal trajectory: thrust phase followed by coast to zero velocity
+        var nPoints = segments + 1;
+        var thrustDuration = finalTime / 2.0;  // Thrust for half the time
+
         for (var k = 0; k < nPoints; k++)
         {
             var t = grid.TimePoints[k];
-            var tRatio = t / finalTime;
+            double h, v, m, T;
 
-            // Split trajectory: thrust for first 60%, coast for last 40%
-            var thrustPhaseRatio = 0.6;
-            double T_thrust, m, v, h;
-
-            if (tRatio < thrustPhaseRatio)
+            if (t <= thrustDuration)
             {
-                // Thrust phase
-                var tThrust = t;
-                T_thrust = Tmax * 0.7;
-                m = mInitial - (mInitial - mEmpty) * (tRatio / thrustPhaseRatio) * 0.9;
-                m = Math.Max(m, mEmpty);
+                // Thrust phase: constant thrust, mass decreases linearly
+                var progress = t / thrustDuration;
+                T = Tmax;
+                m = mInitial - (mInitial - mEmpty) * progress;
 
-                var a = (T_thrust / m - g);
-                v = a * tThrust;
-                h = 0.5 * a * tThrust * tThrust;
+                // Velocity increases linearly during thrust
+                var avgMass = (mInitial + m) / 2.0;
+                var avgAccel = (T / avgMass) - g;
+                v = avgAccel * t;
+
+                // Altitude from constant acceleration
+                h = 0.5 * avgAccel * t * t;
             }
             else
             {
-                // Coast phase (no thrust, decelerate to zero velocity)
-                T_thrust = 0.0;
+                // Coast phase: no thrust, mass stays at empty
+                T = 0.0;
                 m = mEmpty;
 
-                // At end of thrust phase
-                var tThrustEnd = finalTime * thrustPhaseRatio;
-                var aThrustPhase = (Tmax * 0.7 / mInitial - g);
-                var vThrustEnd = aThrustPhase * tThrustEnd;
-                var hThrustEnd = 0.5 * aThrustPhase * tThrustEnd * tThrustEnd;
+                // Time in coast phase
+                var tCoast = t - thrustDuration;
+                var coastDuration = finalTime - thrustDuration;
 
-                // Coast phase: decelerate linearly to zero
-                var tCoast = t - tThrustEnd;
-                var tCoastTotal = finalTime * (1 - thrustPhaseRatio);
-                var coastRatio = tCoast / tCoastTotal;
+                // Velocity at end of thrust phase
+                var avgMassThrustPhase = (mInitial + mEmpty) / 2.0;
+                var avgAccelThrustPhase = (Tmax / avgMassThrustPhase) - g;
+                var vMax = avgAccelThrustPhase * thrustDuration;
+                var hAtCoastStart = 0.5 * avgAccelThrustPhase * thrustDuration * thrustDuration;
 
-                v = vThrustEnd * (1.0 - coastRatio);  // Linear decrease to zero
-                h = hThrustEnd + vThrustEnd * tCoast - 0.5 * g * tCoast * tCoast;
+                // Velocity decreases linearly to zero
+                v = vMax * (1.0 - tCoast / coastDuration);
+
+                // Altitude continues to increase during coast
+                h = hAtCoastStart + vMax * tCoast - 0.5 * vMax * tCoast * tCoast / coastDuration;
             }
 
+            // Ensure physical constraints
             h = Math.Max(h, 0.0);
+            m = Math.Max(m, mEmpty);
+            v = Math.Max(v, 0.0);
 
-            nominalStates[k] = new[] { h, v, m };
-            nominalControls[k] = new[] { T_thrust };
+            var state = new[] { h, v, m };
+            var control = new[] { T };
+
+            transcription.SetState(initialGuess, k, state);
+            transcription.SetControl(initialGuess, k, control);
         }
 
-        // LQR weights: prioritize altitude, penalize control
-        var Q = new[] { 10.0, 1.0, 0.1 };  // [h, v, m] - prioritize altitude
-        var R = new[] { 0.1 };              // [T] - moderate control cost
-
-        var initialGuess = LQRInitializer.GenerateInitialGuess(
-            problem,
-            grid,
-            (nominalStates, nominalControls),
-            Q,
-            R);
-
-        Console.WriteLine($"  LQR initial guess generated: {initialGuess.Length} decision variables");
+        Console.WriteLine($"  Initial guess created: {initialGuess.Length} decision variables");
+        Console.WriteLine($"  Thrust duration: {thrustDuration:F2} s (50% of time horizon)");
+        Console.WriteLine($"  Coast duration: {finalTime - thrustDuration:F2} s");
         Console.WriteLine();
+
         Console.WriteLine("Solving...");
         Console.WriteLine("Opening live visualization window...");
         Console.WriteLine("(Close window when done viewing)");
@@ -238,19 +238,25 @@ public sealed class GoddardRocketProblemSolver : IProblemSolver
         {
             try
             {
-                var innerOptimizer = new LBFGSOptimizer()
+                var lbfgInnerOptimizer = new LBFGSOptimizer()
                     .WithParallelLineSearch(enable: true, batchSize: 4)
-                    .WithTolerance(1e-1)
-                    .WithMaxIterations(30)
+                    .WithTolerance(1)
+                    .WithMaxIterations(50)
                     .WithVerbose(false);
+
+                // var gdInnerOptimizer = new GradientDescentOptimizer()
+                //     .WithTolerance(1e-1)
+                //     .WithMaxIterations(150)
+                //     .WithVerbose(false);
 
                 var solver = new HermiteSimpsonSolver()
                     .WithSegments(30)
-                    .WithTolerance(1e-1)
-                    .WithMaxIterations(30)
-                    .WithMeshRefinement(true, 5, 1e-1)
+                    .WithTolerance(1)
+                    .WithMaxIterations(50)
+                    .WithMeshRefinement(true, 5, 1)
                     .WithVerbose(true)
-                    .WithInnerOptimizer(innerOptimizer)
+                    .WithInnerOptimizer(lbfgInnerOptimizer)
+                    // .WithInnerOptimizer(gdInnerOptimizer)
                     .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                     {
                         // Check if visualization was closed
@@ -266,7 +272,7 @@ public sealed class GoddardRocketProblemSolver : IProblemSolver
                     })
                     ;
 
-                var result = solver.Solve(problem, initialGuess);
+                var result = solver.Solve(problem);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return result;
             }

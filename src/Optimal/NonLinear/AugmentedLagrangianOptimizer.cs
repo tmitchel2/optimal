@@ -195,8 +195,9 @@ namespace Optimal.NonLinear
 
                 // Solve unconstrained subproblem
                 _unconstrainedOptimizer.WithInitialPoint(x);
-                _unconstrainedOptimizer.WithTolerance(_tolerance / 10.0); // Tighter inner tolerance
-                _unconstrainedOptimizer.WithMaxIterations(1000);
+                // _unconstrainedOptimizer.WithTolerance(_tolerance / 10.0); // Tighter inner tolerance
+                _unconstrainedOptimizer.WithTolerance(_tolerance); // Tighter inner tolerance
+                // _unconstrainedOptimizer.WithMaxIterations(1000);
 
                 var subResult = _unconstrainedOptimizer.Minimize(AugmentedLagrangian);
                 x = subResult.OptimalPoint;
