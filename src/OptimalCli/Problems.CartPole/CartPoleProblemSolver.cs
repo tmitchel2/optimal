@@ -49,8 +49,8 @@ public sealed class CartPoleProblemSolver : IProblemSolver
         var problem = new ControlProblem()
             .WithStateSize(4)
             .WithControlSize(1)
-            .WithTimeHorizon(0.0, 1.5)
-            .WithInitialCondition(new[] { 0.1, 0.0, 0.4, 0.0 }) // Maximum before timeout
+            .WithTimeHorizon(0.0, 5)
+            .WithInitialCondition(new[] { 0.1, 0.0, 0.1, 0.0 }) // Maximum before timeout
             .WithFinalCondition(new[] { 0.0, 0.0, 0.0, 0.0 })
             .WithControlBounds(new[] { -3.0 }, new[] { 3.0 })
             .WithStateBounds(
@@ -129,14 +129,14 @@ public sealed class CartPoleProblemSolver : IProblemSolver
             {
                 var solver = new HermiteSimpsonSolver()
                     .WithSegments(20)  // More segments for complex 4-state problem
-                    .WithTolerance(1e-3)  // Relaxed like pendulum
-                    .WithMaxIterations(150)  // More iterations
-                    .WithMeshRefinement(true, 5, 1e-3)  // Relaxed refinement threshold
+                    .WithTolerance(1e-5)  // Relaxed like pendulum
+                    .WithMaxIterations(100)  // More iterations
+                    .WithMeshRefinement(true, 5, 1e-5)  // Relaxed refinement threshold
                     .WithVerbose(true)  // Enable verbose output
                     .WithInnerOptimizer(new LBFGSOptimizer()
-                        .WithTolerance(1e-3)
+                        .WithTolerance(1e-6)
                         .WithMaxIterations(150)  // Reduced for cancellation responsiveness
-                        .WithVerbose(false))
+                        .WithVerbose(true))
                     .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                     {
                         // Check if visualization was closed

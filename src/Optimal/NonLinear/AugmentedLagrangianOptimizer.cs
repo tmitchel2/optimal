@@ -27,6 +27,7 @@ namespace Optimal.NonLinear
         private BoxConstraints? _boxConstraints;
         private double _penaltyParameter = 1.0;
         private readonly double _penaltyIncrease = 10.0;
+        private readonly double _maxPenaltyParameter = 1e8;
         private double _constraintTolerance = 1e-6;
 
         /// <summary>
@@ -139,13 +140,14 @@ namespace Optimal.NonLinear
             // Initialize Lagrange multipliers
             var lambda = new double[_constraints.Count];
             var mu = _penaltyParameter;
+            var prevMaxViolation = double.PositiveInfinity;
 
             var totalFunctionEvaluations = 0;
             var totalIterations = 0;
 
             if (_verbose)
             {
-                Console.WriteLine($"Augmented Lagrangian: {_constraints.Count} constraints, initial penalty μ={mu:E2}");
+                Console.WriteLine($"Augmented Lagrangian: {_constraints.Count} constraints, initial penalty μ={mu:E2}, max penalty μ_max={_maxPenaltyParameter:E2}");
             }
 
             for (var outerIter = 0; outerIter < _maxIterations; outerIter++)
@@ -167,7 +169,15 @@ namespace Optimal.NonLinear
                         if (constraint.Type == ConstraintType.Equality)
                         {
                             // Equality: L = f + λ*h + (μ/2)*h²
-                            augValue += lambda[i] * cValue + 0.5 * mu * cValue * cValue;
+                            var penaltyTerm = lambda[i] * cValue + 0.5 * mu * cValue * cValue;
+                            
+                            // Check for numerical overflow
+                            if (double.IsInfinity(penaltyTerm) || double.IsNaN(penaltyTerm))
+                            {
+                                return (double.PositiveInfinity, augGrad);
+                            }
+                            
+                            augValue += penaltyTerm;
 
                             for (var j = 0; j < n; j++)
                             {
@@ -180,7 +190,15 @@ namespace Optimal.NonLinear
                             var lambdaPlusMuG = lambda[i] + mu * cValue;
                             if (lambdaPlusMuG > 0)
                             {
-                                augValue += lambdaPlusMuG * lambdaPlusMuG / (2.0 * mu);
+                                var penaltyTerm = lambdaPlusMuG * lambdaPlusMuG / (2.0 * mu);
+                                
+                                // Check for numerical overflow
+                                if (double.IsInfinity(penaltyTerm) || double.IsNaN(penaltyTerm))
+                                {
+                                    return (double.PositiveInfinity, augGrad);
+                                }
+                                
+                                augValue += penaltyTerm;
 
                                 for (var j = 0; j < n; j++)
                                 {
@@ -280,8 +298,22 @@ namespace Optimal.NonLinear
                     }
                 }
 
-                // Increase penalty parameter
-                mu *= _penaltyIncrease;
+                // Increase penalty parameter adaptively
+                // Only increase if we're making progress, and cap at max value
+                var violationRatio = maxViolation / prevMaxViolation;
+                if (violationRatio < 0.9 && mu < _maxPenaltyParameter)
+                {
+                    // Good progress - increase penalty moderately
+                    mu = Math.Min(mu * _penaltyIncrease, _maxPenaltyParameter);
+                }
+                else if (violationRatio < 1.0 && mu < _maxPenaltyParameter)
+                {
+                    // Some progress - increase penalty conservatively
+                    mu = Math.Min(mu * Math.Sqrt(_penaltyIncrease), _maxPenaltyParameter);
+                }
+                // else: no progress or at max penalty - don't increase
+                
+                prevMaxViolation = maxViolation;
             }
 
             // Maximum iterations reached
