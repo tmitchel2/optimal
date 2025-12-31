@@ -58,24 +58,32 @@ public sealed class PendulumSwingUpProblemSolver : IProblemSolver
                 var theta = x[0];
                 var thetadot = x[1];
 
-                var thetaddot = -g / L * Math.Sin(theta) + u[0] / (m * L * L);
+                // Use shared dynamics with AutoDiff gradients
+                var (angleRate, angleRateGrad) =
+                    PendulumSwingUpDynamicsGradients.AngleRateReverse(theta, thetadot, u[0], g, L, m);
+                var (angVelRate, angVelRateGrad) =
+                    PendulumSwingUpDynamicsGradients.AngularVelocityRateReverse(theta, thetadot, u[0], g, L, m);
 
-                var value = new[] { thetadot, thetaddot };
+                var value = new[] { angleRate, angVelRate };
                 var gradients = new double[2][];
-                gradients[0] = new[] { 0.0, 1.0 };  // ∂θ̇/∂[θ, θ̇]
-                gradients[1] = new[] {
-                    -g / L * Math.Cos(theta),  // ∂θ̈/∂θ
-                    0.0                         // ∂θ̈/∂θ̇
-                };
+                gradients[0] = new[] { angleRateGrad[0], angleRateGrad[1] };  // ∂θ̇/∂[θ, θ̇]
+                gradients[1] = new[] { angVelRateGrad[0], angVelRateGrad[1] };  // ∂θ̈/∂[θ, θ̇]
                 return (value, gradients);
             })
             .WithRunningCost((x, u, t) =>
             {
-                // Minimize control effort
-                var value = 0.5 * u[0] * u[0];
+                var theta = x[0];
+                var thetadot = x[1];
+
+                // Use shared cost function with AutoDiff gradients
+                var (cost, costGrad) =
+                    PendulumSwingUpDynamicsGradients.RunningCostReverse(theta, thetadot, u[0]);
+
                 var gradients = new double[3];
-                gradients[2] = u[0];
-                return (value, gradients);
+                gradients[0] = costGrad[0];  // ∂L/∂θ
+                gradients[1] = costGrad[1];  // ∂L/∂θ̇
+                gradients[2] = costGrad[2];  // ∂L/∂u
+                return (cost, gradients);
             });
 
         Console.WriteLine("Solver configuration:");
@@ -98,13 +106,13 @@ public sealed class PendulumSwingUpProblemSolver : IProblemSolver
             {
                 var solver = new HermiteSimpsonSolver()
                     .WithSegments(25) // More segments for complex trajectory
-                    .WithTolerance(1e-1) // Slightly relaxed for this difficult problem
+                    .WithTolerance(1e-2) // Slightly relaxed for this difficult problem
                     .WithMaxIterations(150) // More iterations for convergence
-                    .WithMeshRefinement(true, 5, 1e-1)
+                    .WithMeshRefinement(true, 5, 1e-2)
                     .WithVerbose(true)  // Enable verbose output
                     .WithInnerOptimizer(new LBFGSOptimizer()
                         .WithTolerance(1e-2)
-                        .WithMaxIterations(100)  // Reduced from 100 to make cancellation more responsive
+                        .WithMaxIterations(150)  // Reduced from 100 to make cancellation more responsive
                         .WithVerbose(false))
                     .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                     {
