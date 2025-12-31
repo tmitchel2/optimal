@@ -16,6 +16,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Optimal.AutoDiff\Optimal.AutoDiff.csproj"  ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
     <ProjectReference Include="..\Optimal\Optimal.csproj" />
+    <ProjectReference Include="..\OptimalCli\OptimalCli.csproj" />
   </ItemGroup>
 
   <ItemGroup>

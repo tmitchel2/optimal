@@ -38,7 +38,7 @@ namespace Optimal.Control
         private bool _enableMeshRefinement;
         private int _maxRefinementIterations = 5;
         private double _refinementDefectThreshold = 1e-4;
-        private bool _enableParallelization = true;
+        private bool _enableParallelization;
         private ProgressCallback? _progressCallback;
 
         /// <summary>
@@ -253,7 +253,7 @@ namespace Optimal.Control
 
                 // Interpolate solution to new grid for warm start
                 var newTranscription = new ParallelTranscription(problem, newGrid, _enableParallelization);
-                
+
                 // Convert to HermiteSimpsonTranscription for interpolation (shares same layout)
                 var oldTranscriptionCompat = new HermiteSimpsonTranscription(problem, grid);
                 var newTranscriptionCompat = new HermiteSimpsonTranscription(problem, newGrid);
@@ -285,10 +285,10 @@ namespace Optimal.Control
             {
                 var x0 = problem.InitialState ?? new double[problem.StateDim];
                 var xf = problem.FinalState ?? new double[problem.StateDim];
-                
+
                 // Compute reasonable initial control guess based on start/end states
                 var u0 = new double[problem.ControlDim];
-                if (problem.ControlDim == 1 && problem.StateDim >= 2 && 
+                if (problem.ControlDim == 1 && problem.StateDim >= 2 &&
                     problem.InitialState != null && problem.FinalState != null)
                 {
                     // For Brachistochrone-like problems, initialize control to point toward target
@@ -299,7 +299,7 @@ namespace Optimal.Control
                         u0[0] = Math.Atan2(dy, dx);  // Initial angle toward target
                     }
                 }
-                
+
                 z0 = transcription.CreateInitialGuess(x0, xf, u0);
 
                 if (_verbose)

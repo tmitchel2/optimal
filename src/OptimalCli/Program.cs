@@ -10,6 +10,7 @@ using OptimalCli;
 using OptimalCli.Problems.Brachistochrone;
 using OptimalCli.Problems.CartPole;
 using OptimalCli.Problems.Dubin;
+using OptimalCli.Problems.Goddard;
 using OptimalCli.Problems.Pendulum;
 using OptimalCli.Problems.VanDerPol;
 
@@ -29,7 +30,8 @@ var solvers = new Dictionary<string, IProblemSolver>
     { "vanderpol", new VanDerPolProblemSolver() },
     { "pendulum", new PendulumSwingUpProblemSolver() },
     { "cartpole", new CartPoleProblemSolver() },
-    { "dubins", new DubinsCarProblemSolver() }
+    { "dubins", new DubinsCarProblemSolver() },
+    { "goddard", new GoddardRocketProblemSolver() }
 };
 
 // Find and run the requested problem
@@ -58,9 +60,11 @@ static void ShowHelp()
     Console.WriteLine("  pendulum         - Pendulum swing-up from hanging down to fully inverted (vertical)");
     Console.WriteLine("  cartpole         - Cart-pole stabilization with full nonlinear dynamics");
     Console.WriteLine("  dubins           - Dubins car minimum path with curvature constraint");
+    Console.WriteLine("  goddard          - Goddard rocket maximum altitude with drag and fuel constraints");
     Console.WriteLine();
     Console.WriteLine("Examples:");
     Console.WriteLine("  OptimalCli brachistochrone");
     Console.WriteLine("  OptimalCli cartpole");
+    Console.WriteLine("  OptimalCli goddard");
     Console.WriteLine();
 }
