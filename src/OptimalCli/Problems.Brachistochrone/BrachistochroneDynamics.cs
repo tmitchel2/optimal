@@ -28,6 +28,59 @@ namespace OptimalCli.Problems.Brachistochrone
     [OptimalCode]
     public static class BrachistochroneDynamics
     {
+        /// <summary>
+        /// Rate of change of s (position along diagonal).
+        /// ṡ = v·cos(θ)
+        /// where θ is the angle of motion relative to the diagonal direction.
+        /// </summary>
+        public static double SRate(double s, double d, double v, double theta, double g, double alpha)
+        {
+            return v * Math.Cos(theta);
+        }
 
+        /// <summary>
+        /// Rate of change of d (perpendicular distance from diagonal).
+        /// ḋ = v·sin(θ)
+        /// where θ is the angle of motion relative to the diagonal direction.
+        /// Positive θ means curving away from the diagonal.
+        /// </summary>
+        public static double DRate(double s, double d, double v, double theta, double g, double alpha)
+        {
+            return v * Math.Sin(theta);
+        }
+
+        /// <summary>
+        /// Rate of change of velocity (acceleration).
+        /// v̇ = g·sin(α + θ)
+        /// where:
+        /// - g is gravitational acceleration
+        /// - α is the angle of the diagonal line from horizontal
+        /// - θ is the angle of motion relative to the diagonal
+        /// 
+        /// The acceleration comes from the component of gravity along the path direction.
+        /// The path angle from horizontal is (α + θ).
+        /// </summary>
+        public static double VRate(double s, double d, double v, double theta, double g, double alpha)
+        {
+            return g * Math.Sin(alpha + theta);
+        }
+
+        /// <summary>
+        /// Running cost: L = 0 (we minimize time via terminal cost, no running cost).
+        /// </summary>
+        public static double RunningCost(double s, double d, double v, double theta)
+        {
+            return 0.0;
+        }
+
+        /// <summary>
+        /// Terminal cost: Φ = t (time, which is the independent variable).
+        /// To minimize time, we return a constant (the actual time minimization
+        /// is handled by the time horizon being free).
+        /// </summary>
+        public static double TerminalCost(double s, double d, double v)
+        {
+            return 1.0;
+        }
     }
 }

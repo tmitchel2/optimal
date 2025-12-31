@@ -240,8 +240,8 @@ public sealed class GoddardRocketProblemSolver : IProblemSolver
             {
                 var lbfgInnerOptimizer = new LBFGSOptimizer()
                     .WithParallelLineSearch(enable: true, batchSize: 4)
-                    .WithTolerance(1)
-                    .WithMaxIterations(50)
+                    .WithTolerance(0.0001)
+                    .WithMaxIterations(150)
                     .WithVerbose(false);
 
                 // var gdInnerOptimizer = new GradientDescentOptimizer()
@@ -251,9 +251,9 @@ public sealed class GoddardRocketProblemSolver : IProblemSolver
 
                 var solver = new HermiteSimpsonSolver()
                     .WithSegments(30)
-                    .WithTolerance(1)
-                    .WithMaxIterations(50)
-                    .WithMeshRefinement(true, 5, 1)
+                    .WithTolerance(0.0001)
+                    .WithMaxIterations(150)
+                    .WithMeshRefinement(true, 5, 0.0001)
                     .WithVerbose(true)
                     .WithInnerOptimizer(lbfgInnerOptimizer)
                     // .WithInnerOptimizer(gdInnerOptimizer)

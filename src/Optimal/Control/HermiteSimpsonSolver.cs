@@ -325,6 +325,41 @@ namespace Optimal.Control
                 return result.value;
             }
 
+            // Check if dynamics provides gradients
+            var hasAnalyticalGradients = false;
+            try
+            {
+                var testX = new double[problem.StateDim];
+                var testU = new double[problem.ControlDim];
+                var testResult = problem.Dynamics!(testX, testU, 0.0);
+                // Check if gradients are not only present but also properly populated
+                if (testResult.gradients != null && testResult.gradients.Length >= 2)
+                {
+                    var gradWrtState = testResult.gradients[0];
+                    var gradWrtControl = testResult.gradients[1];
+                    // Verify gradients are the right size and not all zeros
+                    var expectedStateGradSize = problem.StateDim * problem.StateDim;
+                    var expectedControlGradSize = problem.StateDim * problem.ControlDim;
+                    
+                    hasAnalyticalGradients = 
+                        gradWrtState != null && gradWrtState.Length == expectedStateGradSize &&
+                        gradWrtControl != null && gradWrtControl.Length == expectedControlGradSize;
+                }
+            }
+            catch
+            {
+                // If evaluation fails, fall back to numerical gradients
+            }
+
+            if (_verbose && hasAnalyticalGradients)
+            {
+                Console.WriteLine("Using analytical gradients from AutoDiff");
+            }
+            else if (_verbose)
+            {
+                Console.WriteLine("Using numerical finite-difference gradients");
+            }
+
             // Iteration counter for progress callback
             var iterationCount = 0;
 
@@ -357,37 +392,120 @@ namespace Optimal.Control
                     cost += transcription.ComputeTerminalCost(z, TerminalCostValue);
                 }
 
-                // Compute gradient numerically
-                double ObjectiveValue(double[] zz)
+                // Compute gradient using AutoDiff if available, otherwise numerically
+                double[] gradient;
+
+                // Check if we can use analytical gradients for costs
+                var useAnalytical = true;
+                
+                if (problem.RunningCost != null)
                 {
-                    var obj = 0.0;
+                    try
+                    {
+                        var testX = new double[problem.StateDim];
+                        var testU = new double[problem.ControlDim];
+                        var testResult = problem.RunningCost(testX, testU, 0.0);
+                        // gradients array for running cost should be: [∂L/∂x (StateDim), ∂L/∂u (ControlDim), ∂L/∂t]
+                        var expectedSize = problem.StateDim + problem.ControlDim + 1;
+                        useAnalytical = useAnalytical && 
+                            testResult.gradients != null && 
+                            testResult.gradients.Length >= expectedSize;
+                    }
+                    catch
+                    {
+                        useAnalytical = false;
+                    }
+                }
+
+                if (problem.TerminalCost != null)
+                {
+                    try
+                    {
+                        var testX = new double[problem.StateDim];
+                        var testResult = problem.TerminalCost(testX, 0.0);
+                        // gradients array for terminal cost should be: [∂Φ/∂x (StateDim), ∂Φ/∂t]
+                        var expectedSize = problem.StateDim + 1;
+                        useAnalytical = useAnalytical && 
+                            testResult.gradients != null && 
+                            testResult.gradients.Length >= expectedSize;
+                    }
+                    catch
+                    {
+                        useAnalytical = false;
+                    }
+                }
+
+                if (useAnalytical)
+                {
+                    // Use analytical gradients via AutoDiffGradientHelper
+                    gradient = new double[z.Length];
 
                     if (problem.RunningCost != null)
                     {
-                        double RunningCostValue(double[] x, double[] u, double t)
-                        {
-                            var result = problem.RunningCost(x, u, t);
-                            return result.value;
-                        }
+                        var runningGrad = AutoDiffGradientHelper.ComputeRunningCostGradient(
+                            problem, grid, z, transcription.GetState, transcription.GetControl,
+                            (x, u, t) =>
+                            {
+                                var res = problem.RunningCost!(x, u, t);
+                                return (res.value, res.gradients!);
+                            });
 
-                        obj += transcription.ComputeRunningCost(zz, RunningCostValue);
+                        for (var i = 0; i < gradient.Length; i++)
+                        {
+                            gradient[i] += runningGrad[i];
+                        }
                     }
 
                     if (problem.TerminalCost != null)
                     {
-                        double TerminalCostValue(double[] x, double t)
+                        var terminalGrad = AutoDiffGradientHelper.ComputeTerminalCostGradient(
+                            problem, grid, z, transcription.GetState,
+                            (x, t) =>
+                            {
+                                var res = problem.TerminalCost!(x, t);
+                                return (res.value, res.gradients!);
+                            });
+
+                        for (var i = 0; i < gradient.Length; i++)
                         {
-                            var result = problem.TerminalCost(x, t);
-                            return result.value;
+                            gradient[i] += terminalGrad[i];
+                        }
+                    }
+                }
+                else
+                {
+                    // Fall back to numerical gradients
+                    double ObjectiveValue(double[] zz)
+                    {
+                        var obj = 0.0;
+
+                        if (problem.RunningCost != null)
+                        {
+                            double RunningCostValue(double[] x, double[] u, double t)
+                            {
+                                var result = problem.RunningCost(x, u, t);
+                                return result.value;
+                            }
+
+                            obj += transcription.ComputeRunningCost(zz, RunningCostValue);
                         }
 
-                        obj += transcription.ComputeTerminalCost(zz, TerminalCostValue);
+                        if (problem.TerminalCost != null)
+                        {
+                            double TerminalCostValue(double[] x, double t)
+                            {
+                                var result = problem.TerminalCost(x, t);
+                                return result.value;
+                            }
+
+                            obj += transcription.ComputeTerminalCost(zz, TerminalCostValue);
+                        }
+
+                        return obj;
                     }
 
-                    return obj;
+                    gradient = NumericalGradients.ComputeGradient(ObjectiveValue, z);
                 }
-
-                var gradient = NumericalGradients.ComputeGradient(ObjectiveValue, z);
 
                 if (_verbose && double.IsNaN(cost))
                 {
@@ -435,14 +553,50 @@ namespace Optimal.Control
                 {
                     var allDefects = transcription.ComputeAllDefects(z, DynamicsValue);
 
-                    // Compute gradient numerically
-                    double DefectValue(double[] zz)
+                    // Compute which segment and state component this defect corresponds to
+                    var segmentIndex = defectIndex / problem.StateDim;
+                    var stateComponentIndex = defectIndex % problem.StateDim;
+
+                    double[] gradient;
+
+                    // Try to use analytical gradients if dynamics provides them
+                    if (hasAnalyticalGradients)
                     {
-                        var defects = transcription.ComputeAllDefects(zz, DynamicsValue);
-                        return defects[defectIndex];
+                        try
+                        {
+                            gradient = AutoDiffGradientHelper.ComputeDefectGradient(
+                                problem, grid, z, transcription.GetState, transcription.GetControl,
+                                segmentIndex, stateComponentIndex,
+                                (x, u, t) =>
+                                {
+                                    var res = problem.Dynamics!(x, u, t);
+                                    return (res.value, res.gradients);
+                                });
+                        }
+                        catch
+                        {
+                            // Fall back to numerical if AutoDiff fails
+                            double DefectValue(double[] zz)
+                            {
+                                var defects = transcription.ComputeAllDefects(zz, DynamicsValue);
+                                return defects[defectIndex];
+                            }
+
+                            gradient = NumericalGradients.ComputeConstraintGradient(DefectValue, z);
+                        }
+                    }
+                    else
+                    {
+                        // Compute gradient numerically
+                        double DefectValue(double[] zz)
+                        {
+                            var defects = transcription.ComputeAllDefects(zz, DynamicsValue);
+                            return defects[defectIndex];
+                        }
+
+                        gradient = NumericalGradients.ComputeConstraintGradient(DefectValue, z);
                     }
 
-                    var gradient = NumericalGradients.ComputeConstraintGradient(DefectValue, z);
                     return (allDefects[defectIndex], gradient);
                 };
             }
