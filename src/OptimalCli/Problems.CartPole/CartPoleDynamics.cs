@@ -8,7 +8,7 @@
 
 using Optimal;
 
-namespace OptimalCli
+namespace OptimalCli.Problems.CartPole
 {
     /// <summary>
     /// Cart-pole problem dynamics with AutoDiff support.

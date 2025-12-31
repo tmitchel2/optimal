@@ -11,7 +11,7 @@
 using Optimal.Control;
 using Optimal.NonLinear;
 
-namespace OptimalCli.Problems;
+namespace OptimalCli.Problems.CartPole;
 
 /// <summary>
 /// Solves the cart-pole stabilization problem with full nonlinear dynamics.
@@ -225,13 +225,5 @@ public sealed class CartPoleProblemSolver : IProblemSolver
         Console.WriteLine($"  Optimal cost: {result.OptimalCost:F6}");
         Console.WriteLine($"  Iterations: {result.Iterations}");
         Console.WriteLine();
-
-        // Generate visualization
-        var htmlPath = ResultVisualizer.GenerateHtml(
-            result,
-            "Cart-Pole Stabilization",
-            new[] { "x (m)", "ẋ (m/s)", "θ (rad)", "θ̇ (rad/s)" },
-            new[] { "Force (N)" });
-        Console.WriteLine($"Visualization saved to: file://{htmlPath}");
     }
 }

@@ -9,18 +9,20 @@
 using System.Numerics;
 using Radiant;
 
-namespace OptimalCli;
+namespace OptimalCli.Problems.CartPole;
 
 /// <summary>
-/// Renders a real-time graphical display of a pendulum using Radiant.
+/// Renders a real-time graphical display of a cart-pole system using Radiant.
 /// </summary>
-internal static class RadiantPendulumVisualizer
+internal static class RadiantCartPoleVisualizer
 {
     private const int WindowWidth = 800;
     private const int WindowHeight = 600;
-    private const float PendulumLength = 200.0f; // Length in pixels
-    private const float PivotX = 0.0f;
-    private const float PivotY = -100.0f;
+    private const float TrackY = 50.0f;
+    private const float TrackLength = 600.0f;
+    private const float CartWidth = 60.0f;
+    private const float CartHeight = 40.0f;
+    private const float PixelsPerMeter = 100.0f;
 
     private static double[][]? s_currentStates;
     private static double[][]? s_currentControls;
@@ -28,6 +30,7 @@ internal static class RadiantPendulumVisualizer
     private static double s_currentCost;
     private static double s_currentMaxViolation;
     private static double s_currentConstraintTolerance;
+    private static double s_currentPoleLength;  // Pole length in meters
     private static int s_currentFrameIndex;
     private static DateTime s_animationStartTime;
     private static readonly object s_lock = new();
@@ -39,6 +42,7 @@ internal static class RadiantPendulumVisualizer
     private static double s_nextCost;
     private static double s_nextMaxViolation;
     private static double s_nextConstraintTolerance;
+    private static double s_nextPoleLength;  // Pole length in meters
     private static bool s_hasNextTrajectory;
 
     // Cancellation token for stopping optimization when window closes
@@ -58,7 +62,8 @@ internal static class RadiantPendulumVisualizer
     /// <param name="cost">Current cost value.</param>
     /// <param name="maxViolation">Maximum constraint violation.</param>
     /// <param name="constraintTolerance">Constraint tolerance for convergence.</param>
-    public static void UpdateTrajectory(double[][] states, double[][] controls, int iteration, double cost, double maxViolation, double constraintTolerance)
+    /// <param name="poleLength">Pole length in meters.</param>
+    public static void UpdateTrajectory(double[][] states, double[][] controls, int iteration, double cost, double maxViolation, double constraintTolerance, double poleLength)
     {
         if (states.Length == 0 || controls.Length == 0)
         {
@@ -74,6 +79,7 @@ internal static class RadiantPendulumVisualizer
             s_nextCost = cost;
             s_nextMaxViolation = maxViolation;
             s_nextConstraintTolerance = constraintTolerance;
+            s_nextPoleLength = poleLength;
             s_hasNextTrajectory = true;
 
             // Debug output
@@ -93,12 +99,12 @@ internal static class RadiantPendulumVisualizer
         try
         {
             using var app = new RadiantApplication();
-            app.Run("Pendulum Swing-Up Optimization", WindowWidth, WindowHeight, RenderFrame, Colors.Slate900);
+            app.Run("Cart-Pole stabilization Optimization", WindowWidth, WindowHeight, RenderFrame, Colors.Slate900);
         }
         finally
         {
             // Signal cancellation when window closes
-            if (s_cancellationTokenSource != null && !s_cancellationTokenSource.IsCancellationRequested)
+            if (s_cancellationTokenSource?.IsCancellationRequested == false)
             {
                 Console.WriteLine("[VIZ] Window closed - requesting optimization cancellation");
                 s_cancellationTokenSource.Cancel();
@@ -109,34 +115,6 @@ internal static class RadiantPendulumVisualizer
         }
     }
 
-    /// <summary>
-    /// Renders an animated trajectory of the pendulum system (blocking call).
-    /// </summary>
-    /// <param name="states">Array of states over time [time_index][state_vars].</param>
-    /// <param name="controls">Array of controls over time [time_index][control_vars].</param>
-    /// <param name="iteration">Current iteration number.</param>
-    /// <param name="cost">Current cost value.</param>
-    public static void RenderTrajectory(double[][] states, double[][] controls, int iteration, double cost)
-    {
-        if (states.Length == 0 || controls.Length == 0)
-        {
-            return;
-        }
-
-        lock (s_lock)
-        {
-            s_currentStates = states;
-            s_currentControls = controls;
-            s_currentIteration = iteration;
-            s_currentCost = cost;
-            s_currentFrameIndex = 0;
-            s_animationStartTime = DateTime.Now;
-        }
-
-        using var app = new RadiantApplication();
-        app.Run("Pendulum Swing-Up Optimization", WindowWidth, WindowHeight, RenderFrame, Colors.Slate900);
-    }
-
     private static void RenderFrame(Radiant.Graphics2D.Renderer2D renderer)
     {
         double[][] states;
@@ -145,6 +123,7 @@ internal static class RadiantPendulumVisualizer
         double cost;
         double maxViolation;
         double constraintTolerance;
+        double poleLength;
         int frameIndex;
 
         lock (s_lock)
@@ -161,6 +140,7 @@ internal static class RadiantPendulumVisualizer
                     s_currentCost = s_nextCost;
                     s_currentMaxViolation = s_nextMaxViolation;
                     s_currentConstraintTolerance = s_nextConstraintTolerance;
+                    s_currentPoleLength = s_nextPoleLength;
                     s_currentFrameIndex = 0;
                     s_animationStartTime = DateTime.Now;
                     s_hasNextTrajectory = false;
@@ -177,7 +157,6 @@ internal static class RadiantPendulumVisualizer
 
             // Calculate elapsed time and determine current frame
             var elapsed = (DateTime.Now - s_animationStartTime).TotalMilliseconds;
-            // Slower animation: show each frame for ~100ms for better visibility
             const double FrameDuration = 100.0;
             var totalFrames = s_currentStates.Length;
             var frameInSequence = (int)(elapsed / FrameDuration);
@@ -192,6 +171,7 @@ internal static class RadiantPendulumVisualizer
                 s_currentCost = s_nextCost;
                 s_currentMaxViolation = s_nextMaxViolation;
                 s_currentConstraintTolerance = s_nextConstraintTolerance;
+                s_currentPoleLength = s_nextPoleLength;
                 s_currentFrameIndex = 0;
                 s_animationStartTime = DateTime.Now;
                 s_hasNextTrajectory = false;
@@ -212,75 +192,122 @@ internal static class RadiantPendulumVisualizer
             cost = s_currentCost;
             maxViolation = s_currentMaxViolation;
             constraintTolerance = s_currentConstraintTolerance;
+            poleLength = s_currentPoleLength;
             frameIndex = s_currentFrameIndex;
         }
 
         var state = states[frameIndex];
         var control = controls[frameIndex];
 
-        var theta = state[0];
-        var torque = control[0];
+        var cartPos = state[0];
+        var poleAngle = state[2];  // 0 = upright, π = hanging down
+        var force = control[0];
 
-        // Draw reference axes
-        DrawReferenceAxes(renderer);
+        // Draw track
+        DrawTrack(renderer);
 
-        // Draw pendulum
-        DrawPendulum(renderer, theta);
+        // Draw cart and pole
+        DrawCartPole(renderer, cartPos, poleAngle, force, poleLength);
 
         // Draw information text
-        DrawInformation(renderer, theta, torque, iteration, cost, maxViolation, constraintTolerance, frameIndex, states.Length);
+        DrawInformation(renderer, cartPos, poleAngle, force, iteration, cost, maxViolation, constraintTolerance, frameIndex, states.Length);
     }
 
-    private static void DrawReferenceAxes(Radiant.Graphics2D.Renderer2D renderer)
+    private static void DrawTrack(Radiant.Graphics2D.Renderer2D renderer)
     {
-        // Draw horizontal line through pivot
-        renderer.DrawLine(
-            new Vector2(PivotX - 150, PivotY),
-            new Vector2(PivotX + 150, PivotY),
-            new Vector4(0.3f, 0.3f, 0.3f, 1.0f));
+        // Draw horizontal track
+        const float TrackThickness = 4.0f;
+        renderer.DrawRectangleFilled(-TrackLength / 2, TrackY - TrackThickness / 2, TrackLength, TrackThickness, Colors.Gray600);
 
-        // Draw vertical reference line (downward direction, θ=0)
-        // In math coords, Y increases upward, so -Y is down
-        renderer.DrawLine(
-            new Vector2(PivotX, PivotY),
-            new Vector2(PivotX, PivotY - 50),
-            new Vector4(0.3f, 0.3f, 0.3f, 1.0f));
+        // Draw position markers at -2m, -1m, 0m, 1m, 2m
+        // Left-hand coordinate system: +X = right
+        for (var pos = -2; pos <= 2; pos++)
+        {
+            var x = pos * PixelsPerMeter;
+            renderer.DrawLine(
+                new Vector2(x, TrackY - 10),
+                new Vector2(x, TrackY + 10),
+                new Vector4(0.5f, 0.5f, 0.5f, 1.0f));
 
-        // Draw upward reference line (θ=π)
-        renderer.DrawLine(
-            new Vector2(PivotX, PivotY),
-            new Vector2(PivotX, PivotY + 50),
-            new Vector4(0.3f, 0.5f, 0.3f, 1.0f));
+            // Label
+            renderer.DrawText($"{pos}M", x - 15, TrackY + 20, 2, Colors.Gray400);
+        }
     }
 
-    private static void DrawPendulum(Radiant.Graphics2D.Renderer2D renderer, double theta)
+    private static void DrawCartPole(Radiant.Graphics2D.Renderer2D renderer, double cartPos, double poleAngle, double force, double poleLength)
     {
-        // Calculate bob position
-        // θ=0 should point down, θ=π should point up
-        // Radiant uses math coordinates (Y increases upward), so we negate the Y offset
-        var bobX = PivotX + (float)(PendulumLength * Math.Sin(theta));
-        var bobY = PivotY - (float)(PendulumLength * Math.Cos(theta));
+        // Cart position on screen
+        // Left-hand coordinate system: +X = right, +Y = up
+        var cartX = (float)(cartPos * PixelsPerMeter);
+        var cartY = TrackY;
 
-        // Draw pivot point
-        renderer.DrawCircleFilled(PivotX, PivotY, 8, Colors.Slate400, 16);
+        // Draw cart
+        renderer.DrawRectangleFilled(
+            cartX - CartWidth / 2,
+            cartY - CartHeight / 2,
+            CartWidth,
+            CartHeight,
+            Colors.Sky600);
 
-        // Draw rod
+        // Draw cart outline
+        renderer.DrawRectangleOutline(
+            cartX - CartWidth / 2,
+            cartY - CartHeight / 2,
+            CartWidth,
+            CartHeight,
+            Colors.Sky400);
+
+        // Draw wheels
+        const float WheelRadius = 8.0f;
+        renderer.DrawCircleFilled(cartX - 15, cartY + CartHeight / 2, WheelRadius, Colors.Slate800, 16);
+        renderer.DrawCircleFilled(cartX + 15, cartY + CartHeight / 2, WheelRadius, Colors.Slate800, 16);
+
+        // Calculate pole end position
+        // poleAngle: 0 = upright (pointing up), π = down
+        // In Radiant coordinates, Y increases upward, so + for upward
+        var poleLengthPixels = (float)(poleLength * PixelsPerMeter);
+        var poleEndX = cartX + (float)(poleLengthPixels * Math.Sin(poleAngle));
+        var poleEndY = cartY + (float)(poleLengthPixels * Math.Cos(poleAngle));
+
+        // Draw pole
         renderer.DrawLine(
-            new Vector2(PivotX, PivotY),
-            new Vector2(bobX, bobY),
+            new Vector2(cartX, cartY),
+            new Vector2(poleEndX, poleEndY),
             new Vector4(0.9f, 0.9f, 0.9f, 1.0f));
 
-        // Draw bob
-        renderer.DrawCircleFilled(bobX, bobY, 20, Colors.Sky500, 32);
+        // Draw pole bob
+        renderer.DrawCircleFilled(poleEndX, poleEndY, 15, Colors.Rose500, 24);
+        renderer.DrawCircleOutline(poleEndX, poleEndY, 15, Colors.Rose400, 24);
 
-        // Draw bob outline
-        renderer.DrawCircleOutline(bobX, bobY, 20, Colors.Sky300, 32);
+        // Draw force indicator (arrow)
+        if (Math.Abs(force) > 0.1)
+        {
+            var forceScale = 0.5f;
+            // Left-hand coordinate system: positive force = right
+            var arrowLength = (float)(force * forceScale);
+            var arrowY = cartY + 40;
 
-        // Draw velocity indicator (angular velocity)
-        // Not drawn in this simple version, but could show as an arrow
+            // Arrow shaft
+            renderer.DrawLine(
+                new Vector2(cartX, arrowY),
+                new Vector2(cartX + arrowLength, arrowY),
+                force > 0 ? Colors.Emerald500 : Colors.Red500);
+
+            // Arrow head
+            var headSize = 8.0f;
+            var headDir = force > 0 ? 1 : -1;
+            renderer.DrawLine(
+                new Vector2(cartX + arrowLength, arrowY),
+                new Vector2(cartX + arrowLength - (headDir * headSize), arrowY - headSize),
+                force > 0 ? Colors.Emerald500 : Colors.Red500);
+            renderer.DrawLine(
+                new Vector2(cartX + arrowLength, arrowY),
+                new Vector2(cartX + arrowLength - (headDir * headSize), arrowY + headSize),
+                force > 0 ? Colors.Emerald500 : Colors.Red500);
+        }
     }
 
-    private static void DrawInformation(Radiant.Graphics2D.Renderer2D renderer, double theta, double torque, int iteration, double cost, double maxViolation, double constraintTolerance, int frameIndex, int totalFrames)
+    private static void DrawInformation(Radiant.Graphics2D.Renderer2D renderer, double cartPos, double poleAngle, double force, int iteration, double cost, double maxViolation, double constraintTolerance, int frameIndex, int totalFrames)
     {
         // Draw text information at the top
         const float TopY = -270.0f;
@@ -312,59 +339,19 @@ internal static class RadiantPendulumVisualizer
         // Frame info
         renderer.DrawText($"FRAME: {frameIndex + 1}/{totalFrames}", 200, TopY, 2, Colors.Amber400);
 
-        // Angle in degrees
-        var angleDegrees = theta * 180.0 / Math.PI;
-        renderer.DrawText($"ANGLE: {angleDegrees:F1} DEG", 200, TopY + 20, 2, Colors.Purple400);
+        // Cart position
+        renderer.DrawText($"CART POS: {cartPos:F2} M", 200, TopY + 20, 2, Colors.Purple400);
 
-        // Torque
-        renderer.DrawText($"TORQUE: {torque:F2} NM", 200, TopY + 40, 2, Colors.Rose400);
+        // Pole angle in degrees
+        var angleDegrees = poleAngle * 180.0 / Math.PI;
+        renderer.DrawText($"POLE ANGLE: {angleDegrees:F1} DEG", 200, TopY + 40, 2, Colors.Cyan400);
 
-        // Draw a progress bar at the bottom showing angle
-        var normalizedAngle = (angleDegrees + 180.0) / 360.0; // Map -180..180 to 0..1
+        // Force
+        renderer.DrawText($"FORCE: {force:F2} N", 200, TopY + 60, 2, Colors.Rose400);
 
-        const float BarWidth = 600.0f;
-        const float BarHeight = 20.0f;
-        const float BarX = -BarWidth / 2;
-        const float BarY = 250.0f;
-
-        // Background bar
-        renderer.DrawRectangleFilled(BarX, BarY, BarWidth, BarHeight, Colors.Slate700);
-
-        // Progress indicator
-        var progressX = BarX + (float)(normalizedAngle * BarWidth);
-        renderer.DrawCircleFilled(progressX, BarY + (BarHeight / 2), 15, Colors.Emerald500, 16);
-
-        // Draw markers at 0° and 180°
-        const float Marker0 = BarX + (float)(180.0 / 360.0 * BarWidth);
-        const float Marker180 = BarX + (float)(360.0 / 360.0 * BarWidth);
-        renderer.DrawLine(
-            new Vector2(Marker0, BarY - 5),
-            new Vector2(Marker0, BarY + BarHeight + 5),
-            new Vector4(0.8f, 0.3f, 0.3f, 1.0f));
-        renderer.DrawLine(
-            new Vector2(Marker180, BarY - 5),
-            new Vector2(Marker180, BarY + BarHeight + 5),
-            new Vector4(0.3f, 0.8f, 0.3f, 1.0f));
-
-        // Frame counter bar
-        if (totalFrames > 0)
-        {
-            const float FrameBarHeight = 8.0f;
-            const float FrameBarY = 270.0f;
-            renderer.DrawRectangleFilled(BarX, FrameBarY, BarWidth, FrameBarHeight, Colors.Slate700);
-            var frameProgress = (float)frameIndex / totalFrames * BarWidth;
-            renderer.DrawRectangleFilled(BarX, FrameBarY, frameProgress, FrameBarHeight, Colors.Sky600);
-        }
-
-        // Draw torque indicator (as a colored circle)
-        var torqueIndicatorRadius = (float)Math.Abs(torque) * 5.0f;
-        var torqueColor = torque > 0
-            ? new Vector4(0.3f, 0.8f, 0.3f, 0.8f) // Green for positive
-            : new Vector4(0.8f, 0.3f, 0.3f, 0.8f); // Red for negative
-
-        if (torqueIndicatorRadius > 1.0f)
-        {
-            renderer.DrawCircleOutline(PivotX, PivotY, torqueIndicatorRadius + 15, torqueColor, 32);
-        }
+        // Status text
+        var statusText = Math.Abs(angleDegrees) < 10 ? "BALANCED!" : "BALANCING...";
+        var statusColor = Math.Abs(angleDegrees) < 10 ? Colors.Emerald500 : Colors.Amber500;
+        renderer.DrawText(statusText, -50, -200, 3, statusColor);
     }
 }

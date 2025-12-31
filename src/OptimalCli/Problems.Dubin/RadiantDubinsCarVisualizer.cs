@@ -9,7 +9,7 @@
 using System.Numerics;
 using Radiant;
 
-namespace OptimalCli;
+namespace OptimalCli.Problems.Dubin;
 
 /// <summary>
 /// Renders a real-time graphical display of a Dubins car path using Radiant.

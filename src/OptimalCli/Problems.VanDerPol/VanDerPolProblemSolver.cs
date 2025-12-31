@@ -11,7 +11,7 @@
 using Optimal.Control;
 using Optimal.NonLinear;
 
-namespace OptimalCli.Problems;
+namespace OptimalCli.Problems.VanDerPol;
 
 /// <summary>
 /// Solves the Van der Pol oscillator problem with control.
@@ -94,13 +94,5 @@ public sealed class VanDerPolProblemSolver : IProblemSolver
         Console.WriteLine($"  Optimal cost: {result.OptimalCost:F6}");
         Console.WriteLine($"  Iterations: {result.Iterations}");
         Console.WriteLine();
-
-        // Generate visualization
-        var htmlPath = ResultVisualizer.GenerateHtml(
-            result,
-            "Van der Pol Oscillator",
-            new[] { "x₁", "x₂" },
-            new[] { "u" });
-        Console.WriteLine($"Visualization saved to: file://{htmlPath}");
     }
 }

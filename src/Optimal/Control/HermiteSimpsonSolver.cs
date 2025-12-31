@@ -285,7 +285,21 @@ namespace Optimal.Control
             {
                 var x0 = problem.InitialState ?? new double[problem.StateDim];
                 var xf = problem.FinalState ?? new double[problem.StateDim];
+                
+                // Compute reasonable initial control guess based on start/end states
                 var u0 = new double[problem.ControlDim];
+                if (problem.ControlDim == 1 && problem.StateDim >= 2 && 
+                    problem.InitialState != null && problem.FinalState != null)
+                {
+                    // For Brachistochrone-like problems, initialize control to point toward target
+                    var dx = xf[0] - x0[0];
+                    var dy = xf[1] - x0[1];
+                    if (Math.Abs(dx) > 1e-10 || Math.Abs(dy) > 1e-10)
+                    {
+                        u0[0] = Math.Atan2(dy, dx);  // Initial angle toward target
+                    }
+                }
+                
                 z0 = transcription.CreateInitialGuess(x0, xf, u0);
 
                 if (_verbose)

@@ -8,7 +8,7 @@
 
 using Optimal;
 
-namespace OptimalCli
+namespace OptimalCli.Problems.Dubin
 {
     /// <summary>
     /// Dubins car problem dynamics with AutoDiff support.

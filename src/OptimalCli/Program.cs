@@ -7,7 +7,11 @@
  */
 
 using OptimalCli;
-using OptimalCli.Problems;
+using OptimalCli.Problems.Brachistochrone;
+using OptimalCli.Problems.CartPole;
+using OptimalCli.Problems.Dubin;
+using OptimalCli.Problems.Pendulum;
+using OptimalCli.Problems.VanDerPol;
 
 // Parse command-line arguments
 if (args.Length == 0 || args[0] == "--help" || args[0] == "-h")
