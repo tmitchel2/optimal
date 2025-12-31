@@ -32,15 +32,12 @@ namespace OptimalCli.Problems.CartPole
         /// <summary>
         /// Cart acceleration: ẍ = (F + m·L·θ̇²·sin(θ) - m·g·sin(θ)·cos(θ)) / (M + m·sin²(θ))
         /// Full nonlinear dynamics
+        /// NOTE: Expressions are inlined (no intermediate variables) to ensure proper AutoDiff gradient propagation.
+        ///       Using intermediate variables breaks the gradient chain in the code generator.
         /// </summary>
         public static double XddotRate(double x, double xdot, double theta, double thetadot, double F, double M, double m, double L, double g)
         {
-            var sinTheta = Math.Sin(theta);
-            var cosTheta = Math.Cos(theta);
-            var sin2Theta = sinTheta * sinTheta;
-
-            var denom = M + m * sin2Theta;
-            return (F + m * L * thetadot * thetadot * sinTheta - m * g * sinTheta * cosTheta) / denom;
+            return (F + m * L * thetadot * thetadot * Math.Sin(theta) - m * g * Math.Sin(theta) * Math.Cos(theta)) / (M + m * Math.Sin(theta) * Math.Sin(theta));
         }
 
         /// <summary>
@@ -54,15 +51,12 @@ namespace OptimalCli.Problems.CartPole
         /// <summary>
         /// Pole angular acceleration: θ̈ = (g·sin(θ) - cos(θ)·(F + m·L·θ̇²·sin(θ))/(M+m)) / (L·(4/3 - m·cos²(θ)/(M+m)))
         /// Full nonlinear dynamics
+        /// NOTE: Expressions are inlined (no intermediate variables) to ensure proper AutoDiff gradient propagation.
+        ///       Using intermediate variables breaks the gradient chain in the code generator.
         /// </summary>
         public static double ThetaddotRate(double x, double xdot, double theta, double thetadot, double F, double M, double m, double L, double g)
         {
-            var sinTheta = Math.Sin(theta);
-            var cosTheta = Math.Cos(theta);
-            var cos2Theta = cosTheta * cosTheta;
-
-            var denom = L * (4.0 / 3.0 - m * cos2Theta / (M + m));
-            return (g * sinTheta - cosTheta * (F + m * L * thetadot * thetadot * sinTheta) / (M + m)) / denom;
+            return (g * Math.Sin(theta) - Math.Cos(theta) * (F + m * L * thetadot * thetadot * Math.Sin(theta)) / (M + m)) / (L * (4.0 / 3.0 - m * Math.Cos(theta) * Math.Cos(theta) / (M + m)));
         }
 
         /// <summary>
