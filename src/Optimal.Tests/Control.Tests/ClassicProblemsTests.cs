@@ -881,7 +881,7 @@ namespace Optimal.Control.Tests
                 .WithMaxIterations(40)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-2).WithMaxIterations(30));
 
-            var result = solver.SolveWithInitialGuess(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess);
 
             Assert.IsTrue(result.Success, $"Simplified Goddard rocket should converge, message: {result.Message}");
 
@@ -1036,7 +1036,7 @@ namespace Optimal.Control.Tests
                 .WithMaxIterations(50)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-3).WithMaxIterations(40));
 
-            var result = solver.SolveWithInitialGuess(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess);
 
             Assert.IsTrue(result.Success, $"Goddard rocket with LQR initialization should converge, message: {result.Message}");
 

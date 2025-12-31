@@ -124,10 +124,10 @@ namespace Optimal.Control.Tests
             var newTranscription = new HermiteSimpsonTranscription(problem, newGrid);
             var warmStart = WarmStart.InterpolateFromPrevious(result1, newGrid, newTranscription);
 
-            var result2 = solver2.SolveWithInitialGuess(problem, warmStart);
+            var result2 = solver2.Solve(problem, warmStart);
 
             Assert.IsTrue(result2.Success, "Refined solution should converge with warm start");
-            Assert.IsTrue(result2.MaxDefect < result1.MaxDefect || result2.MaxDefect < 1e-3, 
+            Assert.IsTrue(result2.MaxDefect < result1.MaxDefect || result2.MaxDefect < 1e-3,
                 "Refined solution should have smaller defects");
         }
 
@@ -329,7 +329,7 @@ namespace Optimal.Control.Tests
             var transcription2 = new HermiteSimpsonTranscription(problem, grid2);
             var warmStart = WarmStart.InterpolateFromPrevious(result1, grid2, transcription2);
 
-            var result2 = solver2.SolveWithInitialGuess(problem, warmStart);
+            var result2 = solver2.Solve(problem, warmStart);
 
             Assert.IsTrue(result2.Success, "Refined solution should converge");
 

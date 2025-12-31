@@ -266,7 +266,7 @@ public sealed class GoddardRocketProblemSolver : IProblemSolver
                     })
                     ;
 
-                var result = solver.Solve(problem);
+                var result = solver.Solve(problem, initialGuess);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return result;
             }

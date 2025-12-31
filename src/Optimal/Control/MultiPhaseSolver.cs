@@ -191,7 +191,7 @@ namespace Optimal.Control
 
             if (initialGuess != null)
             {
-                return solver.SolveWithInitialGuess(phase.Problem!, initialGuess);
+                return solver.Solve(phase.Problem!, initialGuess);
             }
             else
             {
@@ -222,7 +222,7 @@ namespace Optimal.Control
                 .WithMaxIterations(_phaseSolver.GetMaxIterations())
                 .WithInnerOptimizer(_phaseSolver.GetInnerOptimizer());
 
-            return solver.SolveWithInitialGuess(modifiedProblem, warmStart);
+            return solver.Solve(modifiedProblem, warmStart);
         }
 
         /// <summary>

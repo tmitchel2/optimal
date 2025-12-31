@@ -142,8 +142,9 @@ namespace Optimal.Control
         /// Solves the optimal control problem.
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
+        /// <param name="initialGuess">Optional initial guess for decision variables.</param>
         /// <returns>The optimal control solution.</returns>
-        public CollocationResult Solve(ControlProblem problem)
+        public CollocationResult Solve(ControlProblem problem, double[]? initialGuess = null)
         {
             ArgumentNullException.ThrowIfNull(problem);
 
@@ -154,20 +155,20 @@ namespace Optimal.Control
 
             if (_enableMeshRefinement)
             {
-                return SolveWithMeshRefinement(problem);
+                return SolveWithMeshRefinement(problem, initialGuess);
             }
 
-            return SolveOnFixedGrid(problem, _segments, initialGuess: null);
+            return SolveOnFixedGrid(problem, _segments, initialGuess);
         }
 
         /// <summary>
         /// Solves with adaptive mesh refinement.
         /// </summary>
-        private CollocationResult SolveWithMeshRefinement(ControlProblem problem)
+        private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[]? initialGuess)
         {
             var currentSegments = _segments;
             CollocationResult? result = null;
-            double[]? previousSolution = null;
+            double[]? previousSolution = initialGuess;
 
             for (var iteration = 0; iteration < _maxRefinementIterations; iteration++)
             {

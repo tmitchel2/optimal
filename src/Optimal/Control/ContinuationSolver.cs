@@ -40,7 +40,7 @@ namespace Optimal.Control
         public ContinuationSolver WithParameters(params double[] parameters)
         {
             ArgumentNullException.ThrowIfNull(parameters);
-            
+
             _continuationParameters.Clear();
             foreach (var p in parameters)
             {
@@ -163,7 +163,7 @@ namespace Optimal.Control
             var initialGuess = WarmStart.InterpolateFromPrevious(previousResult, grid, transcription);
 
             // Solve using the warm start
-            return _solver.SolveWithInitialGuess(problem, initialGuess);
+            return _solver.Solve(problem, initialGuess);
         }
 
         /// <summary>
@@ -221,36 +221,6 @@ namespace Optimal.Control
     /// </summary>
     public static class WarmStartExtensions
     {
-        /// <summary>
-        /// Solves a problem with a provided initial guess.
-        /// </summary>
-        /// <param name="solver">The solver instance.</param>
-        /// <param name="problem">The control problem.</param>
-        /// <param name="initialGuess">Initial guess for decision variables.</param>
-        /// <returns>Solution result.</returns>
-        public static CollocationResult SolveWithInitialGuess(
-            this HermiteSimpsonSolver solver,
-            ControlProblem problem,
-            double[] initialGuess)
-        {
-            ArgumentNullException.ThrowIfNull(solver);
-            ArgumentNullException.ThrowIfNull(problem);
-            ArgumentNullException.ThrowIfNull(initialGuess);
-
-            // Use reflection to call private method
-            var method = typeof(HermiteSimpsonSolver).GetMethod(
-                "SolveOnFixedGrid",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-            if (method == null)
-            {
-                throw new InvalidOperationException("Could not find SolveOnFixedGrid method.");
-            }
-
-            var result = method.Invoke(solver, new object?[] { problem, solver.GetSegments(), initialGuess });
-            return (CollocationResult)result!;
-        }
-
         /// <summary>
         /// Gets the number of segments configured in the solver.
         /// </summary>
