@@ -20,6 +20,8 @@ namespace Optimal.AutoDiff.Analyzers.IR
     {
         private readonly SemanticModel _semanticModel;
         private readonly Dictionary<string, VariableNode> _variables = new();
+        private readonly Dictionary<string, IRNode> _intermediateValueExpressions = new(); // Track intermediate variable value expressions
+        private readonly HashSet<string> _reassignedVariables = new(); // NEW: Track variables that are reassigned
         private readonly List<IRNode> _statements = new();
         private int _nodeIdCounter;
 
@@ -32,12 +34,18 @@ namespace Optimal.AutoDiff.Analyzers.IR
         {
             _statements.Clear();
             _variables.Clear();
+            _intermediateValueExpressions.Clear();
+            _reassignedVariables.Clear();
             _nodeIdCounter = 0;
 
+            // Mark parameters in variables dictionary but NOT in intermediate expressions
+            // Parameters should never be inlined
             foreach (var param in parameters)
             {
                 var paramNode = new VariableNode(NewNodeId(), param.Name, param.Type);
                 _variables[param.Name] = paramNode;
+                // NEW: Explicitly mark parameters as "non-inlineable" by adding to reassigned set
+                _reassignedVariables.Add(param.Name);
             }
 
             if (method.ExpressionBody != null)
@@ -95,6 +103,8 @@ namespace Optimal.AutoDiff.Analyzers.IR
                 if (variable.Initializer != null)
                 {
                     var value = ConvertExpression(variable.Initializer.Value);
+                    // NEW: Track the value expression for intermediate variables
+                    _intermediateValueExpressions[variableName] = value;
                     lastAssignment = new AssignmentNode(NewNodeId(), variableName, value);
                 }
             }
@@ -112,6 +122,13 @@ namespace Optimal.AutoDiff.Analyzers.IR
                 if (target is IdentifierNameSyntax identifier)
                 {
                     var targetName = identifier.Identifier.Text;
+
+                    // NEW: Mark this variable as reassigned (can't be inlined)
+                    if (_variables.ContainsKey(targetName))
+                    {
+                        _reassignedVariables.Add(targetName);
+                        _intermediateValueExpressions.Remove(targetName); // Remove from inlineable expressions
+                    }
 
                     if (assignment.Kind() == SyntaxKind.SimpleAssignmentExpression)
                     {
@@ -182,6 +199,12 @@ namespace Optimal.AutoDiff.Analyzers.IR
         private IRNode ConvertIdentifier(IdentifierNameSyntax identifier)
         {
             var name = identifier.Identifier.Text;
+
+            // NEW: Only inline if variable is an intermediate that hasn't been reassigned
+            if (_intermediateValueExpressions.TryGetValue(name, out var valueExpr) && !_reassignedVariables.Contains(name))
+            {
+                return valueExpr;
+            }
 
             if (_variables.TryGetValue(name, out var varNode))
             {

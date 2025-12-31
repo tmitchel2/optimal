@@ -136,11 +136,9 @@ namespace Optimal.AutoDiff.Tests
         }
 
         [TestMethod]
-        [Ignore("TDD: Demonstrates intermediate variable issue. Gradient w.r.t. y is 0 when it should be non-zero. Requires AutoDiff fix.")]
         public void CartPoleLike_GradientWrtY_ShouldMatchNumerical()
         {
-            // TDD: This test FAILS - demonstrates the intermediate variable problem
-            // After fixing AutoDiff, it should PASS
+            // TDD: This test should now PASS with intermediate variable support
 
             // Arrange
             var x = 1.5;
@@ -161,7 +159,7 @@ namespace Optimal.AutoDiff.Tests
         }
 
         [TestMethod]
-        [Ignore("TDD: Demonstrates intermediate variable issue. Requires AutoDiff fix to handle sin/cos intermediate variables.")]
+        
         public void CartPoleLike_GradientsShouldMatchInlinedVersion()
         {
             // TDD: Both versions should give same gradients
@@ -180,7 +178,7 @@ namespace Optimal.AutoDiff.Tests
         // ========== COMPLEX INTERMEDIATE TESTS ==========
 
         [TestMethod]
-        [Ignore("TDD: Demonstrates intermediate variable issue. All gradients are 0 instead of correct values. Requires AutoDiff fix.")]
+        
         public void Complex_GradientsShouldMatchNumerical()
         {
             // TDD: Test with multiple intermediate variables
@@ -203,7 +201,7 @@ namespace Optimal.AutoDiff.Tests
         // ========== MULTIPLE USES OF INTERMEDIATE ==========
 
         [TestMethod]
-        [Ignore("Requires AutoDiff enhancement to properly handle intermediate variables with reverse mode.")]
+        
         public void MultipleUses_GradientShouldMatchNumerical()
         {
             // TDD: Test when intermediate variable is used multiple times
@@ -275,7 +273,7 @@ namespace Optimal.AutoDiff.Tests
         // ========== SUMMARY TEST ==========
 
         [TestMethod]
-        [Ignore("Requires AutoDiff enhancement for intermediate variables. Multi-parameter tests still demonstrate the core issue.")]
+        
         public void AllIntermediateVariablePatterns_ShouldProduceCorrectGradients()
         {
             // TDD: Comprehensive test covering all patterns

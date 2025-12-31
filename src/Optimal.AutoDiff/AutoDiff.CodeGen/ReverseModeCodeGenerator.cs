@@ -25,6 +25,7 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
         private readonly HashSet<string> _differentiableParamNames = new();
         private readonly List<object> _operations = new();
         private readonly HashSet<string> _declaredVariables = new();
+        private readonly Dictionary<string, int> _intermediateVariableToNodeIndex = new(); // NEW: Track intermediate variables
         private int _nodeCounter;
         private string _currentIndent = "            "; // 12 spaces = 3 levels
 
@@ -40,6 +41,7 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             _differentiableParamNames.Clear();
             _operations.Clear();
             _declaredVariables.Clear();
+            _intermediateVariableToNodeIndex.Clear(); // NEW: Clear intermediate tracking
             _nodeCounter = 0;
 
             // Mark parameters as declared
@@ -120,6 +122,9 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
                 {
                     var valueIdx = GenerateNodeCode(assignment.Value, sb);
 
+                    // NEW: Track intermediate variable -> node index mapping for gradient propagation
+                    _intermediateVariableToNodeIndex[assignment.TargetVariable] = valueIdx;
+
                     if (!_declaredVariables.Contains(assignment.TargetVariable))
                     {
                         sb.AppendLine($"            var {assignment.TargetVariable} = nodes[{valueIdx}];");
@@ -198,6 +203,13 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
 
         private string GenerateVariable(VariableNode variable)
         {
+            // NEW: If this variable is an intermediate with a tracked node index, use that
+            // This enables gradient propagation through intermediate variables
+            if (_intermediateVariableToNodeIndex.TryGetValue(variable.Name, out var nodeIdx))
+            {
+                return $"nodes[{nodeIdx}]";
+            }
+
             return variable.Name;
         }
 
