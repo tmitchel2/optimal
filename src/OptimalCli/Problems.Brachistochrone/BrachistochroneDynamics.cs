@@ -51,26 +51,30 @@ namespace OptimalCli.Problems.Brachistochrone
 
         /// <summary>
         /// Rate of change of velocity (acceleration).
-        /// v̇ = g·sin(α + θ)
+        /// v̇ = -g·sin(α + θ)
         /// where:
         /// - g is gravitational acceleration
-        /// - α is the angle of the diagonal line from horizontal
+        /// - α is the angle of the diagonal line from horizontal (negative for downward)
         /// - θ is the angle of motion relative to the diagonal
         /// 
         /// The acceleration comes from the component of gravity along the path direction.
-        /// The path angle from horizontal is (α + θ).
+        /// The path angle from horizontal is (α + θ). The negative sign ensures that
+        /// downward motion (negative α) produces positive acceleration.
+        /// Equivalently: v̇ = g·sin(β) where β = -(α + θ) is angle below horizontal.
         /// </summary>
         public static double VRate(double s, double d, double v, double theta, double g, double alpha)
         {
-            return g * Math.Sin(alpha + theta);
+            return -g * Math.Sin(alpha + theta);
         }
 
         /// <summary>
-        /// Running cost: L = 0 (we minimize time via terminal cost, no running cost).
+        /// Running cost: L = 1 to minimize time.
+        /// In direct collocation with fixed final time, minimizing ∫₀ᵀ 1 dt = T
+        /// achieves time minimization by encouraging shorter trajectories.
         /// </summary>
         public static double RunningCost(double s, double d, double v, double theta)
         {
-            return 0.0;
+            return 1.0;
         }
 
         /// <summary>

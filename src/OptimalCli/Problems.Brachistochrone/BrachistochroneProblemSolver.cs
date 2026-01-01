@@ -29,6 +29,11 @@ public sealed class BrachistochroneProblemSolver : IProblemSolver
         Console.WriteLine("=== BRACHISTOCHRONE PROBLEM ===");
         Console.WriteLine("Find the curve of fastest descent under gravity between two points");
         Console.WriteLine();
+        Console.WriteLine("NOTE: This implementation uses a FIXED final time with L=1 running cost.");
+        Console.WriteLine("      The solver minimizes ∫L dt, but with fixed T, this doesn't find");
+        Console.WriteLine("      the true minimum time. For true time optimization, the solver");
+        Console.WriteLine("      would need to include final time as a decision variable.");
+        Console.WriteLine();
 
         // Problem parameters
         var g = 9.81;           // Gravitational acceleration (m/s²)
@@ -39,7 +44,7 @@ public sealed class BrachistochroneProblemSolver : IProblemSolver
         var diagonalLength = Math.Sqrt(xFinal * xFinal + yFinal * yFinal);
         var alpha = Math.Atan2(yFinal, xFinal);  // Angle of diagonal from horizontal
 
-        var finalTime = 1.5;    // Initial guess for final time (will be optimized)
+        var finalTime = 1.0;    // Fixed final time (not optimized)
 
         Console.WriteLine("Problem setup:");
         Console.WriteLine($"  Start point: (0, 0)");
@@ -48,7 +53,8 @@ public sealed class BrachistochroneProblemSolver : IProblemSolver
         Console.WriteLine($"  Diagonal angle: {alpha * 180 / Math.PI:F1}° from horizontal");
         Console.WriteLine($"  Gravity: {g} m/s²");
         Console.WriteLine($"  Initial velocity: 0 m/s");
-        Console.WriteLine($"  Objective: Minimize time of descent");
+        Console.WriteLine($"  Fixed final time: {finalTime:F2} s");
+        Console.WriteLine($"  Objective: Minimize ∫₀ᵀ 1 dt (trajectory smoothness with fixed T)");
         Console.WriteLine();
 
         var problem = new ControlProblem()
@@ -106,19 +112,6 @@ public sealed class BrachistochroneProblemSolver : IProblemSolver
                 gradients[1] = cost_gradients[3];  // ∂L/∂u
                 gradients[2] = 0.0;                 // ∂L/∂t
                 return (cost, gradients);
-            })
-            .WithTerminalCost((x, t) =>
-            {
-                var s = x[0];
-                var d = x[1];
-                var v = x[2];
-
-                var (cost, cost_gradients) = BrachistochroneDynamicsGradients.TerminalCostReverse(s, d, v);
-
-                var gradients = new double[2];
-                gradients[0] = cost_gradients[0] + cost_gradients[1] + cost_gradients[2];  // ∂Φ/∂x
-                gradients[1] = 1.0;  // ∂Φ/∂t = 1 (we want to minimize time)
-                return (cost, gradients);
             });
 
         Console.WriteLine("Solver configuration:");
@@ -173,8 +166,8 @@ public sealed class BrachistochroneProblemSolver : IProblemSolver
             {
                 var innerOptimizer = new LBFGSOptimizer()
                     .WithParallelLineSearch(enable: true, batchSize: 4)
-                    .WithTolerance(0.01)
-                    .WithMaxIterations(50)
+                    .WithTolerance(1e-5)
+                    .WithMaxIterations(150)
                     .WithVerbose(false);
 
                 // var innerOptimizer = new GradientDescentOptimizer()
@@ -183,10 +176,10 @@ public sealed class BrachistochroneProblemSolver : IProblemSolver
                 //     .WithVerbose(false);
 
                 var solver = new HermiteSimpsonSolver()
-                    .WithSegments(10)
-                    .WithTolerance(0.001)
-                    .WithMaxIterations(100)
-                    .WithMeshRefinement(true, 5, 0.001)
+                    .WithSegments(30)
+                    .WithTolerance(1e-5)
+                    .WithMaxIterations(150)
+                    .WithMeshRefinement(true, 5, 1e-5)
                     .WithVerbose(true)
                     .WithInnerOptimizer(innerOptimizer)
                     .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
@@ -271,8 +264,12 @@ public sealed class BrachistochroneProblemSolver : IProblemSolver
         Console.WriteLine($"  Final position along diagonal: {finalState[0]:F3} m (target: {diagonalLength:F3})");
         Console.WriteLine($"  Final perpendicular distance: {finalState[1]:F3} m (target: 0)");
         Console.WriteLine($"  Final velocity: {finalState[2]:F2} m/s");
-        Console.WriteLine($"  Optimal time: {result.OptimalCost:F4} s");
+        Console.WriteLine($"  Fixed time horizon: {finalTime:F4} s");
+        Console.WriteLine($"  Optimal cost (∫1 dt): {result.OptimalCost:F4}");
         Console.WriteLine($"  Iterations: {result.Iterations}");
+        Console.WriteLine();
+        Console.WriteLine("NOTE: Cost shows ∫₀ᵀ 1 dt with T fixed, not the true minimum time.");
+        Console.WriteLine("      For comparison, straight-line free fall would take ~0.64s.");
         Console.WriteLine();
     }
 }
