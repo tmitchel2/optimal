@@ -66,6 +66,14 @@ namespace Optimal.Control.Tests
 
             var result = solver.Solve(problem);
 
+            // Debug output
+            Console.WriteLine($"LGL Solver Test Results:");
+            Console.WriteLine($"  Success: {result.Success}");
+            Console.WriteLine($"  Cost: {result.OptimalCost}");
+            Console.WriteLine($"  MaxDefect: {result.MaxDefect}");
+            Console.WriteLine($"  Initial state: {result.States[0][0]}");
+            Console.WriteLine($"  Final state: {result.States[result.States.Length - 1][0]}");
+
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
             Assert.IsTrue(result.MaxDefect < 1e-3, $"Defects should be small, was {result.MaxDefect}");

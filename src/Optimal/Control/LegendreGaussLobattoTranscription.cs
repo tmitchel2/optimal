@@ -363,6 +363,12 @@ namespace Optimal.Control
 
                 for (var i = 0; i < _order; i++)
                 {
+                    // Skip shared endpoint (already counted in previous segment)
+                    if (k > 0 && i == 0)
+                    {
+                        continue;
+                    }
+
                     var globalIdx = GetGlobalPointIndex(k, i);
                     var xi = GetState(z, globalIdx);
                     var ui = GetControl(z, globalIdx);

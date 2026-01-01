@@ -61,9 +61,19 @@ namespace Optimal.Control.Tests
                 .WithSegments(10)
                 .WithTolerance(1e-4)
                 .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
+                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6))
+                .WithVerbose(true);
 
             var result = solver.Solve(problem);
+
+            // Debug output
+            Console.WriteLine($"HS Solver Test Results:");
+            Console.WriteLine($"  Success: {result.Success}");
+            Console.WriteLine($"  Cost: {result.OptimalCost}");
+            Console.WriteLine($"  MaxDefect: {result.MaxDefect}");
+            Console.WriteLine($"  Initial state: {result.States[0][0]}");
+            Console.WriteLine($"  Final state: {result.States[result.States.Length - 1][0]}");
+            Console.WriteLine($"  Avg control: {System.Linq.Enumerable.Average(result.Controls, u => u[0])}");
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");

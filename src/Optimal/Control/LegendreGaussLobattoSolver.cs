@@ -157,7 +157,19 @@ namespace Optimal.Control
             // Create initial guess
             var initialState = problem.InitialState ?? new double[problem.StateDim];
             var finalState = problem.FinalState ?? Enumerable.Repeat(double.NaN, problem.StateDim).ToArray();
-            var constantControl = new double[problem.ControlDim]; // Zero control as initial guess
+
+            // Use a non-zero initial control guess based on required state change
+            var constantControl = new double[problem.ControlDim];
+            var duration = problem.FinalTime - problem.InitialTime;
+            for (var i = 0; i < problem.ControlDim && i < problem.StateDim; i++)
+            {
+                if (problem.InitialState != null && problem.FinalState != null &&
+                    !double.IsNaN(problem.FinalState[i]) && duration > 0)
+                {
+                    // Estimate control needed: (x_final - x_initial) / duration
+                    constantControl[i] = (problem.FinalState[i] - problem.InitialState[i]) / duration;
+                }
+            }
 
             var z0 = transcription.CreateInitialGuess(initialState, finalState, constantControl);
 
@@ -166,6 +178,59 @@ namespace Optimal.Control
             {
                 var result = problem.Dynamics(x, u, t);
                 return result.value;
+            }
+
+            // Check if we can use analytical gradients for costs
+            var useAnalyticalGradients = true;
+
+            if (problem.RunningCost != null)
+            {
+                try
+                {
+                    var testX = new double[problem.StateDim];
+                    var testU = new double[problem.ControlDim];
+                    var testResult = problem.RunningCost(testX, testU, 0.0);
+                    var expectedSize = problem.StateDim + problem.ControlDim + 1;
+
+                    if (_verbose)
+                    {
+                        Console.WriteLine($"Testing running cost gradients: hasGrads={(testResult.gradients != null)}, length={testResult.gradients?.Length ?? 0}, expected={expectedSize}");
+                    }
+
+                    useAnalyticalGradients = useAnalyticalGradients &&
+                        testResult.gradients != null &&
+                        testResult.gradients.Length >= expectedSize;
+                }
+                catch (Exception ex)
+                {
+                    if (_verbose)
+                    {
+                        Console.WriteLine($"Running cost gradient test failed: {ex.Message}");
+                    }
+                    useAnalyticalGradients = false;
+                }
+            }
+
+            if (problem.TerminalCost != null)
+            {
+                try
+                {
+                    var testX = new double[problem.StateDim];
+                    var testResult = problem.TerminalCost(testX, 0.0);
+                    var expectedSize = problem.StateDim + 1;
+                    useAnalyticalGradients = useAnalyticalGradients &&
+                        testResult.gradients != null &&
+                        testResult.gradients.Length >= expectedSize;
+                }
+                catch
+                {
+                    useAnalyticalGradients = false;
+                }
+            }
+
+            if (_verbose && useAnalyticalGradients)
+            {
+                Console.WriteLine("Using analytical gradients from AutoDiff");
             }
 
             // Build objective function for NLP
@@ -185,20 +250,62 @@ namespace Optimal.Control
                     cost += transcription.ComputeTerminalCost(z, (x, t) => problem.TerminalCost(x, t).value);
                 }
 
-                // Compute gradient numerically
-                var gradient = NumericalGradients.ComputeGradient(zz =>
+                double[] gradient;
+
+                if (useAnalyticalGradients)
                 {
-                    var c = 0.0;
+                    // Use analytical gradients via AutoDiffLGLGradientHelper
+                    gradient = new double[z.Length];
+
                     if (problem.RunningCost != null)
                     {
-                        c += transcription.ComputeRunningCost(zz, (x, u, t) => problem.RunningCost(x, u, t).value);
+                        var runningGrad = AutoDiffLGLGradientHelper.ComputeRunningCostGradient(
+                            problem, grid, z, _order, transcription.GetState, transcription.GetControl,
+                            (x, u, t) =>
+                            {
+                                var res = problem.RunningCost!(x, u, t);
+                                return (res.value, res.gradients!);
+                            });
+
+                        for (var i = 0; i < gradient.Length; i++)
+                        {
+                            gradient[i] += runningGrad[i];
+                        }
                     }
+
                     if (problem.TerminalCost != null)
                     {
-                        c += transcription.ComputeTerminalCost(zz, (x, t) => problem.TerminalCost(x, t).value);
+                        var terminalGrad = AutoDiffLGLGradientHelper.ComputeTerminalCostGradient(
+                            problem, z, transcription.TotalPoints, grid.FinalTime, transcription.GetState,
+                            (x, t) =>
+                            {
+                                var res = problem.TerminalCost!(x, t);
+                                return (res.value, res.gradients!);
+                            });
+
+                        for (var i = 0; i < gradient.Length; i++)
+                        {
+                            gradient[i] += terminalGrad[i];
+                        }
                     }
-                    return c;
-                }, z);
+                }
+                else
+                {
+                    // Compute gradient numerically
+                    gradient = NumericalGradients.ComputeGradient(zz =>
+                    {
+                        var c = 0.0;
+                        if (problem.RunningCost != null)
+                        {
+                            c += transcription.ComputeRunningCost(zz, (x, u, t) => problem.RunningCost(x, u, t).value);
+                        }
+                        if (problem.TerminalCost != null)
+                        {
+                            c += transcription.ComputeTerminalCost(zz, (x, t) => problem.TerminalCost(x, t).value);
+                        }
+                        return c;
+                    }, z);
+                }
 
                 return (cost, gradient);
             };
@@ -219,9 +326,13 @@ namespace Optimal.Control
             };
 
             // Set up constrained optimizer
+            // Use stricter constraint tolerance for LGL (1/100 of main tolerance)
+            // This prevents premature convergence when initial guess has small defects
+            var constraintTolerance = Math.Min(_tolerance / 100.0, 1e-6);
+
             var constrainedOptimizer = new AugmentedLagrangianOptimizer()
                 .WithUnconstrainedOptimizer(_innerOptimizer ?? new LBFGSOptimizer())
-                .WithConstraintTolerance(_tolerance);
+                .WithConstraintTolerance(constraintTolerance);
 
             constrainedOptimizer
                 .WithInitialPoint(z0)
