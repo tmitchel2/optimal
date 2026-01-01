@@ -21,10 +21,28 @@ if (args.Length == 0 || args[0] == "--help" || args[0] == "-h")
     return;
 }
 
+// Parse options
+var headless = false;
 var problemName = args[0].ToLowerInvariant();
 
-// Create problem solver registry
-var solvers = new Dictionary<string, IProblemSolver>
+for (var i = 1; i < args.Length; i++)
+{
+    if (args[i] == "--headless" || args[i] == "-H")
+    {
+        headless = true;
+    }
+}
+
+var options = new CommandOptions(Headless: headless);
+
+if (headless)
+{
+    Console.WriteLine("Running in headless mode (no visualization)");
+    Console.WriteLine();
+}
+
+// Create command registry
+var commands = new Dictionary<string, ICommand>
 {
     { "brachistochrone", new BrachistochroneProblemSolver() },
     { "vanderpol", new VanDerPolProblemSolver() },
@@ -34,10 +52,10 @@ var solvers = new Dictionary<string, IProblemSolver>
     { "goddard", new GoddardRocketProblemSolver() }
 };
 
-// Find and run the requested problem
-if (solvers.TryGetValue(problemName, out var solver))
+// Find and run the requested command
+if (commands.TryGetValue(problemName, out var command))
 {
-    solver.Solve();
+    command.Run(options);
 }
 else
 {
@@ -51,7 +69,7 @@ static void ShowHelp()
 {
     Console.WriteLine("OptimalCli - Classic Optimal Control Problems");
     Console.WriteLine();
-    Console.WriteLine("Usage: OptimalCli <problem>");
+    Console.WriteLine("Usage: OptimalCli <problem> [options]");
     Console.WriteLine();
     Console.WriteLine("Available problems:");
     Console.WriteLine();
@@ -62,9 +80,12 @@ static void ShowHelp()
     Console.WriteLine("  dubins           - Dubins car minimum path with curvature constraint");
     Console.WriteLine("  goddard          - Goddard rocket maximum altitude with drag and fuel constraints");
     Console.WriteLine();
+    Console.WriteLine("Options:");
+    Console.WriteLine("  --headless, -H   Run without visualization windows");
+    Console.WriteLine();
     Console.WriteLine("Examples:");
     Console.WriteLine("  OptimalCli brachistochrone");
-    Console.WriteLine("  OptimalCli cartpole");
-    Console.WriteLine("  OptimalCli goddard");
+    Console.WriteLine("  OptimalCli cartpole --headless");
+    Console.WriteLine("  OptimalCli goddard -H");
     Console.WriteLine();
 }

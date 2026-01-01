@@ -19,13 +19,13 @@ namespace OptimalCli.Problems.Dubin;
 /// Control: ω - turning rate (with fixed velocity)
 /// Minimize: Control effort (smooth path)
 /// </summary>
-public sealed class DubinsCarProblemSolver : IProblemSolver
+public sealed class DubinsCarProblemSolver : ICommand
 {
     public string Name => "dubins";
 
     public string Description => "Dubins car minimum path with curvature constraint";
 
-    public void Solve()
+    public void Run(CommandOptions options)
     {
         Console.WriteLine("=== DUBINS CAR PROBLEM ===");
         Console.WriteLine("Finding minimum path with curvature constraint");

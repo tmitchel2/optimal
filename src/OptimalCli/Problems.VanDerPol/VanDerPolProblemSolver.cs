@@ -19,13 +19,13 @@ namespace OptimalCli.Problems.VanDerPol;
 /// ẋ₂ = -x₁ + μ(1 - x₁²)x₂ + u
 /// Stabilize to origin with minimum control effort.
 /// </summary>
-public sealed class VanDerPolProblemSolver : IProblemSolver
+public sealed class VanDerPolProblemSolver : ICommand
 {
     public string Name => "vanderpol";
 
     public string Description => "Van der Pol oscillator stabilization with minimum control effort";
 
-    public void Solve()
+    public void Run(CommandOptions options)
     {
         Console.WriteLine("=== VAN DER POL OSCILLATOR ===");
         Console.WriteLine("Stabilizing to origin with minimum control effort");

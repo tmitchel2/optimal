@@ -19,13 +19,13 @@ namespace OptimalCli.Problems.Goddard;
 /// Control: T (thrust)
 /// Objective: Maximize final altitude subject to drag, gravity, and fuel constraints
 /// </summary>
-public sealed class GoddardRocketProblemSolver : IProblemSolver
+public sealed class GoddardRocketProblemSolver : ICommand
 {
     public string Name => "goddard";
 
     public string Description => "Goddard rocket maximum altitude with drag and fuel constraints (Goddard, 1919)";
 
-    public void Solve()
+    public void Run(CommandOptions options)
     {
         Console.WriteLine("=== GODDARD ROCKET PROBLEM ===");
         Console.WriteLine("Maximize final altitude of a vertically ascending rocket");

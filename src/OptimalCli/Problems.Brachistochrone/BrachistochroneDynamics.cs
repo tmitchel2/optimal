@@ -12,79 +12,57 @@ namespace OptimalCli.Problems.Brachistochrone
 {
     /// <summary>
     /// Brachistochrone problem dynamics with AutoDiff support.
-    /// State: [s (position along diagonal), d (perpendicular distance from diagonal), v (velocity)]
-    /// Control: θ (path angle relative to diagonal, in RADIANS)
+    /// State: [x (horizontal position), y (vertical position), v (velocity)]
+    /// Control: θ (angle from horizontal)
     ///
-    /// The brachistochrone problem finds the curve of fastest descent under gravity
-    /// between two points. The solution is a cycloid curve.
+    /// The brachistochrone problem (Johann Bernoulli, 1696) seeks the curve of fastest descent
+    /// for a bead sliding under gravity from point A to point B. The optimal solution is a cycloid.
     ///
-    /// Coordinate system: Instead of using (x,y), we use (s,d) where:
-    /// - s is the position along the diagonal from start (0,0) to end (xFinal, yFinal)
-    /// - d is the perpendicular distance from the diagonal line
-    /// - Diagonal length L = sqrt(xFinal² + yFinal²)
-    ///
-    /// IMPORTANT: All angle parameters (theta) are in RADIANS, not degrees.
     /// </summary>
     [OptimalCode]
     public static class BrachistochroneDynamics
     {
         /// <summary>
-        /// Rate of change of s (position along diagonal).
-        /// ṡ = v·cos(θ)
-        /// where θ is the angle of motion relative to the diagonal direction.
+        /// Horizontal velocity: ẋ = v·cos(θ)
         /// </summary>
-        public static double SRate(double s, double d, double v, double theta, double g, double alpha)
+        public static double XRate(double x, double y, double v, double theta, double g)
         {
             return v * Math.Cos(theta);
         }
 
         /// <summary>
-        /// Rate of change of d (perpendicular distance from diagonal).
-        /// ḋ = v·sin(θ)
-        /// where θ is the angle of motion relative to the diagonal direction.
-        /// Positive θ means curving away from the diagonal.
+        /// Vertical velocity: ẏ = -v·sin(θ)
+        /// (negative because y decreases as bead descends - left-hand rule with y-axis up)
         /// </summary>
-        public static double DRate(double s, double d, double v, double theta, double g, double alpha)
+        public static double YRate(double x, double y, double v, double theta, double g)
         {
-            return v * Math.Sin(theta);
+            return -v * Math.Sin(theta);
         }
 
         /// <summary>
-        /// Rate of change of velocity (acceleration).
-        /// v̇ = -g·sin(α + θ)
-        /// where:
-        /// - g is gravitational acceleration
-        /// - α is the angle of the diagonal line from horizontal (negative for downward)
-        /// - θ is the angle of motion relative to the diagonal
-        /// 
-        /// The acceleration comes from the component of gravity along the path direction.
-        /// The path angle from horizontal is (α + θ). The negative sign ensures that
-        /// downward motion (negative α) produces positive acceleration.
-        /// Equivalently: v̇ = g·sin(β) where β = -(α + θ) is angle below horizontal.
+        /// Speed rate: v̇ = g·sin(θ)
+        /// (acceleration due to gravity component along trajectory)
         /// </summary>
-        public static double VRate(double s, double d, double v, double theta, double g, double alpha)
+        public static double VRate(double x, double y, double v, double theta, double g)
         {
-            return -g * Math.Sin(alpha + theta);
+            return g * Math.Sin(theta);
         }
 
         /// <summary>
-        /// Running cost: L = 1 to minimize time.
-        /// In direct collocation with fixed final time, minimizing ∫₀ᵀ 1 dt = T
-        /// achieves time minimization by encouraging shorter trajectories.
+        /// Running cost: L = 1 (minimize time)
+        /// Since dt is integrated, minimizing ∫1·dt minimizes total time.
         /// </summary>
-        public static double RunningCost(double s, double d, double v, double theta)
+        public static double RunningCost(double x, double y, double v, double theta)
         {
             return 1.0;
         }
 
         /// <summary>
-        /// Terminal cost: Φ = t (time, which is the independent variable).
-        /// To minimize time, we return a constant (the actual time minimization
-        /// is handled by the time horizon being free).
+        /// Terminal cost: Φ = 0 (no terminal cost, only running cost)
         /// </summary>
-        public static double TerminalCost(double s, double d, double v)
+        public static double TerminalCost(double x, double y, double v)
         {
-            return 1.0;
+            return 0.0;
         }
     }
 }

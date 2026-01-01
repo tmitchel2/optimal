@@ -20,13 +20,13 @@ namespace OptimalCli.Problems.Pendulum;
 /// Dynamics: θ̈ = -g/L*sin(θ) + u/mL²
 /// Minimize: control effort
 /// </summary>
-public sealed class PendulumSwingUpProblemSolver : IProblemSolver
+public sealed class PendulumSwingUpProblemSolver : ICommand
 {
     public string Name => "pendulum";
 
     public string Description => "Pendulum swing-up from hanging down to fully inverted (vertical)";
 
-    public void Solve()
+    public void Run(CommandOptions options)
     {
         Console.WriteLine("=== PENDULUM SWING-UP ===");
         Console.WriteLine("Swinging pendulum from hanging down to fully inverted (vertical upright)");

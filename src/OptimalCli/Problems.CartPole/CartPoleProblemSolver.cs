@@ -19,13 +19,13 @@ namespace OptimalCli.Problems.CartPole;
 /// Control: Force on cart
 /// Objective: Stabilize inverted pendulum from initial perturbation
 /// </summary>
-public sealed class CartPoleProblemSolver : IProblemSolver
+public sealed class CartPoleProblemSolver : ICommand
 {
     public string Name => "cartpole";
 
     public string Description => "Cart-pole stabilization with full nonlinear dynamics";
 
-    public void Solve()
+    public void Run(CommandOptions options)
     {
         Console.WriteLine("=== CART-POLE STABILIZATION ===");
         Console.WriteLine("Stabilizing inverted pendulum on moving cart");
