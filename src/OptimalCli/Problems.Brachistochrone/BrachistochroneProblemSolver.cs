@@ -54,7 +54,6 @@ public sealed class BrachistochroneProblemSolver : ICommand
             .WithStateSize(3) // [x, y, v]
             .WithControlSize(1) // theta (angle)
             .WithTimeHorizon(0.0, 1.2) // Initial guess for time horizon
-                                       // .WithFreeFinalTime(0.1, 2.0) // Optimize final time within reasonable bounds
             .WithInitialCondition(new[] { x0, y0, v0 }) // Start at top-left
             .WithFinalCondition(new[] { xf, yf, double.NaN }) // End at bottom-right, free final velocity
             .WithControlBounds(new[] { 0.0 }, new[] { Math.PI / 2.0 }) // Angle between 0 (horizontal) and π/2 (vertical down)
