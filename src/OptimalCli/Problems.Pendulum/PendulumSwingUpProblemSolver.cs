@@ -106,12 +106,12 @@ public sealed class PendulumSwingUpProblemSolver : IProblemSolver
             {
                 var solver = new HermiteSimpsonSolver()
                     .WithSegments(25) // More segments for complex trajectory
-                    .WithTolerance(1e-2) // Slightly relaxed for this difficult problem
+                    .WithTolerance(1e-5) // Slightly relaxed for this difficult problem
                     .WithMaxIterations(150) // More iterations for convergence
-                    .WithMeshRefinement(true, 5, 1e-2)
+                    .WithMeshRefinement(true, 5, 1e-5)
                     .WithVerbose(true)  // Enable verbose output
                     .WithInnerOptimizer(new LBFGSOptimizer()
-                        .WithTolerance(1e-2)
+                        .WithTolerance(1e-5)
                         .WithMaxIterations(150)  // Reduced from 100 to make cancellation more responsive
                         .WithVerbose(false))
                     .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
