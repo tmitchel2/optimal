@@ -70,6 +70,41 @@ namespace Optimal.Control
         }
 
         /// <summary>
+        /// Identifies which segments should be refined based on defect distribution for LGL collocation.
+        /// For LGL methods, each segment has multiple interior points with defects.
+        /// </summary>
+        /// <param name="defects">Flat array of all defects.</param>
+        /// <param name="stateDim">State dimension.</param>
+        /// <param name="numInteriorPointsPerSegment">Number of interior collocation points per segment.</param>
+        /// <returns>Boolean array indicating which segments should be refined.</returns>
+        public bool[] IdentifySegmentsForRefinement(double[] defects, int stateDim, int numInteriorPointsPerSegment)
+        {
+            var defectsPerSegment = numInteriorPointsPerSegment * stateDim;
+            var numSegments = defects.Length / defectsPerSegment;
+            var shouldRefine = new bool[numSegments];
+
+            for (var k = 0; k < numSegments; k++)
+            {
+                // Compute max defect magnitude across all interior points in this segment
+                var maxDefect = 0.0;
+                for (var i = 0; i < defectsPerSegment; i++)
+                {
+                    var defectIdx = k * defectsPerSegment + i;
+                    var absDefect = Math.Abs(defects[defectIdx]);
+                    if (absDefect > maxDefect)
+                    {
+                        maxDefect = absDefect;
+                    }
+                }
+
+                // Refine if defect exceeds threshold
+                shouldRefine[k] = maxDefect > _defectThreshold;
+            }
+
+            return shouldRefine;
+        }
+
+        /// <summary>
         /// Creates a refined grid by subdividing segments with large defects.
         /// </summary>
         /// <param name="currentGrid">Current collocation grid.</param>
@@ -215,6 +250,145 @@ namespace Optimal.Control
         {
             var count = shouldRefine.Count(x => x);
             return 100.0 * count / shouldRefine.Length;
+        }
+
+        /// <summary>
+        /// Interpolates a solution from a coarse LGL grid to a fine LGL grid using Lagrange interpolation.
+        /// </summary>
+        /// <param name="coarseGrid">Coarse collocation grid.</param>
+        /// <param name="fineGrid">Fine collocation grid.</param>
+        /// <param name="coarseSolution">Solution vector on coarse grid.</param>
+        /// <param name="order">LGL collocation order.</param>
+        /// <param name="stateDim">State dimension.</param>
+        /// <param name="controlDim">Control dimension.</param>
+        /// <returns>Interpolated solution vector on fine grid.</returns>
+        public static double[] InterpolateLGLSolution(
+            CollocationGrid coarseGrid,
+            CollocationGrid fineGrid,
+            double[] coarseSolution,
+            int order,
+            int stateDim,
+            int controlDim)
+        {
+            // Get LGL points in reference coordinates [-1, 1]
+            var (lglPoints, _) = LegendreGaussLobatto.GetPointsAndWeights(order);
+
+            // Calculate total points for shared-endpoint layout
+            var coarseTotalPoints = coarseGrid.Segments * (order - 1) + 1;
+            var fineTotalPoints = fineGrid.Segments * (order - 1) + 1;
+
+            var fineSolution = new double[fineTotalPoints * (stateDim + controlDim)];
+
+            // Helper to get global point index
+            int GetGlobalPointIndex(int segmentIndex, int localPointIndex)
+            {
+                return segmentIndex * (order - 1) + localPointIndex;
+            }
+
+            // Helper to extract state from solution vector
+            double[] GetState(double[] solution, int globalPointIndex)
+            {
+                var state = new double[stateDim];
+                var offset = globalPointIndex * (stateDim + controlDim);
+                Array.Copy(solution, offset, state, 0, stateDim);
+                return state;
+            }
+
+            // Helper to extract control from solution vector
+            double[] GetControl(double[] solution, int globalPointIndex)
+            {
+                var control = new double[controlDim];
+                var offset = globalPointIndex * (stateDim + controlDim) + stateDim;
+                Array.Copy(solution, offset, control, 0, controlDim);
+                return control;
+            }
+
+            // Helper to set state in solution vector
+            void SetState(double[] solution, int globalPointIndex, double[] state)
+            {
+                var offset = globalPointIndex * (stateDim + controlDim);
+                Array.Copy(state, 0, solution, offset, stateDim);
+            }
+
+            // Helper to set control in solution vector
+            void SetControl(double[] solution, int globalPointIndex, double[] control)
+            {
+                var offset = globalPointIndex * (stateDim + controlDim) + stateDim;
+                Array.Copy(control, 0, solution, offset, controlDim);
+            }
+
+            // Interpolate each point in the fine grid
+            for (var kFine = 0; kFine < fineGrid.Segments; kFine++)
+            {
+                for (var iFine = 0; iFine < order; iFine++)
+                {
+                    var globalIdxFine = GetGlobalPointIndex(kFine, iFine);
+
+                    // Skip if already set by previous segment (shared endpoint)
+                    if (kFine > 0 && iFine == 0)
+                    {
+                        continue;
+                    }
+
+                    // Get physical time for this fine grid point
+                    var tauFine = lglPoints[iFine];
+                    var hFine = fineGrid.GetTimeStep(kFine);
+                    var tFine = fineGrid.TimePoints[kFine] + (tauFine + 1.0) * hFine / 2.0;
+
+                    // Find coarse segment containing this time
+                    var kCoarse = 0;
+                    for (var k = 0; k < coarseGrid.Segments; k++)
+                    {
+                        if (tFine >= coarseGrid.TimePoints[k] && tFine <= coarseGrid.TimePoints[k + 1])
+                        {
+                            kCoarse = k;
+                            break;
+                        }
+                    }
+
+                    // Convert physical time to reference coordinate in coarse segment
+                    var hCoarse = coarseGrid.GetTimeStep(kCoarse);
+                    var tauCoarse = 2.0 * (tFine - coarseGrid.TimePoints[kCoarse]) / hCoarse - 1.0;
+
+                    // Lagrange interpolation from coarse LGL points to this fine point
+                    var state = new double[stateDim];
+                    var control = new double[controlDim];
+
+                    for (var jCoarse = 0; jCoarse < order; jCoarse++)
+                    {
+                        var globalIdxCoarse = GetGlobalPointIndex(kCoarse, jCoarse);
+
+                        // Compute Lagrange basis function value at tauCoarse
+                        var basis = 1.0;
+                        for (var mCoarse = 0; mCoarse < order; mCoarse++)
+                        {
+                            if (mCoarse != jCoarse)
+                            {
+                                basis *= (tauCoarse - lglPoints[mCoarse]) / (lglPoints[jCoarse] - lglPoints[mCoarse]);
+                            }
+                        }
+
+                        // Accumulate contributions
+                        var stateCoarse = GetState(coarseSolution, globalIdxCoarse);
+                        var controlCoarse = GetControl(coarseSolution, globalIdxCoarse);
+
+                        for (var s = 0; s < stateDim; s++)
+                        {
+                            state[s] += basis * stateCoarse[s];
+                        }
+
+                        for (var c = 0; c < controlDim; c++)
+                        {
+                            control[c] += basis * controlCoarse[c];
+                        }
+                    }
+
+                    SetState(fineSolution, globalIdxFine, state);
+                    SetControl(fineSolution, globalIdxFine, control);
+                }
+            }
+
+            return fineSolution;
         }
     }
 }

@@ -23,6 +23,10 @@ namespace Optimal.Control
         private double _tolerance = 1e-6;
         private int _maxIterations = 100;
         private bool _verbose;
+        private bool _enableParallelization = true;
+        private bool _enableMeshRefinement;
+        private int _maxRefinementIterations = 5;
+        private double _refinementDefectThreshold = 1e-4;
         private IOptimizer? _innerOptimizer;
 
         /// <summary>
@@ -115,6 +119,34 @@ namespace Optimal.Control
         }
 
         /// <summary>
+        /// Enables or disables parallelization for constraint and cost evaluation.
+        /// When enabled, uses parallel computation for problems with many segments.
+        /// Default: true.
+        /// </summary>
+        /// <param name="enable">True to enable parallelization.</param>
+        /// <returns>This solver for method chaining.</returns>
+        public LegendreGaussLobattoSolver WithParallelization(bool enable = true)
+        {
+            _enableParallelization = enable;
+            return this;
+        }
+
+        /// <summary>
+        /// Enables adaptive mesh refinement to automatically refine the grid based on defect distribution.
+        /// </summary>
+        /// <param name="enable">True to enable mesh refinement.</param>
+        /// <param name="maxRefinementIterations">Maximum number of refinement iterations (default: 5).</param>
+        /// <param name="defectThreshold">Defect threshold for convergence (default: 1e-4).</param>
+        /// <returns>This solver for method chaining.</returns>
+        public LegendreGaussLobattoSolver WithMeshRefinement(bool enable = true, int maxRefinementIterations = 5, double defectThreshold = 1e-4)
+        {
+            _enableMeshRefinement = enable;
+            _maxRefinementIterations = maxRefinementIterations;
+            _refinementDefectThreshold = defectThreshold;
+            return this;
+        }
+
+        /// <summary>
         /// Solves the optimal control problem.
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
@@ -128,10 +160,27 @@ namespace Optimal.Control
                 throw new InvalidOperationException("Problem must have dynamics defined.");
             }
 
+            if (_enableMeshRefinement)
+            {
+                return SolveWithMeshRefinement(problem);
+            }
+
+            return SolveOnFixedGrid(problem, _segments, null);
+        }
+
+        /// <summary>
+        /// Solves the optimal control problem on a fixed grid with given number of segments.
+        /// </summary>
+        /// <param name="problem">The control problem to solve.</param>
+        /// <param name="segments">Number of segments to use.</param>
+        /// <param name="initialGuess">Optional initial guess for warm-starting.</param>
+        /// <returns>The collocation result containing the optimal trajectory.</returns>
+        private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segments, double[]? initialGuess)
+        {
             if (_verbose)
             {
                 Console.WriteLine($"Legendre-Gauss-Lobatto Solver");
-                Console.WriteLine($"  Segments: {_segments}");
+                Console.WriteLine($"  Segments: {segments}");
                 Console.WriteLine($"  Order: {_order}");
                 Console.WriteLine($"  State dimension: {problem.StateDim}");
                 Console.WriteLine($"  Control dimension: {problem.ControlDim}");
@@ -141,10 +190,12 @@ namespace Optimal.Control
             var grid = new CollocationGrid(
                 problem.InitialTime,
                 problem.FinalTime,
-                _segments);
+                segments);
 
-            // Create transcription
-            var transcription = new LegendreGaussLobattoTranscription(problem, grid, _order);
+            // Create transcription (parallel or sequential based on settings)
+            ILGLTranscription transcription = _enableParallelization
+                ? new ParallelLGLTranscription(problem, grid, _order, _enableParallelization)
+                : new LegendreGaussLobattoTranscription(problem, grid, _order);
 
             if (_verbose)
             {
@@ -154,35 +205,42 @@ namespace Optimal.Control
                 Console.WriteLine($"  Total defect constraints: {_segments * (_order - 2) * problem.StateDim}");
             }
 
-            // Create initial guess
-            var initialState = problem.InitialState ?? new double[problem.StateDim];
-            var finalState = problem.FinalState ?? Enumerable.Repeat(double.NaN, problem.StateDim).ToArray();
-
-            // For simple dynamics like ẋ = u, estimate required control from state change
-            var constantControl = new double[problem.ControlDim];
-            var duration = grid.FinalTime - grid.InitialTime;
-            for (var i = 0; i < Math.Min(problem.StateDim, problem.ControlDim); i++)
+            // Create initial guess (use provided warm start if available)
+            double[] z0;
+            if (initialGuess != null && initialGuess.Length == transcription.DecisionVectorSize)
             {
-                if (!double.IsNaN(finalState[i]) && duration > 0)
-                {
-                    // Estimate average control needed: (final - initial) / duration
-                    constantControl[i] = (finalState[i] - initialState[i]) / duration;
-                }
+                z0 = initialGuess;
             }
+            else
+            {
+                var initialState = problem.InitialState ?? new double[problem.StateDim];
+                var finalState = problem.FinalState ?? Enumerable.Repeat(double.NaN, problem.StateDim).ToArray();
 
-            var z0 = transcription.CreateInitialGuess(initialState, finalState, constantControl);
+                // For simple dynamics like ẋ = u, estimate required control from state change
+                var constantControl = new double[problem.ControlDim];
+                var duration = grid.FinalTime - grid.InitialTime;
+                for (var i = 0; i < Math.Min(problem.StateDim, problem.ControlDim); i++)
+                {
+                    if (!double.IsNaN(finalState[i]) && duration > 0)
+                    {
+                        // Estimate average control needed: (final - initial) / duration
+                        constantControl[i] = (finalState[i] - initialState[i]) / duration;
+                    }
+                }
+
+                z0 = transcription.CreateInitialGuess(initialState, finalState, constantControl);
+            }
 
             // Extract dynamics evaluator (without gradients for now)
             double[] DynamicsValue(double[] x, double[] u, double t)
             {
-                var result = problem.Dynamics(x, u, t);
+                var result = problem.Dynamics!(x, u, t);
                 return result.value;
             }
 
             if (_verbose)
             {
                 Console.WriteLine($"Initial guess:");
-                Console.WriteLine($"  Constant control: {string.Join(", ", constantControl.Select(c => c.ToString("F6", System.Globalization.CultureInfo.InvariantCulture)))}");
 
                 // Check first 10 points
                 Console.WriteLine($"  First 10 states: {string.Join(", ", Enumerable.Range(0, Math.Min(10, transcription.TotalPoints)).Select(i => transcription.GetState(z0, i)[0].ToString("F6", System.Globalization.CultureInfo.InvariantCulture)))}");
@@ -203,7 +261,7 @@ namespace Optimal.Control
                 {
                     initialCost += transcription.ComputeTerminalCost(z0, (x, t) => problem.TerminalCost(x, t).value);
                 }
-                Console.WriteLine($"  Cost at initial guess: {initialCost:E6} (should be ~0.2)");
+                Console.WriteLine($"  Cost at initial guess: {initialCost:E6}");
             }
 
             // Check if dynamics provides analytical gradients
@@ -212,7 +270,7 @@ namespace Optimal.Control
             {
                 var testX = new double[problem.StateDim];
                 var testU = new double[problem.ControlDim];
-                var testResult = problem.Dynamics(testX, testU, 0.0);
+                var testResult = problem.Dynamics!(testX, testU, 0.0);
 
                 if (testResult.gradients != null && testResult.gradients.Length >= 2)
                 {
@@ -645,6 +703,116 @@ namespace Optimal.Control
                 MaxDefect = maxDefect,
                 Success = nlpResult.Success
             };
+        }
+
+        /// <summary>
+        /// Solves the optimal control problem with adaptive mesh refinement.
+        /// </summary>
+        /// <param name="problem">The control problem to solve.</param>
+        /// <returns>The collocation result containing the optimal trajectory.</returns>
+        private CollocationResult SolveWithMeshRefinement(ControlProblem problem)
+        {
+            var currentSegments = _segments;
+            CollocationResult? result = null;
+            double[]? previousSolution = null;
+
+            for (var iteration = 0; iteration < _maxRefinementIterations; iteration++)
+            {
+                if (_verbose)
+                {
+                    Console.WriteLine($"Mesh refinement iteration {iteration + 1}, segments = {currentSegments}");
+                }
+
+                // Solve on current grid
+                result = SolveOnFixedGrid(problem, currentSegments, previousSolution);
+
+                if (!result.Success)
+                {
+                    if (_verbose)
+                    {
+                        Console.WriteLine("Failed to converge on current mesh");
+                    }
+                    break;
+                }
+
+                if (_verbose)
+                {
+                    Console.WriteLine($"  Max defect: {result.MaxDefect:E2}");
+                }
+
+                // Check if we should stop
+                if (result.MaxDefect < _refinementDefectThreshold)
+                {
+                    if (_verbose)
+                    {
+                        Console.WriteLine($"Converged with max defect {result.MaxDefect:E2}");
+                    }
+                    break;
+                }
+
+                // Analyze defects and refine mesh
+                var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, currentSegments);
+                ILGLTranscription transcription = _enableParallelization
+                    ? new ParallelLGLTranscription(problem, grid, _order, _enableParallelization)
+                    : new LegendreGaussLobattoTranscription(problem, grid, _order);
+
+                // Extract dynamics evaluator
+                double[] DynamicsValue(double[] x, double[] u, double t)
+                {
+                    var res = problem.Dynamics!(x, u, t);
+                    return res.value;
+                }
+
+                // Rebuild solution vector for defect computation
+                var z = new double[transcription.DecisionVectorSize];
+                for (var k = 0; k < transcription.TotalPoints; k++)
+                {
+                    transcription.SetState(z, k, result.States[k]);
+                    transcription.SetControl(z, k, result.Controls[k]);
+                }
+
+                var defects = transcription.ComputeAllDefects(z, DynamicsValue);
+
+                // Identify segments for refinement
+                var numInteriorPointsPerSegment = _order - 2;
+                var meshRefinement = new MeshRefinement(_refinementDefectThreshold, maxSegments: 200);
+                var shouldRefine = meshRefinement.IdentifySegmentsForRefinement(defects, problem.StateDim, numInteriorPointsPerSegment);
+
+                var refinementPct = MeshRefinement.ComputeRefinementPercentage(shouldRefine);
+
+                if (_verbose)
+                {
+                    Console.WriteLine($"  Refining {refinementPct:F1}% of segments");
+                }
+
+                // If no segments need refinement, we're done
+                if (refinementPct < 0.1)
+                {
+                    break;
+                }
+
+                // Create refined grid
+                var newGrid = meshRefinement.RefineGrid(grid, shouldRefine);
+                var newSegments = newGrid.Segments;
+
+                if (newSegments == currentSegments)
+                {
+                    // Can't refine further (hit limit)
+                    break;
+                }
+
+                // Interpolate solution to new grid for warm start
+                ILGLTranscription newTranscription = _enableParallelization
+                    ? new ParallelLGLTranscription(problem, newGrid, _order, _enableParallelization)
+                    : new LegendreGaussLobattoTranscription(problem, newGrid, _order);
+
+                previousSolution = MeshRefinement.InterpolateLGLSolution(
+                    grid, newGrid, z, _order, problem.StateDim, problem.ControlDim);
+
+                currentSegments = newSegments;
+            }
+
+            return result ?? throw new InvalidOperationException("Mesh refinement failed to produce a result.");
         }
     }
 }
