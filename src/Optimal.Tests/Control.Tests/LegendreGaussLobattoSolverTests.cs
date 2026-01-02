@@ -9,6 +9,7 @@
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
 using System;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear;
 
@@ -65,14 +66,6 @@ namespace Optimal.Control.Tests
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
 
             var result = solver.Solve(problem);
-
-            // Debug output
-            Console.WriteLine($"LGL Solver Test Results:");
-            Console.WriteLine($"  Success: {result.Success}");
-            Console.WriteLine($"  Cost: {result.OptimalCost}");
-            Console.WriteLine($"  MaxDefect: {result.MaxDefect}");
-            Console.WriteLine($"  Initial state: {result.States[0][0]}");
-            Console.WriteLine($"  Final state: {result.States[result.States.Length - 1][0]}");
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");

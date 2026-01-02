@@ -294,18 +294,19 @@ namespace Optimal.Control
         }
 
         /// <summary>
-        /// Creates an initial guess for the decision vector using linear interpolation.
-        /// States are interpolated based on physical time at each LGL point.
+        /// Creates an initial guess for the decision vector using linear interpolation with consistent controls.
+        /// Controls are set to match the derivative of the state trajectory.
         /// </summary>
         /// <param name="initialState">Initial state.</param>
         /// <param name="finalState">Final state.</param>
-        /// <param name="constantControl">Constant control value.</param>
+        /// <param name="constantControl">Constant control value (used as fallback).</param>
         /// <returns>Initial decision vector.</returns>
         public double[] CreateInitialGuess(double[] initialState, double[] finalState, double[] constantControl)
         {
             var z = new double[_decisionVectorSize];
             var t0 = _grid.InitialTime;
             var tf = _grid.FinalTime;
+            var duration = tf - t0;
 
             for (var k = 0; k < _grid.Segments; k++)
             {
@@ -320,8 +321,9 @@ namespace Optimal.Control
                     }
 
                     var t = TauToPhysicalTime(_lglPoints[i], k);
-                    var alpha = (t - t0) / (tf - t0);
+                    var alpha = (t - t0) / duration;
                     var state = new double[_stateDim];
+                    var control = new double[_controlDim];
 
                     for (var s = 0; s < _stateDim; s++)
                     {
@@ -332,12 +334,19 @@ namespace Optimal.Control
                         }
                         else
                         {
+                            // Linear interpolation
                             state[s] = (1.0 - alpha) * initialState[s] + alpha * finalState[s];
                         }
                     }
 
+                    // Use constant control for all control dimensions
+                    for (var c = 0; c < _controlDim; c++)
+                    {
+                        control[c] = constantControl[c];
+                    }
+
                     SetState(z, globalIdx, state);
-                    SetControl(z, globalIdx, constantControl);
+                    SetControl(z, globalIdx, control);
                 }
             }
 
@@ -361,21 +370,21 @@ namespace Optimal.Control
                 var h = _grid.GetTimeStep(k);
                 var segmentCost = 0.0;
 
+                // For shared endpoints: left endpoint of segment k (except k=0) gets weight only from right
+                // Each segment contributes its quadrature independently
                 for (var i = 0; i < _order; i++)
                 {
-                    // Skip shared endpoint (already counted in previous segment)
-                    if (k > 0 && i == 0)
-                    {
-                        continue;
-                    }
-
                     var globalIdx = GetGlobalPointIndex(k, i);
                     var xi = GetState(z, globalIdx);
                     var ui = GetControl(z, globalIdx);
                     var ti = TauToPhysicalTime(_lglPoints[i], k);
 
                     var Li = runningCostEvaluator(xi, ui, ti);
-                    segmentCost += _lglWeights[i] * Li;
+
+                    // For shared left endpoint (i=0, k>0), use half weight to avoid double-counting
+                    // since the right endpoint of segment k-1 already contributed
+                    var weight = (k > 0 && i == 0) ? _lglWeights[i] * 0.5 : _lglWeights[i];
+                    segmentCost += weight * Li;
                 }
 
                 // LGL quadrature on [-1, 1] → scale by h/2 for physical interval

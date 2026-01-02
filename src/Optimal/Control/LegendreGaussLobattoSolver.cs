@@ -158,16 +158,15 @@ namespace Optimal.Control
             var initialState = problem.InitialState ?? new double[problem.StateDim];
             var finalState = problem.FinalState ?? Enumerable.Repeat(double.NaN, problem.StateDim).ToArray();
 
-            // Use a non-zero initial control guess based on required state change
+            // For simple dynamics like ẋ = u, estimate required control from state change
             var constantControl = new double[problem.ControlDim];
-            var duration = problem.FinalTime - problem.InitialTime;
-            for (var i = 0; i < problem.ControlDim && i < problem.StateDim; i++)
+            var duration = grid.FinalTime - grid.InitialTime;
+            for (var i = 0; i < Math.Min(problem.StateDim, problem.ControlDim); i++)
             {
-                if (problem.InitialState != null && problem.FinalState != null &&
-                    !double.IsNaN(problem.FinalState[i]) && duration > 0)
+                if (!double.IsNaN(finalState[i]) && duration > 0)
                 {
-                    // Estimate control needed: (x_final - x_initial) / duration
-                    constantControl[i] = (problem.FinalState[i] - problem.InitialState[i]) / duration;
+                    // Estimate average control needed: (final - initial) / duration
+                    constantControl[i] = (finalState[i] - initialState[i]) / duration;
                 }
             }
 
@@ -178,6 +177,63 @@ namespace Optimal.Control
             {
                 var result = problem.Dynamics(x, u, t);
                 return result.value;
+            }
+
+            if (_verbose)
+            {
+                Console.WriteLine($"Initial guess:");
+                Console.WriteLine($"  Constant control: {string.Join(", ", constantControl.Select(c => c.ToString("F6", System.Globalization.CultureInfo.InvariantCulture)))}");
+
+                // Check first 10 points
+                Console.WriteLine($"  First 10 states: {string.Join(", ", Enumerable.Range(0, Math.Min(10, transcription.TotalPoints)).Select(i => transcription.GetState(z0, i)[0].ToString("F6", System.Globalization.CultureInfo.InvariantCulture)))}");
+                Console.WriteLine($"  First 10 controls: {string.Join(", ", Enumerable.Range(0, Math.Min(10, transcription.TotalPoints)).Select(i => transcription.GetControl(z0, i)[0].ToString("F6", System.Globalization.CultureInfo.InvariantCulture)))}");
+
+                // Compute defects at initial guess
+                var initialDefects = transcription.ComputeAllDefects(z0, DynamicsValue);
+                var maxInitialDefect = initialDefects.Length > 0 ? initialDefects.Max(d => Math.Abs(d)) : 0.0;
+                Console.WriteLine($"  Max defect at initial guess: {maxInitialDefect:E6}");
+
+                // Compute cost at initial guess
+                var initialCost = 0.0;
+                if (problem.RunningCost != null)
+                {
+                    initialCost += transcription.ComputeRunningCost(z0, (x, u, t) => problem.RunningCost(x, u, t).value);
+                }
+                if (problem.TerminalCost != null)
+                {
+                    initialCost += transcription.ComputeTerminalCost(z0, (x, t) => problem.TerminalCost(x, t).value);
+                }
+                Console.WriteLine($"  Cost at initial guess: {initialCost:E6} (should be ~0.2)");
+            }
+
+            // Check if dynamics provides analytical gradients
+            var hasAnalyticalDynamicsGradients = false;
+            try
+            {
+                var testX = new double[problem.StateDim];
+                var testU = new double[problem.ControlDim];
+                var testResult = problem.Dynamics(testX, testU, 0.0);
+
+                if (testResult.gradients != null && testResult.gradients.Length >= 2)
+                {
+                    var gradWrtState = testResult.gradients[0];
+                    var gradWrtControl = testResult.gradients[1];
+                    var expectedStateGradSize = problem.StateDim * problem.StateDim;
+                    var expectedControlGradSize = problem.StateDim * problem.ControlDim;
+
+                    hasAnalyticalDynamicsGradients =
+                        gradWrtState != null && gradWrtState.Length == expectedStateGradSize &&
+                        gradWrtControl != null && gradWrtControl.Length == expectedControlGradSize;
+                }
+            }
+            catch
+            {
+                // If evaluation fails, fall back to numerical gradients
+            }
+
+            if (_verbose && hasAnalyticalDynamicsGradients)
+            {
+                Console.WriteLine("Dynamics provides analytical gradients");
             }
 
             // Check if we can use analytical gradients for costs
@@ -310,29 +366,73 @@ namespace Optimal.Control
                 return (cost, gradient);
             };
 
+            // Get LGL differentiation matrix for analytical gradients
+            var lglDiffMatrix = LegendreGaussLobatto.GetDifferentiationMatrix(_order);
+
+            var analyticalDefectCount = 0;
+            var numericalDefectFallbackCount = 0;
+
             // Create defect constraint functions (one for each defect component)
             Func<int, Func<double[], (double, double[])>> DefectConstraint = defectIndex => z =>
             {
                 var allDefects = transcription.ComputeAllDefects(z, DynamicsValue);
 
-                // Compute gradient numerically
-                var gradient = NumericalGradients.ComputeConstraintGradient(zz =>
+                double[] gradient;
+
+                // Try to use analytical gradients if dynamics provides them
+                if (hasAnalyticalDynamicsGradients)
                 {
-                    var defects = transcription.ComputeAllDefects(zz, DynamicsValue);
-                    return defects[defectIndex];
-                }, z);
+                    try
+                    {
+                        // Map flat defectIndex to (segmentIndex, interiorPointIndex, stateComponentIndex)
+                        var numInteriorPointsPerSegment = _order - 2;
+                        var defectsPerSegment = numInteriorPointsPerSegment * problem.StateDim;
+
+                        var segmentIndex = defectIndex / defectsPerSegment;
+                        var remainder = defectIndex % defectsPerSegment;
+                        var interiorPointIndex = 1 + (remainder / problem.StateDim); // +1 because interior points start at index 1
+                        var stateComponentIndex = remainder % problem.StateDim;
+
+                        gradient = AutoDiffLGLGradientHelper.ComputeDefectGradient(
+                            problem, grid, z, _order, lglDiffMatrix,
+                            transcription.GetState, transcription.GetControl,
+                            segmentIndex, interiorPointIndex, stateComponentIndex,
+                            (x, u, t) =>
+                            {
+                                var res = problem.Dynamics!(x, u, t);
+                                return (res.value, res.gradients);
+                            });
+                        analyticalDefectCount++;
+                    }
+                    catch
+                    {
+                        // Fall back to numerical if AutoDiff fails
+                        gradient = NumericalGradients.ComputeConstraintGradient(zz =>
+                        {
+                            var defects = transcription.ComputeAllDefects(zz, DynamicsValue);
+                            return defects[defectIndex];
+                        }, z);
+                        numericalDefectFallbackCount++;
+                    }
+                }
+                else
+                {
+                    // Compute gradient numerically
+                    gradient = NumericalGradients.ComputeConstraintGradient(zz =>
+                    {
+                        var defects = transcription.ComputeAllDefects(zz, DynamicsValue);
+                        return defects[defectIndex];
+                    }, z);
+                    numericalDefectFallbackCount++;
+                }
 
                 return (allDefects[defectIndex], gradient);
             };
 
             // Set up constrained optimizer
-            // Use stricter constraint tolerance for LGL (1/100 of main tolerance)
-            // This prevents premature convergence when initial guess has small defects
-            var constraintTolerance = Math.Min(_tolerance / 100.0, 1e-6);
-
             var constrainedOptimizer = new AugmentedLagrangianOptimizer()
                 .WithUnconstrainedOptimizer(_innerOptimizer ?? new LBFGSOptimizer())
-                .WithConstraintTolerance(constraintTolerance);
+                .WithConstraintTolerance(_tolerance);
 
             constrainedOptimizer
                 .WithInitialPoint(z0)
@@ -532,6 +632,7 @@ namespace Optimal.Control
                 Console.WriteLine($"  Iterations: {nlpResult.Iterations}");
                 Console.WriteLine($"  Converged: {nlpResult.Success}");
                 Console.WriteLine($"  Max defect: {maxDefect:E6}");
+                Console.WriteLine($"  Defect gradient calls: {analyticalDefectCount} analytical, {numericalDefectFallbackCount} numerical");
             }
 
             return new CollocationResult

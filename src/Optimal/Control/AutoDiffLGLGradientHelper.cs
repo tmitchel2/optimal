@@ -202,15 +202,21 @@ namespace Optimal.Control
             var offset_i = globalIdx * (problem.StateDim + problem.ControlDim);
 
             // df/dx contribution
-            for (var j = 0; j < problem.StateDim; j++)
+            if (f_grad != null && f_grad.Length >= 2 && f_grad[0] != null)
             {
-                gradient[offset_i + j] -= f_grad[0][stateComponentIndex * problem.StateDim + j];
+                for (var j = 0; j < problem.StateDim; j++)
+                {
+                    gradient[offset_i + j] -= f_grad[0][stateComponentIndex * problem.StateDim + j];
+                }
             }
 
             // df/du contribution
-            for (var j = 0; j < problem.ControlDim; j++)
+            if (f_grad != null && f_grad.Length >= 2 && f_grad[1] != null)
             {
-                gradient[offset_i + problem.StateDim + j] -= f_grad[1][stateComponentIndex * problem.ControlDim + j];
+                for (var j = 0; j < problem.ControlDim; j++)
+                {
+                    gradient[offset_i + problem.StateDim + j] -= f_grad[1][stateComponentIndex * problem.ControlDim + j];
+                }
             }
 
             return gradient;
