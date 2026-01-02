@@ -28,6 +28,7 @@ namespace Optimal.Control
         private int _maxRefinementIterations = 5;
         private double _refinementDefectThreshold = 1e-4;
         private IOptimizer? _innerOptimizer;
+        private ProgressCallback? _progressCallback;
 
         /// <summary>
         /// Sets the number of collocation segments.
@@ -115,6 +116,18 @@ namespace Optimal.Control
         public LegendreGaussLobattoSolver WithInnerOptimizer(IOptimizer optimizer)
         {
             _innerOptimizer = optimizer;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets a callback to monitor optimization progress at each iteration.
+        /// The callback receives current iteration, cost, states, controls, times, max violation, and tolerance.
+        /// </summary>
+        /// <param name="callback">Progress callback function.</param>
+        /// <returns>This solver for method chaining.</returns>
+        public LegendreGaussLobattoSolver WithProgressCallback(ProgressCallback? callback)
+        {
+            _progressCallback = callback;
             return this;
         }
 
@@ -368,6 +381,9 @@ namespace Optimal.Control
                 Console.WriteLine("Using analytical gradients from AutoDiff");
             }
 
+            // Progress callback state
+            var iterationCount = 0;
+
             // Build objective function for NLP
             Func<double[], (double value, double[] gradient)> nlpObjective = z =>
             {
@@ -440,6 +456,45 @@ namespace Optimal.Control
                         }
                         return c;
                     }, z);
+                }
+
+                // Invoke progress callback
+                if (_progressCallback != null)
+                {
+                    iterationCount++;
+                    var states = new double[transcription.TotalPoints][];
+                    var controls = new double[transcription.TotalPoints][];
+
+                    for (var i = 0; i < transcription.TotalPoints; i++)
+                    {
+                        states[i] = transcription.GetState(z, i);
+                        controls[i] = transcription.GetControl(z, i);
+                    }
+
+                    // Compute max constraint violation for defects
+                    var defects = transcription.ComputeAllDefects(z, DynamicsValue);
+                    var maxViolation = defects.Length > 0 ? defects.Max(d => Math.Abs(d)) : 0.0;
+
+                    // Get time points from grid
+                    var times = new double[transcription.TotalPoints];
+                    var pointIndex = 0;
+                    for (var k = 0; k < segments; k++)
+                    {
+                        var (lglPoints, _) = LegendreGaussLobatto.GetPointsAndWeights(_order);
+                        var h = grid.GetTimeStep(k);
+                        var tk = grid.TimePoints[k];
+
+                        for (var i = 0; i < _order; i++)
+                        {
+                            if (k > 0 && i == 0)
+                                continue; // Skip shared endpoint
+
+                            var tau = lglPoints[i];
+                            times[pointIndex++] = tk + (tau + 1.0) * h / 2.0;
+                        }
+                    }
+
+                    _progressCallback(iterationCount, cost, states, controls, times, maxViolation, _tolerance);
                 }
 
                 return (cost, gradient);

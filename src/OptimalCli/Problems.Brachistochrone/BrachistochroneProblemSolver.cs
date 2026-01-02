@@ -190,6 +190,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
                 {
                     var solver = new HermiteSimpsonSolver()
                         .WithSegments(30)
+                        // .WithOrder(3)  // Use Order 3 for stability (higher orders can have spurious local minima)
                         .WithTolerance(1e-5)
                         .WithMaxIterations(200)
                         .WithMeshRefinement(true, 5, 1e-5)
