@@ -27,6 +27,7 @@ namespace Optimal.Control.Tests
         private static readonly double[] s_controlBoundsUpper = new[] { 1.0 };
 
         [TestMethod]
+        [TestCategory("Integration")]
         public void CanSolveSimpleIntegratorMinimumEnergy()
         {
             // Problem: min ∫ u² dt

@@ -154,14 +154,14 @@ public sealed class BrachistochroneProblemSolver : ICommand
         if (options.Headless)
         {
             // Headless mode - run solver directly without visualization
-            var solver = new LegendreGaussLobattoSolver()
+            var solver = new HermiteSimpsonSolver()
                 .WithSegments(30)
-                .WithOrder(3)  // Use Order 3 for stability (higher orders can have spurious local minima)
-                .WithTolerance(1e-5)
+                // .WithOrder(3)  // Use Order 3 for stability (higher orders can have spurious local minima)
+                .WithTolerance(1e-2)
                 .WithMaxIterations(200)
                 .WithVerbose(true)
                 .WithInnerOptimizer(new LBFGSOptimizer()
-                    .WithTolerance(1e-5)
+                    .WithTolerance(1e-2)
                     .WithMaxIterations(200)
                     .WithVerbose(false));  // Reduce verbosity of inner optimizer
 
@@ -191,12 +191,12 @@ public sealed class BrachistochroneProblemSolver : ICommand
                     var solver = new HermiteSimpsonSolver()
                         .WithSegments(30)
                         // .WithOrder(3)  // Use Order 3 for stability (higher orders can have spurious local minima)
-                        .WithTolerance(1e-5)
+                        .WithTolerance(1e-2)
                         .WithMaxIterations(200)
-                        .WithMeshRefinement(true, 5, 1e-5)
+                        .WithMeshRefinement(true, 5, 1e-2)
                         .WithVerbose(true)
                         .WithInnerOptimizer(new LBFGSOptimizer()
-                            .WithTolerance(1e-5)
+                            .WithTolerance(1e-2)
                             .WithMaxIterations(200)
                             .WithVerbose(false))
                         .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>

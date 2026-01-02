@@ -281,6 +281,7 @@ namespace Optimal.Control.Tests
         }
 
         [TestMethod]
+        [TestCategory("Integration")]
         public void CanSolveDoubleIntegratorWithWarmStart()
         {
             // Solve double integrator with warm start
