@@ -153,6 +153,17 @@ namespace Optimal.Control
         /// <returns>The collocation result containing the optimal trajectory.</returns>
         public CollocationResult Solve(ControlProblem problem)
         {
+            return Solve(problem, null);
+        }
+
+        /// <summary>
+        /// Solves the optimal control problem with an optional initial guess.
+        /// </summary>
+        /// <param name="problem">The control problem to solve.</param>
+        /// <param name="initialGuess">Optional initial guess for the decision vector. If null, creates a default guess.</param>
+        /// <returns>The collocation result containing the optimal trajectory.</returns>
+        public CollocationResult Solve(ControlProblem problem, double[]? initialGuess)
+        {
             ArgumentNullException.ThrowIfNull(problem);
 
             if (problem.Dynamics == null)
@@ -162,10 +173,10 @@ namespace Optimal.Control
 
             if (_enableMeshRefinement)
             {
-                return SolveWithMeshRefinement(problem);
+                return SolveWithMeshRefinement(problem, initialGuess);
             }
 
-            return SolveOnFixedGrid(problem, _segments, null);
+            return SolveOnFixedGrid(problem, _segments, initialGuess);
         }
 
         /// <summary>
@@ -225,6 +236,16 @@ namespace Optimal.Control
                     {
                         // Estimate average control needed: (final - initial) / duration
                         constantControl[i] = (finalState[i] - initialState[i]) / duration;
+                    }
+                }
+
+                // Clamp control to bounds if provided
+                if (problem.ControlLowerBounds != null && problem.ControlUpperBounds != null)
+                {
+                    for (var i = 0; i < problem.ControlDim; i++)
+                    {
+                        constantControl[i] = Math.Max(problem.ControlLowerBounds[i],
+                                                       Math.Min(problem.ControlUpperBounds[i], constantControl[i]));
                     }
                 }
 
@@ -709,12 +730,13 @@ namespace Optimal.Control
         /// Solves the optimal control problem with adaptive mesh refinement.
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
+        /// <param name="initialGuess">Optional initial guess for the decision vector.</param>
         /// <returns>The collocation result containing the optimal trajectory.</returns>
-        private CollocationResult SolveWithMeshRefinement(ControlProblem problem)
+        private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[]? initialGuess)
         {
             var currentSegments = _segments;
             CollocationResult? result = null;
-            double[]? previousSolution = null;
+            double[]? previousSolution = initialGuess;
 
             for (var iteration = 0; iteration < _maxRefinementIterations; iteration++)
             {

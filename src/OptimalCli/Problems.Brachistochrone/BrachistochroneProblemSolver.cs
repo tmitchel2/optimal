@@ -41,113 +41,105 @@ public sealed class BrachistochroneProblemSolver : ICommand
         var yf = 5.0;    // Final y position (bottom - lower than start)
         var v0 = 1e-6;   // Initial velocity (near zero, but not exactly zero to avoid singularity)
 
-        Console.WriteLine($"Problem setup:");
+        // Time-scaling transformation for free final time optimization
+        // Transform: τ ∈ [0,1], t = T_f·τ, dt = T_f·dτ
+        // State becomes: [x, y, v, T_f] where T_f is the free final time
+        var tfGuess = 1.5; // Initial guess for final time
+
+        Console.WriteLine($"Problem setup (with time-scaling):");
         Console.WriteLine($"  Gravity: {g} m/s²");
         Console.WriteLine($"  Start: ({x0}, {y0}) m (top)");
         Console.WriteLine($"  End: ({xf}, {yf}) m (bottom)");
         Console.WriteLine($"  Initial velocity: {v0:E2} m/s (nearly at rest)");
         Console.WriteLine($"  Final velocity: free");
-        Console.WriteLine($"  Time: free (to be optimized)");
+        Console.WriteLine($"  Final time T_f: free (to be optimized, initial guess {tfGuess} s)");
+        Console.WriteLine($"  Normalized time: τ ∈ [0, 1]");
         Console.WriteLine();
 
         var problem = new ControlProblem()
-            .WithStateSize(3) // [x, y, v]
+            .WithStateSize(4) // [x, y, v, T_f]
             .WithControlSize(1) // theta (angle)
-            .WithTimeHorizon(0.0, 1.2) // Initial guess for time horizon
-            .WithInitialCondition(new[] { x0, y0, v0 }) // Start at top-left
-            .WithFinalCondition(new[] { xf, yf, double.NaN }) // End at bottom-right, free final velocity
+            .WithTimeHorizon(0.0, 1.0) // Normalized time from 0 to 1
+            .WithInitialCondition(new[] { x0, y0, v0, tfGuess }) // Start with T_f guess
+            .WithFinalCondition(new[] { xf, yf, double.NaN, double.NaN }) // Free final velocity and T_f
             .WithControlBounds(new[] { 0.0 }, new[] { Math.PI / 2.0 }) // Angle between 0 (horizontal) and π/2 (vertical down)
             .WithStateBounds(
-                new[] { 0.0, 0.0, 1e-6 },     // x free but reasonable, y >= 0, v > 0
-                new[] { 10.0, 15.0, 20.0 })    // Reasonable upper bounds
-            .WithDynamics((x, u, t) =>
+                new[] { 0.0, 0.0, 1e-6, 0.1 },     // x, y >= 0, v > 0, T_f > 0.1
+                new[] { 10.0, 15.0, 20.0, 5.0 })   // Reasonable upper bounds including T_f
+            .WithDynamics((x, u, tau) => // Note: tau is normalized time
             {
                 var xPos = x[0];
                 var y = x[1];
                 var v = x[2];
+                var Tf = x[3];  // Final time is now a state variable
                 var theta = u[0];
 
-                // Use AutoDiff-generated gradients for each state derivative
-                var (xrate, xrate_gradients) = BrachistochroneDynamicsGradients.XRateReverse(xPos, y, v, theta, g);
-                var (yrate, yrate_gradients) = BrachistochroneDynamicsGradients.YRateReverse(xPos, y, v, theta, g);
-                var (vrate, vrate_gradients) = BrachistochroneDynamicsGradients.VRateReverse(xPos, y, v, theta, g);
+                // Time-scaled dynamics: dx/dτ = T_f · (dx/dt)
+                // Original dynamics in physical time:
+                //   dx/dt = v·cos(θ), dy/dt = -v·sin(θ), dv/dt = g·sin(θ)
+                // Transformed to normalized time:
+                //   dx/dτ = T_f · v·cos(θ), dy/dτ = T_f · (-v·sin(θ)), dv/dτ = T_f · g·sin(θ)
+                //   dT_f/dτ = 0 (T_f is constant along trajectory)
 
-                var value = new[] { xrate, yrate, vrate };
+                var (xrate_physical, xrate_gradients) = BrachistochroneDynamicsGradients.XRateReverse(xPos, y, v, theta, g);
+                var (yrate_physical, yrate_gradients) = BrachistochroneDynamicsGradients.YRateReverse(xPos, y, v, theta, g);
+                var (vrate_physical, vrate_gradients) = BrachistochroneDynamicsGradients.VRateReverse(xPos, y, v, theta, g);
+
+                // Scale by T_f to transform to normalized time
+                var xrate = Tf * xrate_physical;
+                var yrate = Tf * yrate_physical;
+                var vrate = Tf * vrate_physical;
+                var Tfrate = 0.0; // T_f is constant
+
+                var value = new[] { xrate, yrate, vrate, Tfrate };
                 var gradients = new double[2][];
 
-                // Gradients w.r.t. state: [∂ẋ/∂x, ∂ẋ/∂y, ∂ẋ/∂v; ∂ẏ/∂x, ∂ẏ/∂y, ∂ẏ/∂v; ∂v̇/∂x, ∂v̇/∂y, ∂v̇/∂v]
+                // Gradients w.r.t. state: [∂(dx/dτ)/∂x, ∂(dx/dτ)/∂y, ∂(dx/dτ)/∂v, ∂(dx/dτ)/∂T_f; ...]
+                // Using chain rule: ∂(T_f·f)/∂x = T_f·(∂f/∂x), ∂(T_f·f)/∂T_f = f
                 gradients[0] = new[] {
-                    xrate_gradients[0], xrate_gradients[1], xrate_gradients[2],  // ∂ẋ/∂[x,y,v]
-                    yrate_gradients[0], yrate_gradients[1], yrate_gradients[2],  // ∂ẏ/∂[x,y,v]
-                    vrate_gradients[0], vrate_gradients[1], vrate_gradients[2]   // ∂v̇/∂[x,y,v]
+                    Tf * xrate_gradients[0], Tf * xrate_gradients[1], Tf * xrate_gradients[2], xrate_physical,  // ∂(dx/dτ)/∂[x,y,v,T_f]
+                    Tf * yrate_gradients[0], Tf * yrate_gradients[1], Tf * yrate_gradients[2], yrate_physical,  // ∂(dy/dτ)/∂[x,y,v,T_f]
+                    Tf * vrate_gradients[0], Tf * vrate_gradients[1], Tf * vrate_gradients[2], vrate_physical,  // ∂(dv/dτ)/∂[x,y,v,T_f]
+                    0.0, 0.0, 0.0, 0.0   // ∂(dT_f/dτ)/∂[x,y,v,T_f] = all zeros
                 };
 
-                // Gradients w.r.t. control: [∂ẋ/∂θ, ∂ẏ/∂θ, ∂v̇/∂θ]
+                // Gradients w.r.t. control: [∂(dx/dτ)/∂θ, ∂(dy/dτ)/∂θ, ∂(dv/dτ)/∂θ, ∂(dT_f/dτ)/∂θ]
                 gradients[1] = new[] {
-                    xrate_gradients[3],  // ∂ẋ/∂θ
-                    yrate_gradients[3],  // ∂ẏ/∂θ
-                    vrate_gradients[3]   // ∂v̇/∂θ
+                    Tf * xrate_gradients[3],  // ∂(dx/dτ)/∂θ
+                    Tf * yrate_gradients[3],  // ∂(dy/dτ)/∂θ
+                    Tf * vrate_gradients[3],  // ∂(dv/dτ)/∂θ
+                    0.0                        // ∂(dT_f/dτ)/∂θ
                 };
 
                 return (value, gradients);
             })
-            .WithRunningCost((x, u, t) =>
+            .WithRunningCost((x, u, tau) =>
             {
-                var xPos = x[0];
-                var y = x[1];
-                var v = x[2];
-                var theta = u[0];
+                var Tf = x[3];  // Cost is the final time T_f
 
-                // Use AutoDiff-generated gradients for cost
-                var (cost, costGrad) = BrachistochroneDynamicsGradients.RunningCostReverse(xPos, y, v, theta);
+                // Running cost in normalized time: L = T_f
+                // Integrating from τ=0 to τ=1 gives ∫T_f dτ = T_f·(1-0) = T_f
+                var cost = Tf;
 
-                var gradients = new double[4];
-                gradients[0] = costGrad[0];  // ∂L/∂x
-                gradients[1] = costGrad[1];  // ∂L/∂y
-                gradients[2] = costGrad[2];  // ∂L/∂v
-                gradients[3] = costGrad[3];  // ∂L/∂θ
+                var gradients = new double[6];  // [StateDim + ControlDim + 1]
+                gradients[0] = 0.0;  // ∂L/∂x
+                gradients[1] = 0.0;  // ∂L/∂y
+                gradients[2] = 0.0;  // ∂L/∂v
+                gradients[3] = 1.0;  // ∂L/∂T_f
+                gradients[4] = 0.0;  // ∂L/∂θ
+                gradients[5] = 0.0;  // ∂L/∂τ (cost doesn't depend on normalized time)
                 return (cost, gradients);
             });
 
         Console.WriteLine("Solver configuration:");
-        Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
+        Console.WriteLine("  Algorithm: Legendre-Gauss-Lobatto direct collocation");
         Console.WriteLine("  Segments: 30");
+        Console.WriteLine("  Order: 3 (for stability)");
         Console.WriteLine("  Max iterations: 200");
-        Console.WriteLine("  Inner optimizer: L-BFGS-B");
+        Console.WriteLine("  Inner optimizer: L-BFGS");
         Console.WriteLine("  Tolerance: 1e-5");
-        Console.WriteLine("  Initial guess: Physics-based with increasing velocity");
+        Console.WriteLine("  Initial guess: Physics-based with time-scaling");
         Console.WriteLine();
-
-        // Create physics-based initial guess with increasing velocity
-        var grid = new CollocationGrid(0.0, 2.0, 30);
-        var transcription = new HermiteSimpsonTranscription(problem, grid);
-        var initialGuess = new double[transcription.DecisionVectorSize];
-
-        // Generate physically realistic initial trajectory
-        for (var k = 0; k <= grid.Segments; k++)
-        {
-            var alpha = (double)k / grid.Segments;
-
-            // Linearly interpolate position
-            var x = (1.0 - alpha) * x0 + alpha * xf;
-            var y = (1.0 - alpha) * y0 + alpha * yf;
-
-            // Velocity increases based on height drop: v = sqrt(2*g*Δh)
-            var heightDrop = y0 - y;
-            var v = Math.Sqrt(2.0 * g * Math.Max(heightDrop, 0.0)) + v0;
-
-            var state = new[] { x, y, v };
-            transcription.SetState(initialGuess, k, state);
-
-            // Control: angle toward target, adjusted for descent
-            var dx = xf - x;
-            var dy = yf - y;
-            var theta = Math.Atan2(-dy, dx); // Note: -dy because y decreases when descending
-            theta = Math.Max(0.0, Math.Min(Math.PI / 2.0, theta)); // Clamp to bounds
-
-            var control = new[] { theta };
-            transcription.SetControl(initialGuess, k, control);
-        }
 
         Console.WriteLine("Solving...");
         if (!options.Headless)
@@ -162,18 +154,18 @@ public sealed class BrachistochroneProblemSolver : ICommand
         if (options.Headless)
         {
             // Headless mode - run solver directly without visualization
-            var solver = new HermiteSimpsonSolver()
+            var solver = new LegendreGaussLobattoSolver()
                 .WithSegments(30)
+                .WithOrder(3)  // Use Order 3 for stability (higher orders can have spurious local minima)
                 .WithTolerance(1e-5)
                 .WithMaxIterations(200)
-                .WithMeshRefinement(true, 5, 1e-5)
                 .WithVerbose(true)
                 .WithInnerOptimizer(new LBFGSOptimizer()
                     .WithTolerance(1e-5)
                     .WithMaxIterations(200)
-                    .WithVerbose(true));
+                    .WithVerbose(false));  // Reduce verbosity of inner optimizer
 
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem);
 
             Console.WriteLine();
             Console.WriteLine("=".PadRight(70, '='));
@@ -183,8 +175,10 @@ public sealed class BrachistochroneProblemSolver : ICommand
             Console.WriteLine($"  Message: {result.Message}");
             Console.WriteLine($"  Final position: ({result.States[^1][0]:F3}, {result.States[^1][1]:F3}) m");
             Console.WriteLine($"  Final velocity: {result.States[^1][2]:F3} m/s");
-            Console.WriteLine($"  Optimal descent time: {result.OptimalCost:F6} seconds");
+            Console.WriteLine($"  Optimal final time T_f: {result.States[^1][3]:F6} seconds");
+            Console.WriteLine($"  Objective value: {result.OptimalCost:F6} (should equal T_f)");
             Console.WriteLine($"  Iterations: {result.Iterations}");
+            Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
             Console.WriteLine();
         }
         else
@@ -218,7 +212,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
                             RadiantBrachistochroneVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
                         });
 
-                    var result = solver.Solve(problem, initialGuess);
+                    var result = solver.Solve(problem);
                     Console.WriteLine("[SOLVER] Optimization completed successfully");
                     return result;
                 }
@@ -286,8 +280,10 @@ public sealed class BrachistochroneProblemSolver : ICommand
             Console.WriteLine($"  Message: {result.Message}");
             Console.WriteLine($"  Final position: ({result.States[^1][0]:F3}, {result.States[^1][1]:F3}) m");
             Console.WriteLine($"  Final velocity: {result.States[^1][2]:F3} m/s");
-            Console.WriteLine($"  Optimal descent time: {result.OptimalCost:F6} seconds");
+            Console.WriteLine($"  Optimal final time T_f: {result.States[^1][3]:F6} seconds");
+            Console.WriteLine($"  Objective value: {result.OptimalCost:F6} (should equal T_f)");
             Console.WriteLine($"  Iterations: {result.Iterations}");
+            Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
             Console.WriteLine();
         }
     }

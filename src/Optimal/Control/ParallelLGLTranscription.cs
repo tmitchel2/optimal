@@ -395,10 +395,7 @@ namespace Optimal.Control
                 var ti = TauToPhysicalTime(_lglPoints[i], segmentIndex);
 
                 var Li = runningCostEvaluator(xi, ui, ti);
-
-                // For shared left endpoint (i=0, k>0), use half weight to avoid double-counting
-                var weight = (segmentIndex > 0 && i == 0) ? _lglWeights[i] * 0.5 : _lglWeights[i];
-                segmentCost += weight * Li;
+                segmentCost += _lglWeights[i] * Li;
             }
 
             // LGL quadrature on [-1, 1] → scale by h/2 for physical interval

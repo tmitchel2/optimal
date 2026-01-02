@@ -370,8 +370,6 @@ namespace Optimal.Control
                 var h = _grid.GetTimeStep(k);
                 var segmentCost = 0.0;
 
-                // For shared endpoints: left endpoint of segment k (except k=0) gets weight only from right
-                // Each segment contributes its quadrature independently
                 for (var i = 0; i < _order; i++)
                 {
                     var globalIdx = GetGlobalPointIndex(k, i);
@@ -380,11 +378,7 @@ namespace Optimal.Control
                     var ti = TauToPhysicalTime(_lglPoints[i], k);
 
                     var Li = runningCostEvaluator(xi, ui, ti);
-
-                    // For shared left endpoint (i=0, k>0), use half weight to avoid double-counting
-                    // since the right endpoint of segment k-1 already contributed
-                    var weight = (k > 0 && i == 0) ? _lglWeights[i] * 0.5 : _lglWeights[i];
-                    segmentCost += weight * Li;
+                    segmentCost += _lglWeights[i] * Li;
                 }
 
                 // LGL quadrature on [-1, 1] → scale by h/2 for physical interval
