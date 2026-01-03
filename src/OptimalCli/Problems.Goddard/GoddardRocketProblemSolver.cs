@@ -99,22 +99,50 @@ public sealed class GoddardRocketProblemSolver : ICommand
         Console.WriteLine();
 
         Console.WriteLine("Solving...");
-        Console.WriteLine("Opening live visualization window...");
-        Console.WriteLine("(Close window when done viewing)");
+        if (!options.Headless)
+        {
+            Console.WriteLine("Opening live visualization window...");
+            Console.WriteLine("(Close window when done viewing)");
+        }
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
-        // Run the optimizer in a background task
+        var lbfgInnerOptimizer = new LBFGSOptimizer()
+            .WithParallelLineSearch(enable: true, batchSize: 4)
+            .WithTolerance(0.0001)  // Relaxed inner tolerance
+            .WithMaxIterations(500)  // More inner iterations
+            .WithVerbose(false);
+
+        // Headless mode - run synchronously without visualization
+        if (options.Headless)
+        {
+            ISolver solver = useLGL
+                ? new LegendreGaussLobattoSolver()
+                    .WithOrder(5)
+                    .WithSegments(30)
+                    .WithTolerance(0.0001)
+                    .WithMaxIterations(150)
+                    .WithVerbose(true)
+                    .WithInnerOptimizer(lbfgInnerOptimizer)
+                : new HermiteSimpsonSolver()
+                    .WithSegments(80)  // Fine mesh for better accuracy
+                    .WithTolerance(5.0)  // Moderate tolerance
+                    .WithMaxIterations(300)
+                    .WithInitialPenalty(100.0)
+                    .WithMeshRefinement(false)
+                    .WithVerbose(true)
+                    .WithInnerOptimizer(lbfgInnerOptimizer);
+
+            var result = solver.Solve(problem, initialGuess);
+            PrintSolutionSummary(result, problemParams);
+            return;
+        }
+
+        // Run the optimizer in a background task with visualization
         var optimizationTask = Task.Run(() =>
         {
             try
             {
-                var lbfgInnerOptimizer = new LBFGSOptimizer()
-                    .WithParallelLineSearch(enable: true, batchSize: 4)
-                    .WithTolerance(0.01)  // Relaxed inner tolerance
-                    .WithMaxIterations(500)  // More inner iterations
-                    .WithVerbose(false);
-
                 ISolver solver = useLGL
                     ? new LegendreGaussLobattoSolver()
                         .WithOrder(5)
@@ -138,7 +166,8 @@ public sealed class GoddardRocketProblemSolver : ICommand
                         .WithTolerance(5.0)  // Moderate tolerance
                         .WithMaxIterations(300)
                         .WithInitialPenalty(100.0)
-                        .WithMeshRefinement(false)
+                        // .WithMeshRefinement(false)
+                        .WithMeshRefinement(true, 5, 1)
                         .WithVerbose(true)
                         .WithInnerOptimizer(lbfgInnerOptimizer)
                         .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
@@ -197,10 +226,10 @@ public sealed class GoddardRocketProblemSolver : ICommand
         }
 
         // Optimization completed - get the result
-        CollocationResult result;
+        CollocationResult vizResult;
         try
         {
-            result = optimizationTask.Result;
+            vizResult = optimizationTask.Result;
         }
         catch (AggregateException ex) when (ex.InnerException is OperationCanceledException)
         {
@@ -213,6 +242,11 @@ public sealed class GoddardRocketProblemSolver : ICommand
             return;
         }
 
+        PrintSolutionSummary(vizResult, problemParams);
+    }
+
+    private static void PrintSolutionSummary(CollocationResult result, GoddardRocketParams problemParams)
+    {
         Console.WriteLine();
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
