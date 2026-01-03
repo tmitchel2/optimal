@@ -25,8 +25,33 @@ public enum SolverType
 }
 
 /// <summary>
+/// Brachistochrone problem variant.
+/// </summary>
+public enum BrachistochroneVariant
+{
+    /// <summary>
+    /// Fixed final time formulation (simpler, for testing).
+    /// </summary>
+    FixedTime,
+
+    /// <summary>
+    /// Free final time using time-scaling transformation (classic formulation).
+    /// </summary>
+    FreeFinalTime,
+
+    /// <summary>
+    /// Free final time with running cost (alternative formulation).
+    /// </summary>
+    FreeFinalTimeRunningCost
+}
+
+/// <summary>
 /// Options for running CLI commands.
 /// </summary>
 /// <param name="Headless">Run without visualization windows.</param>
 /// <param name="Solver">Type of collocation solver to use.</param>
-public record CommandOptions(bool Headless = false, SolverType Solver = SolverType.LGL);
+/// <param name="Variant">Brachistochrone problem variant.</param>
+public record CommandOptions(
+    bool Headless = false,
+    SolverType Solver = SolverType.LGL,
+    BrachistochroneVariant Variant = BrachistochroneVariant.FreeFinalTime);

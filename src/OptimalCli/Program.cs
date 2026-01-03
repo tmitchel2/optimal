@@ -24,6 +24,7 @@ if (args.Length == 0 || args[0] == "--help" || args[0] == "-h")
 // Parse options
 var headless = false;
 var solver = SolverType.LGL;
+var variant = BrachistochroneVariant.FreeFinalTime;
 var problemName = args[0].ToLowerInvariant();
 
 for (var i = 1; i < args.Length; i++)
@@ -45,9 +46,23 @@ for (var i = 1; i < args.Length; i++)
             };
         }
     }
+    else if (args[i] == "--variant" || args[i] == "-v")
+    {
+        if (i + 1 < args.Length)
+        {
+            var variantArg = args[++i].ToLowerInvariant();
+            variant = variantArg switch
+            {
+                "fixed" or "fixed-time" => BrachistochroneVariant.FixedTime,
+                "free" or "free-time" => BrachistochroneVariant.FreeFinalTime,
+                "running" or "running-cost" => BrachistochroneVariant.FreeFinalTimeRunningCost,
+                _ => throw new ArgumentException($"Unknown variant: {variantArg}. Use 'fixed', 'free', or 'running'.")
+            };
+        }
+    }
 }
 
-var options = new CommandOptions(Headless: headless, Solver: solver);
+var options = new CommandOptions(Headless: headless, Solver: solver, Variant: variant);
 
 if (headless)
 {
@@ -99,11 +114,18 @@ static void ShowHelp()
     Console.WriteLine("Options:");
     Console.WriteLine("  --headless, -H              Run without visualization windows");
     Console.WriteLine("  --solver, -s <type>         Solver type: 'lgl' (default) or 'hermite-simpson' (or 'hs')");
+    Console.WriteLine("  --variant, -v <type>        Brachistochrone variant: 'fixed', 'free' (default), or 'running'");
+    Console.WriteLine();
+    Console.WriteLine("Brachistochrone variants:");
+    Console.WriteLine("  fixed, fixed-time           Fixed final time formulation (simpler, for testing)");
+    Console.WriteLine("  free, free-time             Free final time with time-scaling (classic formulation)");
+    Console.WriteLine("  running, running-cost       Free final time with running cost (alternative)");
     Console.WriteLine();
     Console.WriteLine("Examples:");
     Console.WriteLine("  OptimalCli brachistochrone");
+    Console.WriteLine("  OptimalCli brachistochrone -v fixed");
     Console.WriteLine("  OptimalCli cartpole --headless");
     Console.WriteLine("  OptimalCli goddard -H --solver lgl");
-    Console.WriteLine("  OptimalCli brachistochrone -s hermite-simpson");
+    Console.WriteLine("  OptimalCli brachistochrone -s hermite-simpson -v running");
     Console.WriteLine();
 }
