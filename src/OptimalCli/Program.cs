@@ -23,6 +23,7 @@ if (args.Length == 0 || args[0] == "--help" || args[0] == "-h")
 
 // Parse options
 var headless = false;
+var solver = SolverType.LGL;
 var problemName = args[0].ToLowerInvariant();
 
 for (var i = 1; i < args.Length; i++)
@@ -31,15 +32,30 @@ for (var i = 1; i < args.Length; i++)
     {
         headless = true;
     }
+    else if (args[i] == "--solver" || args[i] == "-s")
+    {
+        if (i + 1 < args.Length)
+        {
+            var solverArg = args[++i].ToLowerInvariant();
+            solver = solverArg switch
+            {
+                "lgl" => SolverType.LGL,
+                "hermite-simpson" or "hs" => SolverType.HermiteSimpson,
+                _ => throw new ArgumentException($"Unknown solver type: {solverArg}. Use 'lgl' or 'hermite-simpson'.")
+            };
+        }
+    }
 }
 
-var options = new CommandOptions(Headless: headless);
+var options = new CommandOptions(Headless: headless, Solver: solver);
 
 if (headless)
 {
     Console.WriteLine("Running in headless mode (no visualization)");
-    Console.WriteLine();
 }
+
+Console.WriteLine($"Using solver: {options.Solver}");
+Console.WriteLine();
 
 // Create command registry
 var commands = new Dictionary<string, ICommand>
@@ -81,11 +97,13 @@ static void ShowHelp()
     Console.WriteLine("  goddard          - Goddard rocket maximum altitude with drag and fuel constraints");
     Console.WriteLine();
     Console.WriteLine("Options:");
-    Console.WriteLine("  --headless, -H   Run without visualization windows");
+    Console.WriteLine("  --headless, -H              Run without visualization windows");
+    Console.WriteLine("  --solver, -s <type>         Solver type: 'lgl' (default) or 'hermite-simpson' (or 'hs')");
     Console.WriteLine();
     Console.WriteLine("Examples:");
     Console.WriteLine("  OptimalCli brachistochrone");
     Console.WriteLine("  OptimalCli cartpole --headless");
-    Console.WriteLine("  OptimalCli goddard -H");
+    Console.WriteLine("  OptimalCli goddard -H --solver lgl");
+    Console.WriteLine("  OptimalCli brachistochrone -s hermite-simpson");
     Console.WriteLine();
 }

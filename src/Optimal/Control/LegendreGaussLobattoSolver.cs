@@ -16,7 +16,7 @@ namespace Optimal.Control
     /// Solves optimal control problems using Legendre-Gauss-Lobatto (LGL) collocation.
     /// Provides high-order accurate solutions with configurable collocation order.
     /// </summary>
-    public sealed class LegendreGaussLobattoSolver
+    public sealed class LegendreGaussLobattoSolver : ISolver
     {
         private int _segments = 20;
         private int _order = 4;
@@ -29,6 +29,28 @@ namespace Optimal.Control
         private double _refinementDefectThreshold = 1e-4;
         private IOptimizer? _innerOptimizer;
         private ProgressCallback? _progressCallback;
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithSegments(int segments) => WithSegments(segments);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithTolerance(double tolerance) => WithTolerance(tolerance);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithMaxIterations(int maxIterations) => WithMaxIterations(maxIterations);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithVerbose(bool verbose) => WithVerbose(verbose);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithInnerOptimizer(IOptimizer optimizer) => WithInnerOptimizer(optimizer);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithMeshRefinement(bool enable, int maxRefinementIterations, double defectThreshold) =>
+            WithMeshRefinement(enable, maxRefinementIterations, defectThreshold);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithProgressCallback(ProgressCallback? callback) => WithProgressCallback(callback);
 
         /// <summary>
         /// Sets the number of collocation segments.

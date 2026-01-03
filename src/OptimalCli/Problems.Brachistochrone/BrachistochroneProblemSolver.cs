@@ -44,7 +44,9 @@ public sealed class BrachistochroneProblemSolver : ICommand
         // Time-scaling transformation for free final time optimization
         // Transform: τ ∈ [0,1], t = T_f·τ, dt = T_f·dτ
         // State becomes: [x, y, v, T_f] where T_f is the free final time
-        var tfGuess = 1.5; // Initial guess for final time
+        // Expected time estimate: for cycloid, T ≈ π√(R/g) where R depends on geometry
+        // For Δy=5m, Δx=10m, rough estimate: T ≈ 1.5-2.0s
+        var tfGuess = 1.9; // Initial guess for final time (closer to ~1.92 seen in solver)
 
         Console.WriteLine($"Problem setup (with time-scaling):");
         Console.WriteLine($"  Gravity: {g} m/s²");
@@ -113,31 +115,29 @@ public sealed class BrachistochroneProblemSolver : ICommand
 
                 return (value, gradients);
             })
-            .WithRunningCost((x, u, tau) =>
+            // Use terminal cost instead of running cost for better conditioning
+            // Terminal cost: Φ(x_f) = T_f directly (no integration needed)
+            .WithTerminalCost((x, tau) =>
             {
                 var Tf = x[3];  // Cost is the final time T_f
-
-                // Running cost in normalized time: L = T_f
-                // Integrating from τ=0 to τ=1 gives ∫T_f dτ = T_f·(1-0) = T_f
                 var cost = Tf;
 
-                var gradients = new double[6];  // [StateDim + ControlDim + 1]
-                gradients[0] = 0.0;  // ∂L/∂x
-                gradients[1] = 0.0;  // ∂L/∂y
-                gradients[2] = 0.0;  // ∂L/∂v
-                gradients[3] = 1.0;  // ∂L/∂T_f
-                gradients[4] = 0.0;  // ∂L/∂θ
-                gradients[5] = 0.0;  // ∂L/∂τ (cost doesn't depend on normalized time)
+                var gradients = new double[5];  // [StateDim + 1]
+                gradients[0] = 0.0;  // ∂Φ/∂x
+                gradients[1] = 0.0;  // ∂Φ/∂y
+                gradients[2] = 0.0;  // ∂Φ/∂v
+                gradients[3] = 1.0;  // ∂Φ/∂T_f
+                gradients[4] = 0.0;  // ∂Φ/∂τ
                 return (cost, gradients);
             });
 
         Console.WriteLine("Solver configuration:");
-        Console.WriteLine("  Algorithm: Legendre-Gauss-Lobatto direct collocation");
-        Console.WriteLine("  Segments: 30");
-        Console.WriteLine("  Order: 3 (for stability)");
-        Console.WriteLine("  Max iterations: 200");
+        Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");
+        Console.WriteLine("  Segments: 20");
+        Console.WriteLine("  Order: 5 (LGL only)");
+        Console.WriteLine("  Max iterations: 100");
         Console.WriteLine("  Inner optimizer: L-BFGS");
-        Console.WriteLine("  Tolerance: 1e-5");
+        Console.WriteLine("  Tolerance: 1e-2");
         Console.WriteLine("  Initial guess: Physics-based with time-scaling");
         Console.WriteLine();
 
@@ -150,142 +150,138 @@ public sealed class BrachistochroneProblemSolver : ICommand
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
+        // Create solver based on options (single instantiation point)
+        var innerOptimizer = new LBFGSOptimizer()
+            .WithTolerance(1e-4)
+            .WithMaxIterations(250)
+            .WithVerbose(false);
+
+        ISolver solver = options.Solver == SolverType.LGL
+            ? new LegendreGaussLobattoSolver()
+                .WithOrder(3)
+                .WithSegments(30)
+                .WithTolerance(1e-2)
+                .WithMaxIterations(200)
+                .WithMeshRefinement(true, 5, 1e-2)
+                .WithVerbose(true)
+                .WithInnerOptimizer(innerOptimizer)
+            : new HermiteSimpsonSolver()
+                .WithSegments(30)  // More segments needed for HS to converge
+                .WithTolerance(1e-2)  // Relaxed tolerance for HS
+                .WithMaxIterations(200)
+                .WithMeshRefinement(true, 5, 1e-2)
+                .WithVerbose(true)
+                .WithInnerOptimizer(innerOptimizer);
+
         // Run the optimizer
         if (options.Headless)
         {
             // Headless mode - run solver directly without visualization
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(30)
-                // .WithOrder(3)  // Use Order 3 for stability (higher orders can have spurious local minima)
-                .WithTolerance(1e-2)
-                .WithMaxIterations(200)
-                .WithVerbose(true)
-                .WithInnerOptimizer(new LBFGSOptimizer()
-                    .WithTolerance(1e-2)
-                    .WithMaxIterations(200)
-                    .WithVerbose(false));  // Reduce verbosity of inner optimizer
-
-            var result = solver.Solve(problem);
-
-            Console.WriteLine();
-            Console.WriteLine("=".PadRight(70, '='));
-            Console.WriteLine();
-            Console.WriteLine("SOLUTION SUMMARY:");
-            Console.WriteLine($"  Success: {result.Success}");
-            Console.WriteLine($"  Message: {result.Message}");
-            Console.WriteLine($"  Final position: ({result.States[^1][0]:F3}, {result.States[^1][1]:F3}) m");
-            Console.WriteLine($"  Final velocity: {result.States[^1][2]:F3} m/s");
-            Console.WriteLine($"  Optimal final time T_f: {result.States[^1][3]:F6} seconds");
-            Console.WriteLine($"  Objective value: {result.OptimalCost:F6} (should equal T_f)");
-            Console.WriteLine($"  Iterations: {result.Iterations}");
-            Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
-            Console.WriteLine();
+            var headlessResult = solver.Solve(problem);
+            PrintSolutionSummary(headlessResult);
+            return;
         }
-        else
+
+        var optimizationTask = Task.Run(() =>
         {
-            // Interactive mode with visualization
-            var optimizationTask = Task.Run(() =>
-            {
-                try
-                {
-                    var solver = new HermiteSimpsonSolver()
-                        .WithSegments(30)
-                        // .WithOrder(3)  // Use Order 3 for stability (higher orders can have spurious local minima)
-                        .WithTolerance(1e-2)
-                        .WithMaxIterations(200)
-                        .WithMeshRefinement(true, 5, 1e-2)
-                        .WithVerbose(true)
-                        .WithInnerOptimizer(new LBFGSOptimizer()
-                            .WithTolerance(1e-2)
-                            .WithMaxIterations(200)
-                            .WithVerbose(false))
-                        .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
-                        {
-                            // Check if visualization was closed
-                            var token = RadiantBrachistochroneVisualizer.CancellationToken;
-                            if (token.IsCancellationRequested)
-                            {
-                                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, stopping optimization...");
-                                throw new OperationCanceledException(token);
-                            }
-
-                            // Update the live visualization with the current trajectory
-                            RadiantBrachistochroneVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
-                        });
-
-                    var result = solver.Solve(problem);
-                    Console.WriteLine("[SOLVER] Optimization completed successfully");
-                    return result;
-                }
-                catch (OperationCanceledException)
-                {
-                    Console.WriteLine("[SOLVER] Optimization cancelled");
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[SOLVER] Exception during solve: {ex.GetType().Name}: {ex.Message}");
-                    throw;
-                }
-            }, RadiantBrachistochroneVisualizer.CancellationToken);
-
-            // Run the visualization window on the main thread (blocks until window closed)
-            RadiantBrachistochroneVisualizer.RunVisualizationWindow();
-
-            // Check if optimization is still running after window closed
-            if (!optimizationTask.IsCompleted)
-            {
-                Console.WriteLine();
-                Console.WriteLine("Window closed - waiting for optimization to stop...");
-
-                if (optimizationTask.Wait(TimeSpan.FromSeconds(5)))
-                {
-                    Console.WriteLine("Optimization stopped gracefully");
-                }
-                else
-                {
-                    Console.WriteLine("Optimization did not stop - returning to console");
-                    Console.WriteLine("(The background optimization will continue but results will be discarded)");
-                }
-
-                Console.WriteLine();
-                Console.WriteLine("=".PadRight(70, '='));
-                Console.WriteLine();
-                Console.WriteLine("OPTIMIZATION CANCELLED");
-                Console.WriteLine("  Window was closed before optimization completed");
-                Console.WriteLine();
-                return;
-            }
-
-            // Optimization completed - get the result
-            CollocationResult result;
             try
             {
-                result = optimizationTask.Result;
+                var result = solver
+                    .WithProgressCallback(CreateProgressCallback())
+                    .Solve(problem);
+                Console.WriteLine("[SOLVER] Optimization completed successfully");
+                return result;
             }
-            catch (AggregateException ex) when (ex.InnerException is OperationCanceledException)
+            catch (OperationCanceledException)
             {
-                Console.WriteLine();
-                Console.WriteLine("=".PadRight(70, '='));
-                Console.WriteLine();
-                Console.WriteLine("OPTIMIZATION CANCELLED");
-                Console.WriteLine();
-                return;
+                Console.WriteLine("[SOLVER] Optimization cancelled");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SOLVER] Exception during solve: {ex.GetType().Name}: {ex.Message}");
+                throw;
+            }
+        }, RadiantBrachistochroneVisualizer.CancellationToken);
+
+        // Run the visualization window on the main thread (blocks until window closed)
+        RadiantBrachistochroneVisualizer.RunVisualizationWindow();
+
+        // Check if optimization is still running after window closed
+        if (!optimizationTask.IsCompleted)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Window closed - waiting for optimization to stop...");
+
+            if (optimizationTask.Wait(TimeSpan.FromSeconds(5)))
+            {
+                Console.WriteLine("Optimization stopped gracefully");
+            }
+            else
+            {
+                Console.WriteLine("Optimization did not stop - returning to console");
+                Console.WriteLine("(The background optimization will continue but results will be discarded)");
             }
 
             Console.WriteLine();
             Console.WriteLine("=".PadRight(70, '='));
             Console.WriteLine();
-            Console.WriteLine("SOLUTION SUMMARY:");
-            Console.WriteLine($"  Success: {result.Success}");
-            Console.WriteLine($"  Message: {result.Message}");
-            Console.WriteLine($"  Final position: ({result.States[^1][0]:F3}, {result.States[^1][1]:F3}) m");
-            Console.WriteLine($"  Final velocity: {result.States[^1][2]:F3} m/s");
-            Console.WriteLine($"  Optimal final time T_f: {result.States[^1][3]:F6} seconds");
-            Console.WriteLine($"  Objective value: {result.OptimalCost:F6} (should equal T_f)");
-            Console.WriteLine($"  Iterations: {result.Iterations}");
-            Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
+            Console.WriteLine("OPTIMIZATION CANCELLED");
+            Console.WriteLine("  Window was closed before optimization completed");
             Console.WriteLine();
+            return;
         }
+
+        // Optimization completed - get the result
+        CollocationResult result;
+        try
+        {
+            result = optimizationTask.Result;
+        }
+        catch (AggregateException ex) when (ex.InnerException is OperationCanceledException)
+        {
+            Console.WriteLine();
+            Console.WriteLine("=".PadRight(70, '='));
+            Console.WriteLine();
+            Console.WriteLine("OPTIMIZATION CANCELLED");
+            Console.WriteLine();
+            return;
+        }
+
+        PrintSolutionSummary(result);
+    }
+
+    private static ProgressCallback CreateProgressCallback()
+    {
+        return (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+        {
+            // Check if visualization was closed
+            var token = RadiantBrachistochroneVisualizer.CancellationToken;
+            if (token.IsCancellationRequested)
+            {
+                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, stopping optimization...");
+                throw new OperationCanceledException(token);
+            }
+
+            // Update the live visualization with the current trajectory
+            RadiantBrachistochroneVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+        };
+    }
+
+    private static void PrintSolutionSummary(CollocationResult result)
+    {
+        Console.WriteLine();
+        Console.WriteLine("=".PadRight(70, '='));
+        Console.WriteLine();
+        Console.WriteLine("SOLUTION SUMMARY:");
+        Console.WriteLine($"  Success: {result.Success}");
+        Console.WriteLine($"  Message: {result.Message}");
+        Console.WriteLine($"  Final position: ({result.States[^1][0]:F3}, {result.States[^1][1]:F3}) m");
+        Console.WriteLine($"  Final velocity: {result.States[^1][2]:F3} m/s");
+        Console.WriteLine($"  Optimal final time T_f: {result.States[^1][3]:F6} seconds");
+        Console.WriteLine($"  Objective value: {result.OptimalCost:F6} (should equal T_f)");
+        Console.WriteLine($"  Iterations: {result.Iterations}");
+        Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
+        Console.WriteLine();
     }
 }
