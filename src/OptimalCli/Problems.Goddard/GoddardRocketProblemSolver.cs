@@ -62,7 +62,7 @@ public sealed class GoddardRocketProblemSolver : ICommand
         // Create initial guess using physics-based simulation
         Console.WriteLine("Creating initial guess using physics-based simulation...");
         const int lglSegments = 30;
-        const int hsSegments = 50;
+        const int hsSegments = 80;  // Much finer mesh
         const int lglOrder = 5;
         var segments = useLGL ? lglSegments : hsSegments;
         var grid = new CollocationGrid(0.0, problem.FinalTime, segments);
@@ -111,8 +111,8 @@ public sealed class GoddardRocketProblemSolver : ICommand
             {
                 var lbfgInnerOptimizer = new LBFGSOptimizer()
                     .WithParallelLineSearch(enable: true, batchSize: 4)
-                    .WithTolerance(0.0001)
-                    .WithMaxIterations(150)
+                    .WithTolerance(0.01)  // Relaxed inner tolerance
+                    .WithMaxIterations(500)  // More inner iterations
                     .WithVerbose(false);
 
                 ISolver solver = useLGL
@@ -134,11 +134,11 @@ public sealed class GoddardRocketProblemSolver : ICommand
                             RadiantGoddardRocketVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, problemParams.H0);
                         })
                     : new HermiteSimpsonSolver()
-                        .WithSegments(50)  // More segments for finer resolution
-                        .WithTolerance(1.0)  // Relaxed tolerance (1 m defect acceptable)
-                        .WithMaxIterations(200)
-                        .WithInitialPenalty(1000.0)  // Higher penalty for faster constraint enforcement
-                        .WithMeshRefinement(false)  // Disable mesh refinement for now
+                        .WithSegments(80)  // Fine mesh for better accuracy
+                        .WithTolerance(5.0)  // Moderate tolerance
+                        .WithMaxIterations(300)
+                        .WithInitialPenalty(100.0)
+                        .WithMeshRefinement(false)
                         .WithVerbose(true)
                         .WithInnerOptimizer(lbfgInnerOptimizer)
                         .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>

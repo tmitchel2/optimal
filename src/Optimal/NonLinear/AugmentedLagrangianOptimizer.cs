@@ -311,7 +311,11 @@ namespace Optimal.NonLinear
                     // Some progress - increase penalty conservatively
                     mu = Math.Min(mu * Math.Sqrt(_penaltyIncrease), _maxPenaltyParameter);
                 }
-                // else: no progress or at max penalty - don't increase
+                else if (mu < _maxPenaltyParameter)
+                {
+                    // No progress - still increase penalty slowly to avoid getting stuck
+                    mu = Math.Min(mu * 1.5, _maxPenaltyParameter);
+                }
                 
                 prevMaxViolation = maxViolation;
             }

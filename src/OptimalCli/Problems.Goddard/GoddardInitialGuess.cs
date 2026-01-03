@@ -74,10 +74,10 @@ public static class GoddardInitialGuess
         {
             var targetTime = timePoints[k];
 
-            // Integrate forward to this time point
-            while (currentTime < targetTime - 1e-10)
+            // Integrate forward to this time point using very fine steps
+            while (currentTime < targetTime - 1e-12)
             {
-                var dt = Math.Min(0.1, targetTime - currentTime); // Use small steps for accuracy
+                var dt = Math.Min(0.01, targetTime - currentTime); // Use very small steps for accuracy
                 var thrust = ComputeHeuristicThrust(h, v, m, currentTime, parameters, finalTime);
                 (h, v, m) = IntegrateRK4(h, v, m, thrust, dt, parameters);
 
@@ -118,8 +118,8 @@ public static class GoddardInitialGuess
 
     /// <summary>
     /// Computes a heuristic thrust value based on current state and time.
-    /// Uses a smooth thrust profile that transitions from max thrust to zero,
-    /// which is more compatible with collocation methods.
+    /// Uses max thrust until near burnout, then tapers smoothly to avoid
+    /// discontinuities that create large collocation defects.
     /// </summary>
     private static double ComputeHeuristicThrust(
         double h, double v, double m, double t, GoddardParameters p, double tf)
@@ -133,30 +133,19 @@ public static class GoddardInitialGuess
             return 0.0;
         }
 
-        // Compute how much fuel we can burn with max thrust
-        var totalFuel = p.M0 - p.Mf;
-        var burnTime = totalFuel / Fm; // Time to burn all fuel at max thrust
+        // Compute burn time remaining at max thrust
+        var burnTimeRemaining = fuelRemaining / Fm;
 
-        // Use a smooth profile: full thrust until about 80% of burn time,
-        // then smoothly ramp down to zero
-        var burnFraction = t / burnTime;
-
-        if (burnFraction < 0.7)
+        // If more than 1 second of burn time remains, use max thrust
+        if (burnTimeRemaining > 1.0)
         {
-            // Full thrust phase
             return Fm;
         }
-        else if (burnFraction < 1.0)
-        {
-            // Smooth transition using cosine taper
-            var taper = 0.5 * (1.0 + Math.Cos(Math.PI * (burnFraction - 0.7) / 0.3));
-            return Fm * taper;
-        }
-        else
-        {
-            // Coast phase
-            return 0.0;
-        }
+
+        // Smooth taper over the last 1 second of burn
+        // This reduces control discontinuity at burnout
+        var taper = burnTimeRemaining; // Linear taper from 1.0 to 0.0
+        return Fm * taper;
     }
 
     /// <summary>
