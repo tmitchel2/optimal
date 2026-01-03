@@ -14,14 +14,14 @@ namespace OptimalCli;
 public enum SolverType
 {
     /// <summary>
-    /// Legendre-Gauss-Lobatto collocation (recommended for most problems).
+    /// Hermite-Simpson collocation (recommended, more robust).
     /// </summary>
-    LGL,
+    HS,
 
     /// <summary>
-    /// Hermite-Simpson collocation.
+    /// Legendre-Gauss-Lobatto collocation (higher order accuracy).
     /// </summary>
-    HermiteSimpson
+    LGL
 }
 
 /// <summary>
@@ -53,5 +53,5 @@ public enum BrachistochroneVariant
 /// <param name="Variant">Brachistochrone problem variant.</param>
 public record CommandOptions(
     bool Headless = false,
-    SolverType Solver = SolverType.LGL,
+    SolverType Solver = SolverType.HS,
     BrachistochroneVariant Variant = BrachistochroneVariant.FreeFinalTime);

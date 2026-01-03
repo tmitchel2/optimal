@@ -23,7 +23,7 @@ if (args.Length == 0 || args[0] == "--help" || args[0] == "-h")
 
 // Parse options
 var headless = false;
-var solver = SolverType.LGL;
+var solver = SolverType.HS;
 var variant = BrachistochroneVariant.FreeFinalTime;
 var problemName = args[0].ToLowerInvariant();
 
@@ -40,9 +40,9 @@ for (var i = 1; i < args.Length; i++)
             var solverArg = args[++i].ToLowerInvariant();
             solver = solverArg switch
             {
+                "hs" or "hermite-simpson" => SolverType.HS,
                 "lgl" => SolverType.LGL,
-                "hermite-simpson" or "hs" => SolverType.HermiteSimpson,
-                _ => throw new ArgumentException($"Unknown solver type: {solverArg}. Use 'lgl' or 'hermite-simpson'.")
+                _ => throw new ArgumentException($"Unknown solver type: {solverArg}. Use 'hs' or 'lgl'.")
             };
         }
     }
@@ -113,8 +113,12 @@ static void ShowHelp()
     Console.WriteLine();
     Console.WriteLine("Options:");
     Console.WriteLine("  --headless, -H              Run without visualization windows");
-    Console.WriteLine("  --solver, -s <type>         Solver type: 'lgl' (default) or 'hermite-simpson' (or 'hs')");
+    Console.WriteLine("  --solver, -s <type>         Solver type: 'hs' (default) or 'lgl'");
     Console.WriteLine("  --variant, -v <type>        Brachistochrone variant: 'fixed', 'free' (default), or 'running'");
+    Console.WriteLine();
+    Console.WriteLine("Solvers:");
+    Console.WriteLine("  hs                          Hermite-Simpson collocation (default, more robust)");
+    Console.WriteLine("  lgl                         Legendre-Gauss-Lobatto collocation (higher order accuracy)");
     Console.WriteLine();
     Console.WriteLine("Brachistochrone variants:");
     Console.WriteLine("  fixed, fixed-time           Fixed final time formulation (simpler, for testing)");
@@ -126,6 +130,6 @@ static void ShowHelp()
     Console.WriteLine("  OptimalCli brachistochrone -v fixed");
     Console.WriteLine("  OptimalCli cartpole --headless");
     Console.WriteLine("  OptimalCli goddard -H --solver lgl");
-    Console.WriteLine("  OptimalCli brachistochrone -s hermite-simpson -v running");
+    Console.WriteLine("  OptimalCli brachistochrone -s lgl -v running");
     Console.WriteLine();
 }

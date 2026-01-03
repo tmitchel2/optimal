@@ -87,7 +87,7 @@ public sealed class PendulumSwingUpProblemSolver : ICommand
             });
 
         Console.WriteLine("Solver configuration:");
-        Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
+        Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");
         Console.WriteLine("  Segments: 25");
         Console.WriteLine("  Max iterations: 150");
         Console.WriteLine("  Inner optimizer: L-BFGS-B");
@@ -99,34 +99,53 @@ public sealed class PendulumSwingUpProblemSolver : ICommand
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
+        var useLGL = options.Solver == SolverType.LGL;
+
         // Run the optimizer in a background task
         var optimizationTask = Task.Run(() =>
         {
             try
             {
-                var solver = new HermiteSimpsonSolver()
-                    .WithSegments(25) // More segments for complex trajectory
-                    .WithTolerance(1e-5) // Slightly relaxed for this difficult problem
-                    .WithMaxIterations(150) // More iterations for convergence
-                    .WithMeshRefinement(true, 5, 1e-5)
-                    .WithVerbose(true)  // Enable verbose output
-                    .WithInnerOptimizer(new LBFGSOptimizer()
-                        .WithTolerance(1e-5)
-                        .WithMaxIterations(150)  // Reduced from 100 to make cancellation more responsive
-                        .WithVerbose(false))
-                    .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
-                    {
-                        // Check if visualization was closed
-                        var token = RadiantPendulumVisualizer.CancellationToken;
-                        if (token.IsCancellationRequested)
-                        {
-                            Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
-                            throw new OperationCanceledException(token);
-                        }
+                var innerOptimizer = new LBFGSOptimizer()
+                    .WithTolerance(1e-5)
+                    .WithMaxIterations(150)
+                    .WithVerbose(false);
 
-                        // Update the live visualization with the current trajectory
-                        RadiantPendulumVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
-                    });
+                ISolver solver = useLGL
+                    ? new LegendreGaussLobattoSolver()
+                        .WithOrder(5)
+                        .WithSegments(25)
+                        .WithTolerance(1e-5)
+                        .WithMaxIterations(150)
+                        .WithVerbose(true)
+                        .WithInnerOptimizer(innerOptimizer)
+                        .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+                        {
+                            var token = RadiantPendulumVisualizer.CancellationToken;
+                            if (token.IsCancellationRequested)
+                            {
+                                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
+                                throw new OperationCanceledException(token);
+                            }
+                            RadiantPendulumVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+                        })
+                    : new HermiteSimpsonSolver()
+                        .WithSegments(25)
+                        .WithTolerance(1e-5)
+                        .WithMaxIterations(150)
+                        .WithMeshRefinement(true, 5, 1e-5)
+                        .WithVerbose(true)
+                        .WithInnerOptimizer(innerOptimizer)
+                        .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+                        {
+                            var token = RadiantPendulumVisualizer.CancellationToken;
+                            if (token.IsCancellationRequested)
+                            {
+                                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
+                                throw new OperationCanceledException(token);
+                            }
+                            RadiantPendulumVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+                        });
 
                 var result = solver.Solve(problem);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");

@@ -149,13 +149,15 @@ public sealed class GoddardRocketProblemSolver : ICommand
             });
 
         Console.WriteLine("Solver configuration:");
-        Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
+        Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");
         Console.WriteLine("  Segments: 30");
         Console.WriteLine("  Max iterations: 200");
         Console.WriteLine("  Inner optimizer: L-BFGS-B with parallel line search");
         Console.WriteLine("  Parallel line search: 4 candidates per batch");
         Console.WriteLine("  Tolerance: 1e-3");
         Console.WriteLine();
+
+        var useLGL = options.Solver == SolverType.LGL;
 
         // Create bespoke initial guess
         Console.WriteLine("Creating initial guess...");
@@ -244,33 +246,41 @@ public sealed class GoddardRocketProblemSolver : ICommand
                     .WithMaxIterations(150)
                     .WithVerbose(false);
 
-                // var gdInnerOptimizer = new GradientDescentOptimizer()
-                //     .WithTolerance(1e-1)
-                //     .WithMaxIterations(150)
-                //     .WithVerbose(false);
-
-                var solver = new HermiteSimpsonSolver()
-                    .WithSegments(30)
-                    .WithTolerance(0.0001)
-                    .WithMaxIterations(150)
-                    .WithMeshRefinement(true, 5, 0.0001)
-                    .WithVerbose(true)
-                    .WithInnerOptimizer(lbfgInnerOptimizer)
-                    // .WithInnerOptimizer(gdInnerOptimizer)
-                    .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
-                    {
-                        // Check if visualization was closed
-                        var token = RadiantGoddardRocketVisualizer.CancellationToken;
-                        if (token.IsCancellationRequested)
+                ISolver solver = useLGL
+                    ? new LegendreGaussLobattoSolver()
+                        .WithOrder(5)
+                        .WithSegments(30)
+                        .WithTolerance(0.0001)
+                        .WithMaxIterations(150)
+                        .WithVerbose(true)
+                        .WithInnerOptimizer(lbfgInnerOptimizer)
+                        .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                         {
-                            Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
-                            throw new OperationCanceledException(token);
-                        }
-
-                        // Update the live visualization with the current trajectory
-                        RadiantGoddardRocketVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, h0);
-                    })
-                    ;
+                            var token = RadiantGoddardRocketVisualizer.CancellationToken;
+                            if (token.IsCancellationRequested)
+                            {
+                                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
+                                throw new OperationCanceledException(token);
+                            }
+                            RadiantGoddardRocketVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, h0);
+                        })
+                    : new HermiteSimpsonSolver()
+                        .WithSegments(30)
+                        .WithTolerance(0.0001)
+                        .WithMaxIterations(150)
+                        .WithMeshRefinement(true, 5, 0.0001)
+                        .WithVerbose(true)
+                        .WithInnerOptimizer(lbfgInnerOptimizer)
+                        .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+                        {
+                            var token = RadiantGoddardRocketVisualizer.CancellationToken;
+                            if (token.IsCancellationRequested)
+                            {
+                                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
+                                throw new OperationCanceledException(token);
+                            }
+                            RadiantGoddardRocketVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, h0);
+                        });
 
                 var result = solver.Solve(problem);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");

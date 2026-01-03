@@ -110,7 +110,7 @@ public sealed class CartPoleProblemSolver : ICommand
             });
 
         Console.WriteLine("Solver configuration:");
-        Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
+        Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");
         Console.WriteLine("  Segments: 20");
         Console.WriteLine("  Max iterations: 100");
         Console.WriteLine("  Inner optimizer: L-BFGS-B");
@@ -122,34 +122,53 @@ public sealed class CartPoleProblemSolver : ICommand
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
+        var useLGL = options.Solver == SolverType.LGL;
+
         // Run the optimizer in a background task
         var optimizationTask = Task.Run(() =>
         {
             try
             {
-                var solver = new HermiteSimpsonSolver()
-                    .WithSegments(20)  // More segments for complex 4-state problem
-                    .WithTolerance(1e-5)  // Relaxed like pendulum
-                    .WithMaxIterations(100)  // More iterations
-                    .WithMeshRefinement(true, 5, 1e-5)  // Relaxed refinement threshold
-                    .WithVerbose(true)  // Enable verbose output
-                    .WithInnerOptimizer(new LBFGSOptimizer()
-                        .WithTolerance(1e-6)
-                        .WithMaxIterations(150)  // Reduced for cancellation responsiveness
-                        .WithVerbose(true))
-                    .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
-                    {
-                        // Check if visualization was closed
-                        var token = RadiantCartPoleVisualizer.CancellationToken;
-                        if (token.IsCancellationRequested)
-                        {
-                            Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
-                            throw new OperationCanceledException(token);
-                        }
+                var innerOptimizer = new LBFGSOptimizer()
+                    .WithTolerance(1e-6)
+                    .WithMaxIterations(150)
+                    .WithVerbose(true);
 
-                        // Update the live visualization with the current trajectory
-                        RadiantCartPoleVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, L);
-                    });
+                ISolver solver = useLGL
+                    ? new LegendreGaussLobattoSolver()
+                        .WithOrder(5)
+                        .WithSegments(20)
+                        .WithTolerance(1e-5)
+                        .WithMaxIterations(100)
+                        .WithVerbose(true)
+                        .WithInnerOptimizer(innerOptimizer)
+                        .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+                        {
+                            var token = RadiantCartPoleVisualizer.CancellationToken;
+                            if (token.IsCancellationRequested)
+                            {
+                                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
+                                throw new OperationCanceledException(token);
+                            }
+                            RadiantCartPoleVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, L);
+                        })
+                    : new HermiteSimpsonSolver()
+                        .WithSegments(20)
+                        .WithTolerance(1e-5)
+                        .WithMaxIterations(100)
+                        .WithMeshRefinement(true, 5, 1e-5)
+                        .WithVerbose(true)
+                        .WithInnerOptimizer(innerOptimizer)
+                        .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+                        {
+                            var token = RadiantCartPoleVisualizer.CancellationToken;
+                            if (token.IsCancellationRequested)
+                            {
+                                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
+                                throw new OperationCanceledException(token);
+                            }
+                            RadiantCartPoleVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, L);
+                        });
 
                 var result = solver.Solve(problem);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
