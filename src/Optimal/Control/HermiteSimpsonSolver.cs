@@ -41,6 +41,7 @@ namespace Optimal.Control
         private double _refinementDefectThreshold = 1e-4;
         private bool _enableParallelization = true;
         private ProgressCallback? _progressCallback;
+        private double _initialPenalty = 1.0;
 
         /// <inheritdoc/>
         ISolver ISolver.WithSegments(int segments) => WithSegments(segments);
@@ -158,6 +159,23 @@ namespace Optimal.Control
         public HermiteSimpsonSolver WithProgressCallback(ProgressCallback? callback)
         {
             _progressCallback = callback;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the initial penalty parameter for the augmented Lagrangian optimizer.
+        /// Higher values enforce constraints more strongly from the start.
+        /// </summary>
+        /// <param name="penalty">Initial penalty parameter (default: 1.0).</param>
+        /// <returns>This solver instance for method chaining.</returns>
+        public HermiteSimpsonSolver WithInitialPenalty(double penalty)
+        {
+            if (penalty <= 0)
+            {
+                throw new ArgumentException("Penalty must be positive.", nameof(penalty));
+            }
+
+            _initialPenalty = penalty;
             return this;
         }
 
@@ -631,7 +649,8 @@ namespace Optimal.Control
             // Set up constrained optimizer
             var constrainedOptimizer = new AugmentedLagrangianOptimizer()
                 .WithUnconstrainedOptimizer(_innerOptimizer ?? new LBFGSOptimizer())
-                .WithConstraintTolerance(_tolerance);
+                .WithConstraintTolerance(_tolerance)
+                .WithPenaltyParameter(_initialPenalty);
 
             constrainedOptimizer
                 .WithInitialPoint(z0)
