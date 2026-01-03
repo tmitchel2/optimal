@@ -204,12 +204,17 @@ namespace Optimal.Control
             var x_kp1 = getState(z, k + 1);
             var u_kp1 = getControl(z, k + 1);
 
-            // Compute midpoint
+            // Evaluate dynamics at endpoints first (needed for Hermite interpolation)
+            var (f_k, grad_k) = dynamicsWithGradients(x_k, u_k, t_k);
+            var (f_kp1, grad_kp1) = dynamicsWithGradients(x_kp1, u_kp1, t_kp1);
+
+            // Compute midpoint using HERMITE interpolation (must match HermiteSimpsonTranscription)
+            // x_mid = (x_k + x_{k+1})/2 + (h/8)(f_k - f_{k+1})
             var x_mid = new double[problem.StateDim];
             var u_mid = new double[problem.ControlDim];
             for (var j = 0; j < problem.StateDim; j++)
             {
-                x_mid[j] = 0.5 * (x_k[j] + x_kp1[j]);
+                x_mid[j] = 0.5 * (x_k[j] + x_kp1[j]) + (h / 8.0) * (f_k[j] - f_kp1[j]);
             }
             for (var j = 0; j < problem.ControlDim; j++)
             {
@@ -218,10 +223,8 @@ namespace Optimal.Control
 
             var t_mid = 0.5 * (t_k + t_kp1);
 
-            // Evaluate dynamics and gradients
-            var (f_k, grad_k) = dynamicsWithGradients(x_k, u_k, t_k);
+            // Evaluate dynamics at midpoint
             var (f_mid, grad_mid) = dynamicsWithGradients(x_mid, u_mid, t_mid);
-            var (f_kp1, grad_kp1) = dynamicsWithGradients(x_kp1, u_kp1, t_kp1);
 
             // Defect for state component i:
             // c_i = x_{k+1,i} - x_{k,i} - h/6 * (f_{k,i} + 4*f_{mid,i} + f_{k+1,i})
@@ -230,18 +233,34 @@ namespace Optimal.Control
             var offset_k = k * stateControlDim;
             var offset_kp1 = (k + 1) * stateControlDim;
 
-            // ∂c_i/∂x_k = -I - h/6 * ∂f_k/∂x - h/6 * 4 * ∂f_mid/∂x * 0.5
+            // ∂c_i/∂x_k = -I - h/6 * ∂f_k/∂x
+            //           - 4h/6 * ∂f_mid/∂x_mid * (∂x_mid/∂x_k + ∂x_mid/∂f_k * ∂f_k/∂x_k)
+            // where ∂x_mid/∂x_k = 0.5*I and ∂x_mid/∂f_k = (h/8)*I
             if (grad_k != null && grad_k.Length >= 2 && grad_k[0] != null)
             {
                 var df_k_dx = grad_k[0]; // [∂f/∂x] is flattened: [∂f_0/∂x_0, ∂f_0/∂x_1, ..., ∂f_1/∂x_0, ...]
                 for (var j = 0; j < problem.StateDim; j++)
                 {
                     var df_dx_ij = df_k_dx[i * problem.StateDim + j];
+                    // Direct term: -h/6 * ∂f_k,i/∂x_k,j
                     gradient[offset_k + j] += -h / 6.0 * df_dx_ij;
+
+                    // Hermite chain term: -4h/6 * Σ_m (∂f_mid,i/∂x_mid,m) * (h/8) * (∂f_k,m/∂x_k,j)
+                    if (grad_mid != null && grad_mid[0] != null)
+                    {
+                        var df_mid_dx = grad_mid[0];
+                        for (var m = 0; m < problem.StateDim; m++)
+                        {
+                            var df_mid_dx_im = df_mid_dx[i * problem.StateDim + m];
+                            var df_k_dx_mj = df_k_dx[m * problem.StateDim + j];
+                            gradient[offset_k + j] += -4.0 * h / 6.0 * df_mid_dx_im * (h / 8.0) * df_k_dx_mj;
+                        }
+                    }
                 }
                 gradient[offset_k + i] += -1.0;
             }
 
+            // Direct x_mid contribution: ∂f_mid/∂x_mid * ∂x_mid/∂x_k = ∂f_mid/∂x_mid * 0.5
             if (grad_mid != null && grad_mid.Length >= 2 && grad_mid[0] != null)
             {
                 var df_mid_dx = grad_mid[0];
@@ -253,29 +272,62 @@ namespace Optimal.Control
                 }
             }
 
-            // ∂c_i/∂x_{k+1} = I - h/6 * ∂f_{k+1}/∂x - h/6 * 4 * ∂f_mid/∂x * 0.5
+            // ∂c_i/∂x_{k+1} = I - h/6 * ∂f_{k+1}/∂x
+            //              - 4h/6 * ∂f_mid/∂x_mid * (∂x_mid/∂x_{k+1} + ∂x_mid/∂f_{k+1} * ∂f_{k+1}/∂x_{k+1})
+            // where ∂x_mid/∂x_{k+1} = 0.5*I and ∂x_mid/∂f_{k+1} = (-h/8)*I
             if (grad_kp1 != null && grad_kp1.Length >= 2 && grad_kp1[0] != null)
             {
                 var df_kp1_dx = grad_kp1[0];
                 for (var j = 0; j < problem.StateDim; j++)
                 {
                     var df_dx_ij = df_kp1_dx[i * problem.StateDim + j];
+                    // Direct term: -h/6 * ∂f_{k+1,i}/∂x_{k+1,j}
                     gradient[offset_kp1 + j] += -h / 6.0 * df_dx_ij;
+
+                    // Hermite chain term: -4h/6 * Σ_m (∂f_mid,i/∂x_mid,m) * (-h/8) * (∂f_{k+1,m}/∂x_{k+1,j})
+                    if (grad_mid != null && grad_mid[0] != null)
+                    {
+                        var df_mid_dx = grad_mid[0];
+                        for (var m = 0; m < problem.StateDim; m++)
+                        {
+                            var df_mid_dx_im = df_mid_dx[i * problem.StateDim + m];
+                            var df_kp1_dx_mj = df_kp1_dx[m * problem.StateDim + j];
+                            gradient[offset_kp1 + j] += -4.0 * h / 6.0 * df_mid_dx_im * (-h / 8.0) * df_kp1_dx_mj;
+                        }
+                    }
                 }
                 gradient[offset_kp1 + i] += 1.0;
             }
 
-            // ∂c_i/∂u_k
+            // ∂c_i/∂u_k: direct term + Hermite chain rule term
             if (grad_k != null && grad_k.Length >= 2 && grad_k[1] != null)
             {
                 var df_k_du = grad_k[1];
                 for (var j = 0; j < problem.ControlDim; j++)
                 {
                     var df_du_ij = df_k_du[i * problem.ControlDim + j];
+                    // Direct: -h/6 * ∂f_k/∂u_k
                     gradient[offset_k + problem.StateDim + j] += -h / 6.0 * df_du_ij;
+
+                    // Hermite chain: -4h/6 * ∂f_mid/∂x_mid * (h/8) * ∂f_k/∂u_k
+                    // Sum over all state components m that x_mid depends on
+                    if (grad_mid != null && grad_mid[0] != null)
+                    {
+                        var df_mid_dx = grad_mid[0];
+                        for (var m = 0; m < problem.StateDim; m++)
+                        {
+                            // ∂f_{mid,i}/∂x_{mid,m}
+                            var df_mid_dx_im = df_mid_dx[i * problem.StateDim + m];
+                            // ∂x_{mid,m}/∂f_{k,m} = h/8 (only diagonal)
+                            // ∂f_{k,m}/∂u_{k,j}
+                            var df_k_du_mj = df_k_du[m * problem.ControlDim + j];
+                            gradient[offset_k + problem.StateDim + j] += -4.0 * h / 6.0 * df_mid_dx_im * (h / 8.0) * df_k_du_mj;
+                        }
+                    }
                 }
             }
 
+            // u_mid contribution to f_mid (direct: ∂f_mid/∂u_mid * ∂u_mid/∂u_k)
             if (grad_mid != null && grad_mid.Length >= 2 && grad_mid[1] != null)
             {
                 var df_mid_du = grad_mid[1];
@@ -287,14 +339,28 @@ namespace Optimal.Control
                 }
             }
 
-            // ∂c_i/∂u_{k+1}
+            // ∂c_i/∂u_{k+1}: direct term + Hermite chain rule term
             if (grad_kp1 != null && grad_kp1.Length >= 2 && grad_kp1[1] != null)
             {
                 var df_kp1_du = grad_kp1[1];
                 for (var j = 0; j < problem.ControlDim; j++)
                 {
                     var df_du_ij = df_kp1_du[i * problem.ControlDim + j];
+                    // Direct: -h/6 * ∂f_{k+1}/∂u_{k+1}
                     gradient[offset_kp1 + problem.StateDim + j] += -h / 6.0 * df_du_ij;
+
+                    // Hermite chain: -4h/6 * ∂f_mid/∂x_mid * (-h/8) * ∂f_{k+1}/∂u_{k+1}
+                    if (grad_mid != null && grad_mid[0] != null)
+                    {
+                        var df_mid_dx = grad_mid[0];
+                        for (var m = 0; m < problem.StateDim; m++)
+                        {
+                            var df_mid_dx_im = df_mid_dx[i * problem.StateDim + m];
+                            var df_kp1_du_mj = df_kp1_du[m * problem.ControlDim + j];
+                            // Note: ∂x_mid/∂f_{k+1} = -h/8 (negative!)
+                            gradient[offset_kp1 + problem.StateDim + j] += -4.0 * h / 6.0 * df_mid_dx_im * (-h / 8.0) * df_kp1_du_mj;
+                        }
+                    }
                 }
             }
 
