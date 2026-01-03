@@ -68,7 +68,7 @@ public sealed class VanDerPolProblemSolver : ICommand
             });
 
         Console.WriteLine("Solver configuration:");
-        Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
+        Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");
         Console.WriteLine("  Segments: 25");
         Console.WriteLine("  Max iterations: 100");
         Console.WriteLine("  Inner optimizer: L-BFGS-B");
@@ -76,12 +76,21 @@ public sealed class VanDerPolProblemSolver : ICommand
         Console.WriteLine();
         Console.WriteLine("Solving...");
 
-        var solver = new HermiteSimpsonSolver()
-            .WithSegments(25)
-            .WithTolerance(1e-3)
-            .WithMaxIterations(100)
-            .WithMeshRefinement(true, 5, 1e-3)
-            .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+        var innerOptimizer = new LBFGSOptimizer().WithTolerance(1e-5);
+
+        ISolver solver = options.Solver == SolverType.LGL
+            ? new LegendreGaussLobattoSolver()
+                .WithOrder(5)
+                .WithSegments(25)
+                .WithTolerance(1e-3)
+                .WithMaxIterations(100)
+                .WithInnerOptimizer(innerOptimizer)
+            : new HermiteSimpsonSolver()
+                .WithSegments(25)
+                .WithTolerance(1e-3)
+                .WithMaxIterations(100)
+                .WithMeshRefinement(true, 5, 1e-3)
+                .WithInnerOptimizer(innerOptimizer);
 
         var result = solver.Solve(problem);
 

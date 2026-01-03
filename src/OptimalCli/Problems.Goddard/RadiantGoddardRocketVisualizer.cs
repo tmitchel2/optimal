@@ -18,10 +18,9 @@ internal static class RadiantGoddardRocketVisualizer
 {
     private const int WindowWidth = 1000;
     private const int WindowHeight = 700;
-    private const float RocketWidth = 30.0f;
-    private const float RocketHeight = 60.0f;
-    private const float GroundY = 10.0f;  // Small positive Y near bottom of visible area
-    private const float PixelsPerMeter = 2.0f;  // Scale for altitude display (adjusted for reasonable viewing)
+    private const float RocketWidth = 7.5f;   // 1/4 of original 30
+    private const float RocketHeight = 15.0f; // 1/4 of original 60
+    private const float GroundY = -WindowHeight / 2.0f + 30.0f;  // Near bottom of screen
 
     private static double[][]? s_currentStates;
     private static double[][]? s_currentControls;
@@ -175,17 +174,20 @@ internal static class RadiantGoddardRocketVisualizer
         // Draw ground
         DrawGround(renderer);
 
+        // Calculate current trajectory's max altitude for scaling
+        var currentMaxAltitude = states.Max(s => s[0]);
+
         // Draw trajectory path
-        DrawTrajectory(renderer, states);
+        DrawTrajectory(renderer, states, currentMaxAltitude);
 
         // Draw rocket
-        DrawRocket(renderer, altitude, thrust, mass);
+        DrawRocket(renderer, altitude, thrust, mass, currentMaxAltitude, states);
 
         // Draw state and control graphs
         DrawGraphs(renderer, states, controls, frameIndex);
 
         // Draw information
-        DrawInformation(renderer, altitude, velocity, mass, thrust, iteration, cost, maxViolation, constraintTolerance, frameIndex, states.Length);
+        DrawInformation(renderer, altitude, velocity, mass, thrust, iteration, cost, maxViolation, constraintTolerance, frameIndex, states.Length, states);
     }
 
     private static void DrawGround(Radiant.Graphics2D.Renderer2D renderer)
@@ -203,14 +205,19 @@ internal static class RadiantGoddardRocketVisualizer
         }
     }
 
-    private static void DrawTrajectory(Radiant.Graphics2D.Renderer2D renderer, double[][] states)
+    private static void DrawTrajectory(Radiant.Graphics2D.Renderer2D renderer, double[][] states, double currentMaxAltitude)
     {
+        // Calculate dynamic scale based on current trajectory's max altitude
+        var maxDisplayHeight = WindowHeight / 2.0 - GroundY - 100.0;  // Leave room for rocket at top
+        var scaleMax = Math.Max(currentMaxAltitude, 1.0);  // Avoid division by zero
+        var dynamicScale = maxDisplayHeight / scaleMax;
+
         // Draw the altitude trajectory as a vertical path
         // +Y is up, so add altitude to go higher
         for (var i = 1; i < states.Length; i++)
         {
-            var h1 = (float)(states[i - 1][0] * PixelsPerMeter);
-            var h2 = (float)(states[i][0] * PixelsPerMeter);
+            var h1 = (float)(states[i - 1][0] * dynamicScale);
+            var h2 = (float)(states[i][0] * dynamicScale);
 
             var y1 = GroundY + h1;  // Higher altitude = more positive Y
             var y2 = GroundY + h2;
@@ -225,11 +232,17 @@ internal static class RadiantGoddardRocketVisualizer
         }
     }
 
-    private static void DrawRocket(Radiant.Graphics2D.Renderer2D renderer, double altitude, double thrust, double mass)
+    private static void DrawRocket(Radiant.Graphics2D.Renderer2D renderer, double altitude, double thrust, double mass, double currentMaxAltitude, double[][] states)
     {
+        // Calculate dynamic scale based on current trajectory's max altitude
+        var maxDisplayHeight = WindowHeight / 2.0 - GroundY - 100.0;  // Leave room for rocket at top
+        var scaleMax = Math.Max(currentMaxAltitude, 1.0);  // Avoid division by zero
+        var dynamicScale = maxDisplayHeight / scaleMax;
+
         // Radiant left-hand: +Y is UP
         // Higher altitude = move up on screen = more positive Y
-        var rocketY = GroundY + (float)(altitude * PixelsPerMeter);
+        // Offset by RocketHeight/2 so bottom of rocket touches ground at altitude=0
+        var rocketY = GroundY + RocketHeight / 2 + (float)(altitude * dynamicScale);
         const float RocketX = 0.0f;
 
         // Rocket body centered at rocketY
@@ -253,27 +266,27 @@ internal static class RadiantGoddardRocketVisualizer
             Colors.Gray400);
 
         // Nose cone: should point UP (positive Y direction) from top of body
-        var noseHeight = 20.0f;
-        
+        var noseHeight = 5.0f;  // 1/4 of original 20
+
         renderer.DrawRectangleFilled(
             RocketX - RocketWidth / 4,
             bodyTop,  // Start at top of body
             RocketWidth / 2,
             noseHeight,  // Extends upward
             Colors.Red600);
-        
+
         // Nose tip
         renderer.DrawRectangleFilled(
-            RocketX - 2,
+            RocketX - 0.5f,
             bodyTop + noseHeight,  // Above the nose cone
-            4,
-            5,
+            1,
+            1.25f,  // 1/4 of original 5
             Colors.Red700);
 
         // Fins: should extend DOWN (negative Y direction) from bottom of body
-        var finHeight = 15.0f;
-        var finWidth = 12.0f;
-        
+        var finHeight = 3.75f;  // 1/4 of original 15
+        var finWidth = 3.0f;    // 1/4 of original 12
+
         // Left fin
         renderer.DrawRectangleFilled(
             RocketX - RocketWidth / 2 - finWidth,
@@ -281,7 +294,7 @@ internal static class RadiantGoddardRocketVisualizer
             finWidth,
             finHeight,
             Colors.Red700);
-        
+
         // Right fin
         renderer.DrawRectangleFilled(
             RocketX + RocketWidth / 2,
@@ -295,7 +308,7 @@ internal static class RadiantGoddardRocketVisualizer
         if (thrust > 0.1)
         {
             var flameIntensity = (float)(thrust / 3.1);  // Normalized by max thrust
-            var flameHeight = 30.0f * flameIntensity;
+            var flameHeight = 7.5f * flameIntensity;  // 1/4 of original 30
             var flameWidth = RocketWidth * 0.7f;
 
             // Draw outer flame (orange) - ellipses extending downward
@@ -328,45 +341,52 @@ internal static class RadiantGoddardRocketVisualizer
         }
 
         // Draw fuel indicator next to rocket (vertical bar)
-        var massPercent = (float)((mass - 0.6) / 0.4 * 100);  // Percentage of fuel remaining
+        // Calculate mass percentage dynamically based on trajectory's mass range
+        var masses = states.Select(s => s[2]).ToArray();
+        var maxMass = masses.Max();  // Initial mass (full fuel)
+        var minMass = masses.Min();  // Final mass (empty or near-empty)
+        var massRange = maxMass - minMass;
+        var massPercent = massRange > 1e-6 ? (float)((mass - minMass) / massRange * 100) : 100.0f;
+        massPercent = Math.Clamp(massPercent, 0.0f, 100.0f);
+        
         var massBarHeight = RocketHeight * 0.6f;
-        var massBarWidth = 4.0f;
-        var massBarX = RocketX + RocketWidth / 2 + 5;
+        var massBarWidth = 1.0f;  // 1/4 of original 4
+        var massBarX = RocketX + RocketWidth / 2 + 1.25f;  // 1/4 of original 5
         var massBarY = rocketY;
 
         // Background (full bar) - centered at rocket Y
         var barBottom = massBarY - massBarHeight / 2;
         renderer.DrawRectangleFilled(massBarX, barBottom, massBarWidth, massBarHeight, Colors.Slate700);
-        
+
         // Fuel level fills from bottom up
         var fuelHeight = massBarHeight * (massPercent / 100.0f);
         renderer.DrawRectangleFilled(
-            massBarX, 
+            massBarX,
             barBottom,  // Start at bottom of bar
-            massBarWidth, 
+            massBarWidth,
             fuelHeight,  // Fill upward
             massPercent > 30 ? Colors.Emerald500 : (massPercent > 10 ? Colors.Amber500 : Colors.Red500));
     }
 
-    private static void DrawInformation(Radiant.Graphics2D.Renderer2D renderer, double altitude, double velocity, double mass, double thrust, int iteration, double cost, double maxViolation, double constraintTolerance, int frameIndex, int totalFrames)
+    private static void DrawInformation(Radiant.Graphics2D.Renderer2D renderer, double altitude, double velocity, double mass, double thrust, int iteration, double cost, double maxViolation, double constraintTolerance, int frameIndex, int totalFrames, double[][] states)
     {
-        const float TopY = -320.0f;
+        const float TopY = 280.0f;   // Top of screen (positive Y is up)
         const float RightX = 250.0f;
 
         // Left column - optimization info
         renderer.DrawText($"ITERATION: {iteration}", -480, TopY, 2, Colors.Emerald400);
-        renderer.DrawText($"COST: {cost:F4}", -480, TopY + 20, 2, Colors.Sky400);
+        renderer.DrawText($"COST: {cost:F4}", -480, TopY - 20, 2, Colors.Sky400);
 
         var convergenceRatio = constraintTolerance > 0 ? maxViolation / constraintTolerance : 0.0;
         var isConverged = maxViolation < constraintTolerance;
         var convergenceColor = isConverged ? Colors.Emerald500 : (convergenceRatio < 10.0 ? Colors.Amber500 : Colors.Rose500);
-        renderer.DrawText($"CONVERGENCE: {maxViolation:E2}/{constraintTolerance:E2}", -480, TopY + 40, 2, convergenceColor);
+        renderer.DrawText($"CONVERGENCE: {maxViolation:E2}/{constraintTolerance:E2}", -480, TopY - 40, 2, convergenceColor);
 
         // Convergence progress bar
         const float ConvBarWidth = 200.0f;
         const float ConvBarHeight = 8.0f;
         const float ConvBarX = -480.0f;
-        const float ConvBarY = TopY + 60.0f;
+        const float ConvBarY = TopY - 60.0f;
 
         renderer.DrawRectangleFilled(ConvBarX, ConvBarY, ConvBarWidth, ConvBarHeight, Colors.Slate700);
         var progress = Math.Min(1.0, Math.Max(0.0, 1.0 - Math.Log10(Math.Max(0.1, convergenceRatio)) / 2.0));
@@ -375,51 +395,56 @@ internal static class RadiantGoddardRocketVisualizer
 
         // Right column - rocket state
         renderer.DrawText($"FRAME: {frameIndex + 1}/{totalFrames}", RightX, TopY, 2, Colors.Amber400);
-        renderer.DrawText($"ALTITUDE: {altitude:F1} M", RightX, TopY + 20, 2, Colors.Purple400);
-        renderer.DrawText($"VELOCITY: {velocity:F2} M/S", RightX, TopY + 40, 2, Colors.Cyan400);
-        renderer.DrawText($"MASS: {mass:F3} KG", RightX, TopY + 60, 2, Colors.Emerald400);
-        renderer.DrawText($"THRUST: {thrust:F2} N", RightX, TopY + 80, 2, Colors.Rose400);
+        renderer.DrawText($"ALTITUDE: {altitude:F1} M", RightX, TopY - 20, 2, Colors.Purple400);
+        renderer.DrawText($"VELOCITY: {velocity:F2} M/S", RightX, TopY - 40, 2, Colors.Cyan400);
+        renderer.DrawText($"MASS: {mass:F3} KG", RightX, TopY - 60, 2, Colors.Emerald400);
+        renderer.DrawText($"THRUST: {thrust:F2} N", RightX, TopY - 80, 2, Colors.Rose400);
 
-        var fuelRemaining = mass - 0.6;
-        var fuelPercent = (fuelRemaining / 0.4) * 100;
+        var masses = states.Select(s => s[2]).ToArray();
+        var maxMass = masses.Max();
+        var minMass = masses.Min();
+        var massRange = maxMass - minMass;
+        var fuelPercent = massRange > 1e-6 ? (mass - minMass) / massRange * 100 : 100.0;
+        fuelPercent = Math.Clamp(fuelPercent, 0.0, 100.0);
         var fuelColor = fuelPercent > 30 ? Colors.Emerald500 : (fuelPercent > 10 ? Colors.Amber500 : Colors.Red500);
         var fuelText = fuelPercent > 0.1 ? $"FUEL: {fuelPercent:F1}%" : "FUEL: EMPTY";
-        renderer.DrawText(fuelText, RightX, TopY + 100, 2, fuelColor);
+        renderer.DrawText(fuelText, RightX, TopY - 100, 2, fuelColor);
 
         // Status
         var statusText = velocity > 0 ? "ASCENDING" : (velocity < -0.5 ? "DESCENDING" : "COASTING");
         var statusColor = velocity > 0 ? Colors.Emerald500 : (velocity < -0.5 ? Colors.Rose500 : Colors.Amber500);
-        
+
         // Override status if fuel is depleted and coasting
         if (fuelPercent < 0.1 && thrust < 0.01)
         {
             statusText = velocity > 0 ? "COASTING UP" : (velocity < -0.5 ? "FALLING" : "COASTING");
             statusColor = velocity > 0 ? Colors.Amber500 : Colors.Rose500;
         }
-        
-        renderer.DrawText(statusText, -100, 0, 3, statusColor);
+
+        renderer.DrawText(statusText, -100, -50, 3, statusColor);
 
         // Current altitude display (center bottom area)
-        renderer.DrawText($"ALTITUDE: {altitude:F1} M", -120, 250, 3, Colors.Yellow400);
+        renderer.DrawText($"ALTITUDE: {altitude:F1} M", -120, -100, 3, Colors.Yellow400);
     }
 
     private static void DrawGraphs(Radiant.Graphics2D.Renderer2D renderer, double[][] states, double[][] controls, int currentFrame)
     {
-        // Graph panel dimensions and position (right side of screen)
+        // Graph panel dimensions and position (top of screen)
         const float GraphPanelX = 200.0f;
-        const float GraphPanelY = -250.0f;
+        const float GraphPanelY = 50.0f;  // Moved to top (positive Y is up)
         const float GraphWidth = 250.0f;
         const float GraphHeight = 60.0f;
         const float GraphSpacing = 70.0f;
 
         // Draw 4 graphs: altitude, velocity, mass, thrust
+        // No override - use current trajectory's max for altitude graph
         DrawSingleGraph(renderer, states, 0, "ALTITUDE (M)", GraphPanelX, GraphPanelY, GraphWidth, GraphHeight, currentFrame, Colors.Purple400);
         DrawSingleGraph(renderer, states, 1, "VELOCITY (M/S)", GraphPanelX, GraphPanelY + GraphSpacing, GraphWidth, GraphHeight, currentFrame, Colors.Cyan400);
         DrawSingleGraph(renderer, states, 2, "MASS (KG)", GraphPanelX, GraphPanelY + 2 * GraphSpacing, GraphWidth, GraphHeight, currentFrame, Colors.Emerald400);
         DrawControlGraph(renderer, controls, "THRUST (N)", GraphPanelX, GraphPanelY + 3 * GraphSpacing, GraphWidth, GraphHeight, currentFrame, Colors.Rose400);
     }
 
-    private static void DrawSingleGraph(Radiant.Graphics2D.Renderer2D renderer, double[][] data, int stateIndex, string label, float x, float y, float width, float height, int currentFrame, Vector4 color)
+    private static void DrawSingleGraph(Radiant.Graphics2D.Renderer2D renderer, double[][] data, int stateIndex, string label, float x, float y, float width, float height, int currentFrame, Vector4 color, double? overrideMax = null)
     {
         if (data.Length < 2)
         {
@@ -441,6 +466,12 @@ internal static class RadiantGoddardRocketVisualizer
             var val = data[i][stateIndex];
             if (val < minVal) minVal = val;
             if (val > maxVal) maxVal = val;
+        }
+
+        // Use override max if provided (for stable scaling across iterations)
+        if (overrideMax.HasValue && overrideMax.Value > maxVal)
+        {
+            maxVal = overrideMax.Value;
         }
 
         // Add some padding to the range

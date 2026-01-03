@@ -16,7 +16,7 @@ namespace Optimal.Control
     /// Solves optimal control problems using Legendre-Gauss-Lobatto (LGL) collocation.
     /// Provides high-order accurate solutions with configurable collocation order.
     /// </summary>
-    public sealed class LegendreGaussLobattoSolver
+    public sealed class LegendreGaussLobattoSolver : ISolver
     {
         private int _segments = 20;
         private int _order = 4;
@@ -29,6 +29,29 @@ namespace Optimal.Control
         private double _refinementDefectThreshold = 1e-4;
         private IOptimizer? _innerOptimizer;
         private ProgressCallback? _progressCallback;
+        private bool _forceNumericalGradients;
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithSegments(int segments) => WithSegments(segments);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithTolerance(double tolerance) => WithTolerance(tolerance);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithMaxIterations(int maxIterations) => WithMaxIterations(maxIterations);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithVerbose(bool verbose) => WithVerbose(verbose);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithInnerOptimizer(IOptimizer optimizer) => WithInnerOptimizer(optimizer);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithMeshRefinement(bool enable, int maxRefinementIterations, double defectThreshold) =>
+            WithMeshRefinement(enable, maxRefinementIterations, defectThreshold);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithProgressCallback(ProgressCallback? callback) => WithProgressCallback(callback);
 
         /// <summary>
         /// Sets the number of collocation segments.
@@ -160,6 +183,18 @@ namespace Optimal.Control
         }
 
         /// <summary>
+        /// Forces the use of numerical gradients instead of analytical gradients.
+        /// Useful for debugging gradient issues.
+        /// </summary>
+        /// <param name="forceNumerical">True to force numerical gradients.</param>
+        /// <returns>This solver for method chaining.</returns>
+        public LegendreGaussLobattoSolver WithNumericalGradients(bool forceNumerical = true)
+        {
+            _forceNumericalGradients = forceNumerical;
+            return this;
+        }
+
+        /// <summary>
         /// Solves the optimal control problem.
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
@@ -252,6 +287,22 @@ namespace Optimal.Control
                     }
                 }
 
+                // For Brachistochrone-like problems (1D control, 2D+ state), initialize control toward target
+                if (problem.ControlDim == 1 && problem.StateDim >= 2 &&
+                    !double.IsNaN(initialState[0]) && !double.IsNaN(initialState[1]) &&
+                    !double.IsNaN(finalState[0]) && !double.IsNaN(finalState[1]))
+                {
+                    var dx = finalState[0] - initialState[0];
+                    var dy = finalState[1] - initialState[1];
+                    if (Math.Abs(dx) > 1e-10 || Math.Abs(dy) > 1e-10)
+                    {
+                        // For Brachistochrone, angle is from horizontal, positive for descent
+                        // ẏ = -v·sin(θ), so when descending (dy < 0), we need θ > 0
+                        var angle = Math.Atan2(-dy, dx);
+                        constantControl[0] = Math.Clamp(angle, 0.0, Math.PI / 2.0);
+                    }
+                }
+
                 // Clamp control to bounds if provided
                 if (problem.ControlLowerBounds != null && problem.ControlUpperBounds != null)
                 {
@@ -300,27 +351,30 @@ namespace Optimal.Control
 
             // Check if dynamics provides analytical gradients
             var hasAnalyticalDynamicsGradients = false;
-            try
+            if (!_forceNumericalGradients)
             {
-                var testX = new double[problem.StateDim];
-                var testU = new double[problem.ControlDim];
-                var testResult = problem.Dynamics!(testX, testU, 0.0);
-
-                if (testResult.gradients != null && testResult.gradients.Length >= 2)
+                try
                 {
-                    var gradWrtState = testResult.gradients[0];
-                    var gradWrtControl = testResult.gradients[1];
-                    var expectedStateGradSize = problem.StateDim * problem.StateDim;
-                    var expectedControlGradSize = problem.StateDim * problem.ControlDim;
+                    var testX = new double[problem.StateDim];
+                    var testU = new double[problem.ControlDim];
+                    var testResult = problem.Dynamics!(testX, testU, 0.0);
 
-                    hasAnalyticalDynamicsGradients =
-                        gradWrtState != null && gradWrtState.Length == expectedStateGradSize &&
-                        gradWrtControl != null && gradWrtControl.Length == expectedControlGradSize;
+                    if (testResult.gradients != null && testResult.gradients.Length >= 2)
+                    {
+                        var gradWrtState = testResult.gradients[0];
+                        var gradWrtControl = testResult.gradients[1];
+                        var expectedStateGradSize = problem.StateDim * problem.StateDim;
+                        var expectedControlGradSize = problem.StateDim * problem.ControlDim;
+
+                        hasAnalyticalDynamicsGradients =
+                            gradWrtState != null && gradWrtState.Length == expectedStateGradSize &&
+                            gradWrtControl != null && gradWrtControl.Length == expectedControlGradSize;
+                    }
                 }
-            }
-            catch
-            {
-                // If evaluation fails, fall back to numerical gradients
+                catch
+                {
+                    // If evaluation fails, fall back to numerical gradients
+                }
             }
 
             if (_verbose && hasAnalyticalDynamicsGradients)
@@ -329,7 +383,7 @@ namespace Optimal.Control
             }
 
             // Check if we can use analytical gradients for costs
-            var useAnalyticalGradients = true;
+            var useAnalyticalGradients = !_forceNumericalGradients;
 
             if (problem.RunningCost != null)
             {
@@ -564,9 +618,11 @@ namespace Optimal.Control
             };
 
             // Set up constrained optimizer
+            // Use higher initial penalty for LGL since defects are typically larger
             var constrainedOptimizer = new AugmentedLagrangianOptimizer()
                 .WithUnconstrainedOptimizer(_innerOptimizer ?? new LBFGSOptimizer())
-                .WithConstraintTolerance(_tolerance);
+                .WithConstraintTolerance(_tolerance)
+                .WithPenaltyParameter(100.0);  // Higher initial penalty for LGL
 
             constrainedOptimizer
                 .WithInitialPoint(z0)
@@ -576,6 +632,48 @@ namespace Optimal.Control
 
             // Add all defect constraints as equality constraints
             var totalDefects = _segments * (_order - 2) * problem.StateDim;
+
+            // Verify gradients at initial guess for a few defects
+            if (_verbose && hasAnalyticalDynamicsGradients)
+            {
+                Console.WriteLine("Verifying defect gradients at initial guess...");
+                var defectIndicesToCheck = new[] { 0, totalDefects / 2, totalDefects - 1 };
+                var maxGradError = 0.0;
+                var worstDefect = -1;
+
+                foreach (var defectIdx in defectIndicesToCheck)
+                {
+                    if (defectIdx >= totalDefects)
+                    {
+                        continue;
+                    }
+
+                    var (defVal, analyticalGrad) = DefectConstraint(defectIdx)(z0);
+                    var numericalGrad = NumericalGradients.ComputeConstraintGradient(zz =>
+                    {
+                        var defects = transcription.ComputeAllDefects(zz, DynamicsValue);
+                        return defects[defectIdx];
+                    }, z0);
+
+                    for (var idx = 0; idx < z0.Length; idx++)
+                    {
+                        var diff = Math.Abs(analyticalGrad[idx] - numericalGrad[idx]);
+                        var scale = Math.Max(1.0, Math.Max(Math.Abs(analyticalGrad[idx]), Math.Abs(numericalGrad[idx])));
+                        var relError = diff / scale;
+                        if (relError > maxGradError)
+                        {
+                            maxGradError = relError;
+                            worstDefect = defectIdx;
+                        }
+                    }
+                }
+
+                Console.WriteLine($"  Max relative gradient error: {maxGradError:E6} (defect {worstDefect})");
+                if (maxGradError > 0.01)
+                {
+                    Console.WriteLine($"  WARNING: Large gradient error detected!");
+                }
+            }
 
             if (_verbose)
             {

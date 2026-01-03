@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "OptimalCli": {
+      "commandName": "Project",
+      "commandLineArgs": "goddard -v fixed"
+    }
+  }
+}

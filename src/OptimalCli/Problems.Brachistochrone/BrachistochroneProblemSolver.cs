@@ -23,6 +23,14 @@ namespace OptimalCli.Problems.Brachistochrone;
 /// </summary>
 public sealed class BrachistochroneProblemSolver : ICommand
 {
+    // Problem constants
+    private const double Gravity = 9.80665; // Standard gravity m/s²
+    private const double X0 = 0.0;          // Starting x position
+    private const double Y0 = 10.0;         // Starting y position (top - y-axis points up)
+    private const double Xf = 10.0;         // Final x position
+    private const double Yf = 5.0;          // Final y position (bottom - lower than start)
+    private const double V0 = 1e-6;         // Initial velocity (near zero, avoid singularity)
+
     public string Name => "brachistochrone";
 
     public string Description => "Curve of fastest descent under gravity (Johann Bernoulli, 1696)";
@@ -34,113 +42,265 @@ public sealed class BrachistochroneProblemSolver : ICommand
         Console.WriteLine("(Johann Bernoulli, 1696)");
         Console.WriteLine();
 
-        var g = 9.80665; // Standard gravity m/s²
-        var x0 = 0.0;    // Starting x position
-        var y0 = 10.0;   // Starting y position (top - y-axis points up)
-        var xf = 10.0;   // Final x position
-        var yf = 5.0;    // Final y position (bottom - lower than start)
-        var v0 = 1e-6;   // Initial velocity (near zero, but not exactly zero to avoid singularity)
+        // Create problem based on variant
+        var (problem, description) = options.Variant switch
+        {
+            BrachistochroneVariant.FixedTime => CreateFixedTimeProblem(),
+            BrachistochroneVariant.FreeFinalTime => CreateFreeFinalTimeProblem(),
+            BrachistochroneVariant.FreeFinalTimeRunningCost => CreateFreeFinalTimeRunningCostProblem(),
+            _ => throw new ArgumentException($"Unknown variant: {options.Variant}")
+        };
 
-        // Time-scaling transformation for free final time optimization
-        // Transform: τ ∈ [0,1], t = T_f·τ, dt = T_f·dτ
-        // State becomes: [x, y, v, T_f] where T_f is the free final time
-        var tfGuess = 1.5; // Initial guess for final time
-
-        Console.WriteLine($"Problem setup (with time-scaling):");
-        Console.WriteLine($"  Gravity: {g} m/s²");
-        Console.WriteLine($"  Start: ({x0}, {y0}) m (top)");
-        Console.WriteLine($"  End: ({xf}, {yf}) m (bottom)");
-        Console.WriteLine($"  Initial velocity: {v0:E2} m/s (nearly at rest)");
-        Console.WriteLine($"  Final velocity: free");
-        Console.WriteLine($"  Final time T_f: free (to be optimized, initial guess {tfGuess} s)");
-        Console.WriteLine($"  Normalized time: τ ∈ [0, 1]");
+        Console.WriteLine($"Variant: {options.Variant}");
+        Console.WriteLine(description);
         Console.WriteLine();
+
+        // Create and run solver
+        var solver = CreateSolver(options);
+        RunSolver(solver, problem, options);
+    }
+
+    /// <summary>
+    /// Creates the fixed final time problem formulation.
+    /// State: [x, y, v], Control: θ
+    /// Uses a pre-specified final time and minimizes path integral of 1 (which equals T_f).
+    /// Simpler formulation useful for testing.
+    /// </summary>
+    private static (ControlProblem problem, string description) CreateFixedTimeProblem()
+    {
+        var tf = 1.8; // Fixed final time (near theoretical optimal)
+
+        var description = $"""
+            Problem setup (fixed time):
+              Gravity: {Gravity} m/s²
+              Start: ({X0}, {Y0}) m (top)
+              End: ({Xf}, {Yf}) m (bottom)
+              Initial velocity: {V0:E2} m/s (nearly at rest)
+              Final velocity: free
+              Final time: {tf} s (fixed)
+            """;
+
+        var problem = new ControlProblem()
+            .WithStateSize(3) // [x, y, v]
+            .WithControlSize(1) // theta
+            .WithTimeHorizon(0.0, tf)
+            .WithInitialCondition(new[] { X0, Y0, V0 })
+            .WithFinalCondition(new[] { Xf, Yf, double.NaN }) // Free final velocity
+            .WithControlBounds(new[] { 0.0 }, new[] { Math.PI / 2.0 })
+            .WithStateBounds(
+                new[] { 0.0, 0.0, 1e-6 },
+                new[] { 15.0, 15.0, 20.0 })
+            .WithDynamics((x, u, t) =>
+            {
+                var v = x[2];
+                var theta = u[0];
+
+                var (xrate, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(x[0], x[1], v, theta, Gravity);
+                var (yrate, yrateGrad) = BrachistochroneDynamicsGradients.YRateReverse(x[0], x[1], v, theta, Gravity);
+                var (vrate, vrateGrad) = BrachistochroneDynamicsGradients.VRateReverse(x[0], x[1], v, theta, Gravity);
+
+                var value = new[] { xrate, yrate, vrate };
+
+                // Gradients: [0]=state (3x3 flattened), [1]=control (3x1)
+                var gradients = new double[2][];
+                gradients[0] = new[] {
+                    xrateGrad[0], xrateGrad[1], xrateGrad[2],
+                    yrateGrad[0], yrateGrad[1], yrateGrad[2],
+                    vrateGrad[0], vrateGrad[1], vrateGrad[2]
+                };
+                gradients[1] = new[] { xrateGrad[3], yrateGrad[3], vrateGrad[3] };
+
+                return (value, gradients);
+            })
+            .WithRunningCost((x, u, t) =>
+            {
+                // Running cost = 1 (integral equals time)
+                var gradients = new double[5]; // [x, y, v, theta, t]
+                return (1.0, gradients);
+            });
+
+        return (problem, description);
+    }
+
+    /// <summary>
+    /// Creates the free final time problem using time-scaling transformation.
+    /// State: [x, y, v, T_f], Control: θ
+    /// Time is normalized to τ ∈ [0,1], T_f becomes a state variable.
+    /// Terminal cost: Φ = T_f (minimize final time directly).
+    /// </summary>
+    private static (ControlProblem problem, string description) CreateFreeFinalTimeProblem()
+    {
+        var tfGuess = 1.8; // Initial guess for final time
+
+        var description = $"""
+            Problem setup (free final time with time-scaling):
+              Gravity: {Gravity} m/s²
+              Start: ({X0}, {Y0}) m (top)
+              End: ({Xf}, {Yf}) m (bottom)
+              Initial velocity: {V0:E2} m/s (nearly at rest)
+              Final velocity: free
+              Final time T_f: free (to be optimized, guess {tfGuess} s)
+              Normalized time: τ ∈ [0, 1]
+            """;
 
         var problem = new ControlProblem()
             .WithStateSize(4) // [x, y, v, T_f]
-            .WithControlSize(1) // theta (angle)
-            .WithTimeHorizon(0.0, 1.0) // Normalized time from 0 to 1
-            .WithInitialCondition(new[] { x0, y0, v0, tfGuess }) // Start with T_f guess
-            .WithFinalCondition(new[] { xf, yf, double.NaN, double.NaN }) // Free final velocity and T_f
-            .WithControlBounds(new[] { 0.0 }, new[] { Math.PI / 2.0 }) // Angle between 0 (horizontal) and π/2 (vertical down)
+            .WithControlSize(1) // theta
+            .WithTimeHorizon(0.0, 1.0) // Normalized time
+            .WithInitialCondition(new[] { X0, Y0, V0, tfGuess })
+            .WithFinalCondition(new[] { Xf, Yf, double.NaN, double.NaN }) // Free v and T_f
+            .WithControlBounds(new[] { 0.0 }, new[] { Math.PI / 2.0 })
             .WithStateBounds(
-                new[] { 0.0, 0.0, 1e-6, 0.1 },     // x, y >= 0, v > 0, T_f > 0.1
-                new[] { 10.0, 15.0, 20.0, 5.0 })   // Reasonable upper bounds including T_f
-            .WithDynamics((x, u, tau) => // Note: tau is normalized time
+                new[] { 0.0, 0.0, 1e-6, 0.1 },
+                new[] { 15.0, 15.0, 20.0, 5.0 })
+            .WithDynamics((x, u, tau) =>
             {
-                var xPos = x[0];
-                var y = x[1];
                 var v = x[2];
-                var Tf = x[3];  // Final time is now a state variable
+                var Tf = x[3];
                 var theta = u[0];
 
                 // Time-scaled dynamics: dx/dτ = T_f · (dx/dt)
-                // Original dynamics in physical time:
-                //   dx/dt = v·cos(θ), dy/dt = -v·sin(θ), dv/dt = g·sin(θ)
-                // Transformed to normalized time:
-                //   dx/dτ = T_f · v·cos(θ), dy/dτ = T_f · (-v·sin(θ)), dv/dτ = T_f · g·sin(θ)
-                //   dT_f/dτ = 0 (T_f is constant along trajectory)
+                var (xratePhys, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(x[0], x[1], v, theta, Gravity);
+                var (yratePhys, yrateGrad) = BrachistochroneDynamicsGradients.YRateReverse(x[0], x[1], v, theta, Gravity);
+                var (vratePhys, vrateGrad) = BrachistochroneDynamicsGradients.VRateReverse(x[0], x[1], v, theta, Gravity);
 
-                var (xrate_physical, xrate_gradients) = BrachistochroneDynamicsGradients.XRateReverse(xPos, y, v, theta, g);
-                var (yrate_physical, yrate_gradients) = BrachistochroneDynamicsGradients.YRateReverse(xPos, y, v, theta, g);
-                var (vrate_physical, vrate_gradients) = BrachistochroneDynamicsGradients.VRateReverse(xPos, y, v, theta, g);
-
-                // Scale by T_f to transform to normalized time
-                var xrate = Tf * xrate_physical;
-                var yrate = Tf * yrate_physical;
-                var vrate = Tf * vrate_physical;
+                var xrate = Tf * xratePhys;
+                var yrate = Tf * yratePhys;
+                var vrate = Tf * vratePhys;
                 var Tfrate = 0.0; // T_f is constant
 
                 var value = new[] { xrate, yrate, vrate, Tfrate };
+
+                // Gradients w.r.t. state: chain rule ∂(T_f·f)/∂x = T_f·(∂f/∂x), ∂(T_f·f)/∂T_f = f
                 var gradients = new double[2][];
-
-                // Gradients w.r.t. state: [∂(dx/dτ)/∂x, ∂(dx/dτ)/∂y, ∂(dx/dτ)/∂v, ∂(dx/dτ)/∂T_f; ...]
-                // Using chain rule: ∂(T_f·f)/∂x = T_f·(∂f/∂x), ∂(T_f·f)/∂T_f = f
                 gradients[0] = new[] {
-                    Tf * xrate_gradients[0], Tf * xrate_gradients[1], Tf * xrate_gradients[2], xrate_physical,  // ∂(dx/dτ)/∂[x,y,v,T_f]
-                    Tf * yrate_gradients[0], Tf * yrate_gradients[1], Tf * yrate_gradients[2], yrate_physical,  // ∂(dy/dτ)/∂[x,y,v,T_f]
-                    Tf * vrate_gradients[0], Tf * vrate_gradients[1], Tf * vrate_gradients[2], vrate_physical,  // ∂(dv/dτ)/∂[x,y,v,T_f]
-                    0.0, 0.0, 0.0, 0.0   // ∂(dT_f/dτ)/∂[x,y,v,T_f] = all zeros
+                    Tf * xrateGrad[0], Tf * xrateGrad[1], Tf * xrateGrad[2], xratePhys,
+                    Tf * yrateGrad[0], Tf * yrateGrad[1], Tf * yrateGrad[2], yratePhys,
+                    Tf * vrateGrad[0], Tf * vrateGrad[1], Tf * vrateGrad[2], vratePhys,
+                    0.0, 0.0, 0.0, 0.0
                 };
+                gradients[1] = new[] { Tf * xrateGrad[3], Tf * yrateGrad[3], Tf * vrateGrad[3], 0.0 };
 
-                // Gradients w.r.t. control: [∂(dx/dτ)/∂θ, ∂(dy/dτ)/∂θ, ∂(dv/dτ)/∂θ, ∂(dT_f/dτ)/∂θ]
-                gradients[1] = new[] {
-                    Tf * xrate_gradients[3],  // ∂(dx/dτ)/∂θ
-                    Tf * yrate_gradients[3],  // ∂(dy/dτ)/∂θ
-                    Tf * vrate_gradients[3],  // ∂(dv/dτ)/∂θ
-                    0.0                        // ∂(dT_f/dτ)/∂θ
+                return (value, gradients);
+            })
+            .WithTerminalCost((x, tau) =>
+            {
+                var Tf = x[3];
+                var gradients = new double[5]; // [x, y, v, T_f, tau]
+                gradients[3] = 1.0; // ∂Φ/∂T_f = 1
+                return (Tf, gradients);
+            });
+
+        return (problem, description);
+    }
+
+    /// <summary>
+    /// Creates the free final time problem with running cost formulation.
+    /// State: [x, y, v, T_f], Control: θ
+    /// Running cost: L = T_f (integrating over τ ∈ [0,1] gives T_f).
+    /// Alternative to terminal cost formulation.
+    /// </summary>
+    private static (ControlProblem problem, string description) CreateFreeFinalTimeRunningCostProblem()
+    {
+        var tfGuess = 1.8; // Initial guess for final time
+
+        var description = $"""
+            Problem setup (free final time with running cost):
+              Gravity: {Gravity} m/s²
+              Start: ({X0}, {Y0}) m (top)
+              End: ({Xf}, {Yf}) m (bottom)
+              Initial velocity: {V0:E2} m/s (nearly at rest)
+              Final velocity: free
+              Final time T_f: free (to be optimized, guess {tfGuess} s)
+              Normalized time: τ ∈ [0, 1]
+              Running cost: L = T_f (∫₀¹ T_f dτ = T_f)
+            """;
+
+        var problem = new ControlProblem()
+            .WithStateSize(4) // [x, y, v, T_f]
+            .WithControlSize(1) // theta
+            .WithTimeHorizon(0.0, 1.0) // Normalized time
+            .WithInitialCondition(new[] { X0, Y0, V0, tfGuess })
+            .WithFinalCondition(new[] { Xf, Yf, double.NaN, double.NaN }) // Free v and T_f
+            .WithControlBounds(new[] { 0.0 }, new[] { Math.PI / 2.0 })
+            .WithStateBounds(
+                new[] { 0.0, 0.0, 1e-6, 0.1 },
+                new[] { 15.0, 15.0, 20.0, 5.0 })
+            .WithDynamics((x, u, tau) =>
+            {
+                var v = x[2];
+                var Tf = x[3];
+                var theta = u[0];
+
+                // Time-scaled dynamics (same as terminal cost variant)
+                var (xratePhys, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(x[0], x[1], v, theta, Gravity);
+                var (yratePhys, yrateGrad) = BrachistochroneDynamicsGradients.YRateReverse(x[0], x[1], v, theta, Gravity);
+                var (vratePhys, vrateGrad) = BrachistochroneDynamicsGradients.VRateReverse(x[0], x[1], v, theta, Gravity);
+
+                var xrate = Tf * xratePhys;
+                var yrate = Tf * yratePhys;
+                var vrate = Tf * vratePhys;
+                var Tfrate = 0.0;
+
+                var value = new[] { xrate, yrate, vrate, Tfrate };
+
+                var gradients = new double[2][];
+                gradients[0] = new[] {
+                    Tf * xrateGrad[0], Tf * xrateGrad[1], Tf * xrateGrad[2], xratePhys,
+                    Tf * yrateGrad[0], Tf * yrateGrad[1], Tf * yrateGrad[2], yratePhys,
+                    Tf * vrateGrad[0], Tf * vrateGrad[1], Tf * vrateGrad[2], vratePhys,
+                    0.0, 0.0, 0.0, 0.0
                 };
+                gradients[1] = new[] { Tf * xrateGrad[3], Tf * yrateGrad[3], Tf * vrateGrad[3], 0.0 };
 
                 return (value, gradients);
             })
             .WithRunningCost((x, u, tau) =>
             {
-                var Tf = x[3];  // Cost is the final time T_f
-
-                // Running cost in normalized time: L = T_f
-                // Integrating from τ=0 to τ=1 gives ∫T_f dτ = T_f·(1-0) = T_f
-                var cost = Tf;
-
-                var gradients = new double[6];  // [StateDim + ControlDim + 1]
-                gradients[0] = 0.0;  // ∂L/∂x
-                gradients[1] = 0.0;  // ∂L/∂y
-                gradients[2] = 0.0;  // ∂L/∂v
-                gradients[3] = 1.0;  // ∂L/∂T_f
-                gradients[4] = 0.0;  // ∂L/∂θ
-                gradients[5] = 0.0;  // ∂L/∂τ (cost doesn't depend on normalized time)
-                return (cost, gradients);
+                var Tf = x[3];
+                // Running cost = T_f, so ∫₀¹ T_f dτ = T_f (since T_f is constant)
+                var gradients = new double[6]; // [x, y, v, T_f, theta, tau]
+                gradients[3] = 1.0; // ∂L/∂T_f = 1
+                return (Tf, gradients);
             });
 
+        return (problem, description);
+    }
+
+    private static ISolver CreateSolver(CommandOptions options)
+    {
+        var innerOptimizer = new LBFGSOptimizer()
+            .WithTolerance(1e-4)
+            .WithMaxIterations(500)
+            .WithVerbose(false);
+
         Console.WriteLine("Solver configuration:");
-        Console.WriteLine("  Algorithm: Legendre-Gauss-Lobatto direct collocation");
-        Console.WriteLine("  Segments: 30");
-        Console.WriteLine("  Order: 3 (for stability)");
-        Console.WriteLine("  Max iterations: 200");
+        Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");
+        Console.WriteLine("  Segments: 20");
+        Console.WriteLine("  Order: 5 (LGL only)");
+        Console.WriteLine("  Max iterations: 100");
         Console.WriteLine("  Inner optimizer: L-BFGS");
-        Console.WriteLine("  Tolerance: 1e-5");
-        Console.WriteLine("  Initial guess: Physics-based with time-scaling");
+        Console.WriteLine("  Tolerance: 5e-3");
         Console.WriteLine();
 
+        return options.Solver == SolverType.LGL
+            ? new LegendreGaussLobattoSolver()
+                .WithOrder(5)
+                .WithSegments(20)
+                .WithTolerance(5e-3)
+                .WithMaxIterations(100)
+                .WithVerbose(true)
+                .WithInnerOptimizer(innerOptimizer)
+            : new HermiteSimpsonSolver()
+                .WithSegments(50)
+                .WithTolerance(1e-2)
+                .WithMaxIterations(200)
+                .WithVerbose(true)
+                .WithInnerOptimizer(innerOptimizer);
+    }
+
+    private static void RunSolver(ISolver solver, ControlProblem problem, CommandOptions options)
+    {
         Console.WriteLine("Solving...");
         if (!options.Headless)
         {
@@ -150,142 +310,145 @@ public sealed class BrachistochroneProblemSolver : ICommand
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
-        // Run the optimizer
         if (options.Headless)
         {
-            // Headless mode - run solver directly without visualization
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(30)
-                // .WithOrder(3)  // Use Order 3 for stability (higher orders can have spurious local minima)
-                .WithTolerance(1e-2)
-                .WithMaxIterations(200)
-                .WithVerbose(true)
-                .WithInnerOptimizer(new LBFGSOptimizer()
-                    .WithTolerance(1e-2)
-                    .WithMaxIterations(200)
-                    .WithVerbose(false));  // Reduce verbosity of inner optimizer
-
-            var result = solver.Solve(problem);
-
-            Console.WriteLine();
-            Console.WriteLine("=".PadRight(70, '='));
-            Console.WriteLine();
-            Console.WriteLine("SOLUTION SUMMARY:");
-            Console.WriteLine($"  Success: {result.Success}");
-            Console.WriteLine($"  Message: {result.Message}");
-            Console.WriteLine($"  Final position: ({result.States[^1][0]:F3}, {result.States[^1][1]:F3}) m");
-            Console.WriteLine($"  Final velocity: {result.States[^1][2]:F3} m/s");
-            Console.WriteLine($"  Optimal final time T_f: {result.States[^1][3]:F6} seconds");
-            Console.WriteLine($"  Objective value: {result.OptimalCost:F6} (should equal T_f)");
-            Console.WriteLine($"  Iterations: {result.Iterations}");
-            Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
-            Console.WriteLine();
+            var headlessResult = solver.Solve(problem);
+            PrintSolutionSummary(headlessResult, options.Variant);
+            return;
         }
-        else
+
+        var optimizationTask = Task.Run(() =>
         {
-            // Interactive mode with visualization
-            var optimizationTask = Task.Run(() =>
-            {
-                try
-                {
-                    var solver = new HermiteSimpsonSolver()
-                        .WithSegments(30)
-                        // .WithOrder(3)  // Use Order 3 for stability (higher orders can have spurious local minima)
-                        .WithTolerance(1e-2)
-                        .WithMaxIterations(200)
-                        .WithMeshRefinement(true, 5, 1e-2)
-                        .WithVerbose(true)
-                        .WithInnerOptimizer(new LBFGSOptimizer()
-                            .WithTolerance(1e-2)
-                            .WithMaxIterations(200)
-                            .WithVerbose(false))
-                        .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
-                        {
-                            // Check if visualization was closed
-                            var token = RadiantBrachistochroneVisualizer.CancellationToken;
-                            if (token.IsCancellationRequested)
-                            {
-                                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, stopping optimization...");
-                                throw new OperationCanceledException(token);
-                            }
-
-                            // Update the live visualization with the current trajectory
-                            RadiantBrachistochroneVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
-                        });
-
-                    var result = solver.Solve(problem);
-                    Console.WriteLine("[SOLVER] Optimization completed successfully");
-                    return result;
-                }
-                catch (OperationCanceledException)
-                {
-                    Console.WriteLine("[SOLVER] Optimization cancelled");
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[SOLVER] Exception during solve: {ex.GetType().Name}: {ex.Message}");
-                    throw;
-                }
-            }, RadiantBrachistochroneVisualizer.CancellationToken);
-
-            // Run the visualization window on the main thread (blocks until window closed)
-            RadiantBrachistochroneVisualizer.RunVisualizationWindow();
-
-            // Check if optimization is still running after window closed
-            if (!optimizationTask.IsCompleted)
-            {
-                Console.WriteLine();
-                Console.WriteLine("Window closed - waiting for optimization to stop...");
-
-                if (optimizationTask.Wait(TimeSpan.FromSeconds(5)))
-                {
-                    Console.WriteLine("Optimization stopped gracefully");
-                }
-                else
-                {
-                    Console.WriteLine("Optimization did not stop - returning to console");
-                    Console.WriteLine("(The background optimization will continue but results will be discarded)");
-                }
-
-                Console.WriteLine();
-                Console.WriteLine("=".PadRight(70, '='));
-                Console.WriteLine();
-                Console.WriteLine("OPTIMIZATION CANCELLED");
-                Console.WriteLine("  Window was closed before optimization completed");
-                Console.WriteLine();
-                return;
-            }
-
-            // Optimization completed - get the result
-            CollocationResult result;
             try
             {
-                result = optimizationTask.Result;
+                var taskResult = solver
+                    .WithProgressCallback(CreateProgressCallback())
+                    .Solve(problem);
+                Console.WriteLine("[SOLVER] Optimization completed successfully");
+                return taskResult;
             }
-            catch (AggregateException ex) when (ex.InnerException is OperationCanceledException)
+            catch (OperationCanceledException)
             {
-                Console.WriteLine();
-                Console.WriteLine("=".PadRight(70, '='));
-                Console.WriteLine();
-                Console.WriteLine("OPTIMIZATION CANCELLED");
-                Console.WriteLine();
-                return;
+                Console.WriteLine("[SOLVER] Optimization cancelled");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SOLVER] Exception during solve: {ex.GetType().Name}: {ex.Message}");
+                throw;
+            }
+        }, RadiantBrachistochroneVisualizer.CancellationToken);
+
+        RadiantBrachistochroneVisualizer.RunVisualizationWindow();
+
+        if (!optimizationTask.IsCompleted)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Window closed - waiting for optimization to stop...");
+
+            if (optimizationTask.Wait(TimeSpan.FromSeconds(5)))
+            {
+                Console.WriteLine("Optimization stopped gracefully");
+            }
+            else
+            {
+                Console.WriteLine("Optimization did not stop - returning to console");
             }
 
             Console.WriteLine();
             Console.WriteLine("=".PadRight(70, '='));
             Console.WriteLine();
-            Console.WriteLine("SOLUTION SUMMARY:");
-            Console.WriteLine($"  Success: {result.Success}");
-            Console.WriteLine($"  Message: {result.Message}");
-            Console.WriteLine($"  Final position: ({result.States[^1][0]:F3}, {result.States[^1][1]:F3}) m");
-            Console.WriteLine($"  Final velocity: {result.States[^1][2]:F3} m/s");
-            Console.WriteLine($"  Optimal final time T_f: {result.States[^1][3]:F6} seconds");
-            Console.WriteLine($"  Objective value: {result.OptimalCost:F6} (should equal T_f)");
-            Console.WriteLine($"  Iterations: {result.Iterations}");
-            Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
+            Console.WriteLine("OPTIMIZATION CANCELLED");
             Console.WriteLine();
+            return;
         }
+
+        CollocationResult result;
+        try
+        {
+            result = optimizationTask.Result;
+        }
+        catch (AggregateException ex) when (ex.InnerException is OperationCanceledException)
+        {
+            Console.WriteLine();
+            Console.WriteLine("=".PadRight(70, '='));
+            Console.WriteLine();
+            Console.WriteLine("OPTIMIZATION CANCELLED");
+            Console.WriteLine();
+            return;
+        }
+
+        PrintSolutionSummary(result, options.Variant);
+    }
+
+    private static ProgressCallback CreateProgressCallback()
+    {
+        return (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+        {
+            var token = RadiantBrachistochroneVisualizer.CancellationToken;
+            if (token.IsCancellationRequested)
+            {
+                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, stopping optimization...");
+                throw new OperationCanceledException(token);
+            }
+
+            RadiantBrachistochroneVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+        };
+    }
+
+    private static void PrintSolutionSummary(CollocationResult result, BrachistochroneVariant variant)
+    {
+        Console.WriteLine();
+        Console.WriteLine("=".PadRight(70, '='));
+        Console.WriteLine();
+        Console.WriteLine("SOLUTION SUMMARY:");
+        Console.WriteLine($"  Success: {result.Success}");
+        Console.WriteLine($"  Message: {result.Message}");
+        Console.WriteLine($"  Final position: ({result.States[^1][0]:F3}, {result.States[^1][1]:F3}) m");
+        Console.WriteLine($"  Final velocity: {result.States[^1][2]:F3} m/s");
+
+        if (variant != BrachistochroneVariant.FixedTime)
+        {
+            Console.WriteLine($"  Optimal final time T_f: {result.States[^1][3]:F6} seconds");
+        }
+
+        Console.WriteLine($"  Objective value: {result.OptimalCost:F6}");
+        Console.WriteLine($"  Iterations: {result.Iterations}");
+        Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
+        Console.WriteLine();
+
+        // Energy conservation check
+        var y0 = result.States[0][1];
+        var yf = result.States[^1][1];
+        var vf = result.States[^1][2];
+        var expectedVf = Math.Sqrt(2 * Gravity * (y0 - yf));
+        Console.WriteLine("ENERGY CONSERVATION CHECK:");
+        Console.WriteLine($"  Initial y: {y0:F3} m, Final y: {yf:F3} m");
+        Console.WriteLine($"  Drop: {y0 - yf:F3} m");
+        Console.WriteLine($"  Expected final velocity (energy): {expectedVf:F3} m/s");
+        Console.WriteLine($"  Actual final velocity: {vf:F3} m/s");
+        Console.WriteLine($"  Velocity error: {Math.Abs(vf - expectedVf):F3} m/s ({100.0 * Math.Abs(vf - expectedVf) / expectedVf:F1}%)");
+        Console.WriteLine();
+
+        // Print trajectory sample
+        Console.WriteLine("TRAJECTORY (sample):");
+        var hasTimeSaling = variant != BrachistochroneVariant.FixedTime;
+        Console.WriteLine(hasTimeSaling ? "  τ       x        y        v        T_f      θ" : "  t       x        y        v        θ");
+        var step = Math.Max(1, result.States.Length / 10);
+        for (var i = 0; i < result.States.Length; i += step)
+        {
+            var x = result.States[i];
+            var u = result.Controls[i];
+            var t = result.Times[i];
+            if (hasTimeSaling)
+            {
+                Console.WriteLine($"  {t:F3}   {x[0]:F3}   {x[1]:F3}   {x[2]:F3}   {x[3]:F3}   {u[0]:F3}");
+            }
+            else
+            {
+                Console.WriteLine($"  {t:F3}   {x[0]:F3}   {x[1]:F3}   {x[2]:F3}   {u[0]:F3}");
+            }
+        }
+        Console.WriteLine();
     }
 }

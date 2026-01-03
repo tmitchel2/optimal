@@ -57,12 +57,6 @@ namespace Optimal.Control
                 // Iterate over all LGL points in this segment
                 for (var localIdx = 0; localIdx < order; localIdx++)
                 {
-                    // Skip shared endpoint (already counted in previous segment)
-                    if (k > 0 && localIdx == 0)
-                    {
-                        continue;
-                    }
-
                     var globalIdx = k * (order - 1) + localIdx;
                     var tau = lglPoints[localIdx];
                     var t = t_k + (tau + 1.0) * h / 2.0;

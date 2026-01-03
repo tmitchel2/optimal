@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Linq;
 using Optimal.NonLinear;
 
 namespace Optimal.Control
@@ -28,7 +29,7 @@ namespace Optimal.Control
     /// Converts the continuous problem into a nonlinear programming (NLP) problem
     /// and solves it using existing nonlinear optimizers.
     /// </summary>
-    public sealed class HermiteSimpsonSolver
+    public sealed class HermiteSimpsonSolver : ISolver
     {
         private int _segments = 20;
         private double _tolerance = 1e-6;
@@ -40,6 +41,29 @@ namespace Optimal.Control
         private double _refinementDefectThreshold = 1e-4;
         private bool _enableParallelization = true;
         private ProgressCallback? _progressCallback;
+        private double _initialPenalty = 1.0;
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithSegments(int segments) => WithSegments(segments);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithTolerance(double tolerance) => WithTolerance(tolerance);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithMaxIterations(int maxIterations) => WithMaxIterations(maxIterations);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithVerbose(bool verbose) => WithVerbose(verbose);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithInnerOptimizer(IOptimizer optimizer) => WithInnerOptimizer(optimizer);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithMeshRefinement(bool enable, int maxRefinementIterations, double defectThreshold) =>
+            WithMeshRefinement(enable, maxRefinementIterations, defectThreshold);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithProgressCallback(ProgressCallback? callback) => WithProgressCallback(callback);
 
         /// <summary>
         /// Sets the number of collocation segments.
@@ -135,6 +159,23 @@ namespace Optimal.Control
         public HermiteSimpsonSolver WithProgressCallback(ProgressCallback? callback)
         {
             _progressCallback = callback;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the initial penalty parameter for the augmented Lagrangian optimizer.
+        /// Higher values enforce constraints more strongly from the start.
+        /// </summary>
+        /// <param name="penalty">Initial penalty parameter (default: 1.0).</param>
+        /// <returns>This solver instance for method chaining.</returns>
+        public HermiteSimpsonSolver WithInitialPenalty(double penalty)
+        {
+            if (penalty <= 0)
+            {
+                throw new ArgumentException("Penalty must be positive.", nameof(penalty));
+            }
+
+            _initialPenalty = penalty;
             return this;
         }
 
@@ -294,10 +335,14 @@ namespace Optimal.Control
                 {
                     // For Brachistochrone-like problems, initialize control to point toward target
                     var dx = xf[0] - x0[0];
-                    var dy = xf[1] - x0[1];
+                    var dy = xf[1] - x0[1];  // Negative if descending
                     if (Math.Abs(dx) > 1e-10 || Math.Abs(dy) > 1e-10)
                     {
-                        u0[0] = Math.Atan2(dy, dx);  // Initial angle toward target
+                        // For Brachistochrone, angle is from horizontal, positive for descent
+                        // ẏ = -v·sin(θ), so when descending (dy < 0), we need θ > 0
+                        // Use absolute value of descent angle and clamp to [0, π/2]
+                        var angle = Math.Atan2(-dy, dx);  // Negate dy since we measure descent angle
+                        u0[0] = Math.Clamp(angle, 0.0, Math.PI / 2.0);
                     }
                 }
 
@@ -604,7 +649,8 @@ namespace Optimal.Control
             // Set up constrained optimizer
             var constrainedOptimizer = new AugmentedLagrangianOptimizer()
                 .WithUnconstrainedOptimizer(_innerOptimizer ?? new LBFGSOptimizer())
-                .WithConstraintTolerance(_tolerance);
+                .WithConstraintTolerance(_tolerance)
+                .WithPenaltyParameter(_initialPenalty);
 
             constrainedOptimizer
                 .WithInitialPoint(z0)
@@ -637,6 +683,22 @@ namespace Optimal.Control
                 {
                     Console.WriteLine($"All {testDefects.Length} defects are finite on initial guess");
                 }
+
+                // Report max defect per state component
+                var maxDefectPerState = new double[problem.StateDim];
+                for (var seg = 0; seg < segments; seg++)
+                {
+                    for (var state = 0; state < problem.StateDim; state++)
+                    {
+                        var defectIdx = seg * problem.StateDim + state;
+                        var absDefect = Math.Abs(testDefects[defectIdx]);
+                        if (absDefect > maxDefectPerState[state])
+                        {
+                            maxDefectPerState[state] = absDefect;
+                        }
+                    }
+                }
+                Console.WriteLine($"Max defect per state component (initial guess): [{string.Join(", ", maxDefectPerState.Select(d => d.ToString("E3", System.Globalization.CultureInfo.InvariantCulture)))}]");
             }
 
             for (var i = 0; i < totalDefects; i++)
