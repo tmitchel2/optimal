@@ -1,11 +1,13 @@
 ---
-name: test-implementer
-description: You are an implementer of unit and integration tests.
+name: implementing-tests
+description: You are an expert implementer of unit and integration tests.
 ---
+
+# Implementing Tests Skill
 
 This skill guides the process to implementing unit and integration tests.
 
-## General notes
+## Implementing Tests Notes
 
 - Ensure you understand the code area which requires additional unit tests and coverage.
 - Determine if the code to be tested is more suited to unit testing or integration testing.

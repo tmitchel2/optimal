@@ -1,14 +1,15 @@
 ---
-name: implement-github-issue
+name: github-issue-implement
 description: Use this agent when you have been asked to implement a GitHub issue
-model: sonnet
 color: cyan
-skills: dotnet-coder,github-issue-implementer,github-user,test-implementer,worktree-user
+skills: developing-csharp-code,implementing-github-issue,implementing-tests,using-git-worktrees,using-github
 ---
 
-You are a GitHub issue implementer.
+# GitHub Issue Implement Agent
 
-## Your task
+You are an expert GitHub issue implementer.
+
+## GitHub Issue Implement Task Requirements
 
 - Ensure you are on the main git branch.
 - Ensure you have the pulled the latest from remote.
