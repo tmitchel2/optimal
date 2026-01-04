@@ -31,6 +31,10 @@ namespace Optimal.Control
     /// </summary>
     public sealed class HermiteSimpsonSolver : ISolver
     {
+        private const double MinRefinementPercentage = 0.1;
+        private const double PositionTolerance = 1e-10;
+        private const int MaxMeshSegments = 200;
+
         private int _segments = 20;
         private double _tolerance = 1e-6;
         private int _maxIterations = 100;
@@ -213,99 +217,121 @@ namespace Optimal.Control
 
             for (var iteration = 0; iteration < _maxRefinementIterations; iteration++)
             {
-                if (_verbose)
-                {
-                    Console.WriteLine($"Mesh refinement iteration {iteration + 1}, segments = {currentSegments}");
-                }
+                LogMeshRefinementIteration(iteration, currentSegments);
 
-                // Solve on current grid
                 result = SolveOnFixedGrid(problem, currentSegments, previousSolution);
 
                 if (!result.Success)
                 {
-                    if (_verbose)
-                    {
-                        Console.WriteLine("Failed to converge on current mesh");
-                    }
+                    LogConvergenceFailure();
                     break;
                 }
 
-                if (_verbose)
-                {
-                    Console.WriteLine($"  Max defect: {result.MaxDefect:E2}");
-                }
+                LogMaxDefect(result.MaxDefect);
 
-                // Check if we should stop
-                if (result.MaxDefect < _refinementDefectThreshold)
-                {
-                    if (_verbose)
-                    {
-                        Console.WriteLine($"Converged with max defect {result.MaxDefect:E2}");
-                    }
-                    break;
-                }
-
-                // Analyze defects and refine mesh
-                var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, currentSegments);
-                var transcription = new ParallelTranscription(problem, grid, _enableParallelization);
-
-                // Extract dynamics evaluator
-                double[] DynamicsValue(double[] x, double[] u, double t)
-                {
-                    var res = problem.Dynamics!(x, u, t);
-                    return res.value;
-                }
-
-                // Rebuild solution vector for defect computation
-                var z = new double[transcription.DecisionVectorSize];
-                for (var k = 0; k <= currentSegments; k++)
-                {
-                    transcription.SetState(z, k, result.States[k]);
-                    transcription.SetControl(z, k, result.Controls[k]);
-                }
-
-                var defects = transcription.ComputeAllDefects(z, DynamicsValue);
-
-                // Identify segments for refinement
-                var meshRefinement = new MeshRefinement(_refinementDefectThreshold, maxSegments: 200);
-                var shouldRefine = meshRefinement.IdentifySegmentsForRefinement(defects, problem.StateDim);
-
-                var refinementPct = MeshRefinement.ComputeRefinementPercentage(shouldRefine);
-
-                if (_verbose)
-                {
-                    Console.WriteLine($"  Refining {refinementPct:F1}% of segments");
-                }
-
-                // If no segments need refinement, we're done
-                if (refinementPct < 0.1)
+                if (HasConverged(result.MaxDefect))
                 {
                     break;
                 }
 
-                // Create refined grid
-                var newGrid = meshRefinement.RefineGrid(grid, shouldRefine);
-                var newSegments = newGrid.Segments;
+                var (shouldContinue, newSegments, newSolution) = TryRefineMesh(problem, result, currentSegments);
 
-                if (newSegments == currentSegments)
+                if (!shouldContinue)
                 {
-                    // Can't refine further (hit limit)
                     break;
                 }
-
-                // Interpolate solution to new grid for warm start
-                var newTranscription = new ParallelTranscription(problem, newGrid, _enableParallelization);
-
-                // Convert to HermiteSimpsonTranscription for interpolation (shares same layout)
-                var oldTranscriptionCompat = new HermiteSimpsonTranscription(problem, grid);
-                var newTranscriptionCompat = new HermiteSimpsonTranscription(problem, newGrid);
-                previousSolution = MeshRefinement.InterpolateSolution(
-                    oldTranscriptionCompat, newTranscriptionCompat, z, grid, newGrid);
 
                 currentSegments = newSegments;
+                previousSolution = newSolution;
             }
 
             return result ?? new CollocationResult { Success = false, Message = "Mesh refinement failed to converge" };
+        }
+
+        private void LogMeshRefinementIteration(int iteration, int segments)
+        {
+            if (_verbose)
+            {
+                Console.WriteLine($"Mesh refinement iteration {iteration + 1}, segments = {segments}");
+            }
+        }
+
+        private void LogConvergenceFailure()
+        {
+            if (_verbose)
+            {
+                Console.WriteLine("Failed to converge on current mesh");
+            }
+        }
+
+        private void LogMaxDefect(double maxDefect)
+        {
+            if (_verbose)
+            {
+                Console.WriteLine($"  Max defect: {maxDefect:E2}");
+            }
+        }
+
+        private bool HasConverged(double maxDefect)
+        {
+            var converged = maxDefect < _refinementDefectThreshold;
+            if (converged && _verbose)
+            {
+                Console.WriteLine($"Converged with max defect {maxDefect:E2}");
+            }
+            return converged;
+        }
+
+        private (bool shouldContinue, int newSegments, double[]? newSolution) TryRefineMesh(
+            ControlProblem problem, CollocationResult result, int currentSegments)
+        {
+            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, currentSegments);
+            var transcription = new ParallelTranscription(problem, grid, _enableParallelization);
+
+            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(x, u, t).value;
+
+            var z = RebuildSolutionVector(transcription, result, currentSegments);
+            var defects = transcription.ComputeAllDefects(z, DynamicsValue);
+
+            var meshRefinement = new MeshRefinement(_refinementDefectThreshold, maxSegments: MaxMeshSegments);
+            var shouldRefine = meshRefinement.IdentifySegmentsForRefinement(defects, problem.StateDim);
+            var refinementPct = MeshRefinement.ComputeRefinementPercentage(shouldRefine);
+
+            if (_verbose)
+            {
+                Console.WriteLine($"  Refining {refinementPct:F1}% of segments");
+            }
+
+            if (refinementPct < MinRefinementPercentage)
+            {
+                return (false, currentSegments, null);
+            }
+
+            var newGrid = meshRefinement.RefineGrid(grid, shouldRefine);
+            var newSegments = newGrid.Segments;
+
+            if (newSegments == currentSegments)
+            {
+                return (false, currentSegments, null);
+            }
+
+            var oldTranscriptionCompat = new HermiteSimpsonTranscription(problem, grid);
+            var newTranscriptionCompat = new HermiteSimpsonTranscription(problem, newGrid);
+            var newSolution = MeshRefinement.InterpolateSolution(
+                oldTranscriptionCompat, newTranscriptionCompat, z, grid, newGrid);
+
+            return (true, newSegments, newSolution);
+        }
+
+        private static double[] RebuildSolutionVector(ParallelTranscription transcription, CollocationResult result, int segments)
+        {
+            var z = new double[transcription.DecisionVectorSize];
+            for (var k = 0; k <= segments; k++)
+            {
+                transcription.SetState(z, k, result.States[k]);
+                transcription.SetControl(z, k, result.Controls[k]);
+            }
+            return z;
         }
 
         /// <summary>
@@ -357,12 +383,11 @@ namespace Optimal.Control
         {
             var u0 = new double[problem.ControlDim];
 
-            if (problem.ControlDim == 1 && problem.StateDim >= 2 &&
-                problem.InitialState != null && problem.FinalState != null)
+            if (ShouldComputeAngleBasedGuess(problem))
             {
                 var dx = xf[0] - x0[0];
                 var dy = xf[1] - x0[1];
-                if (Math.Abs(dx) > 1e-10 || Math.Abs(dy) > 1e-10)
+                if (HasSignificantDisplacement(dx, dy))
                 {
                     var angle = Math.Atan2(-dy, dx);
                     u0[0] = Math.Clamp(angle, 0.0, Math.PI / 2.0);
@@ -372,43 +397,57 @@ namespace Optimal.Control
             return u0;
         }
 
+        private static bool ShouldComputeAngleBasedGuess(ControlProblem problem) =>
+            problem.ControlDim == 1 &&
+            problem.StateDim >= 2 &&
+            problem.InitialState != null &&
+            problem.FinalState != null;
+
+        private static bool HasSignificantDisplacement(double dx, double dy) =>
+            Math.Abs(dx) > PositionTolerance || Math.Abs(dy) > PositionTolerance;
+
         private bool CheckAnalyticalGradientCapability(ControlProblem problem)
         {
             try
             {
-                var testX = new double[problem.StateDim];
-                var testU = new double[problem.ControlDim];
-                var testResult = problem.Dynamics!(testX, testU, 0.0);
-
-                if (testResult.gradients == null || testResult.gradients.Length < 2)
-                {
-                    return false;
-                }
-
-                var gradWrtState = testResult.gradients[0];
-                var gradWrtControl = testResult.gradients[1];
-                var expectedStateGradSize = problem.StateDim * problem.StateDim;
-                var expectedControlGradSize = problem.StateDim * problem.ControlDim;
-
-                var hasGradients = gradWrtState != null && gradWrtState.Length == expectedStateGradSize &&
-                                   gradWrtControl != null && gradWrtControl.Length == expectedControlGradSize;
-
-                if (_verbose)
-                {
-                    Console.WriteLine(hasGradients
-                        ? "Using analytical gradients from AutoDiff"
-                        : "Using numerical finite-difference gradients");
-                }
-
+                var hasGradients = ValidateAnalyticalGradients(problem);
+                LogGradientMode(hasGradients);
                 return hasGradients;
             }
             catch
             {
-                if (_verbose)
-                {
-                    Console.WriteLine("Using numerical finite-difference gradients");
-                }
+                LogGradientMode(false);
                 return false;
+            }
+        }
+
+        private static bool ValidateAnalyticalGradients(ControlProblem problem)
+        {
+            var testX = new double[problem.StateDim];
+            var testU = new double[problem.ControlDim];
+            var testResult = problem.Dynamics!(testX, testU, 0.0);
+
+            if (testResult.gradients == null || testResult.gradients.Length < 2)
+            {
+                return false;
+            }
+
+            var gradWrtState = testResult.gradients[0];
+            var gradWrtControl = testResult.gradients[1];
+            var expectedStateGradSize = problem.StateDim * problem.StateDim;
+            var expectedControlGradSize = problem.StateDim * problem.ControlDim;
+
+            return gradWrtState != null && gradWrtState.Length == expectedStateGradSize &&
+                   gradWrtControl != null && gradWrtControl.Length == expectedControlGradSize;
+        }
+
+        private void LogGradientMode(bool useAnalytical)
+        {
+            if (_verbose)
+            {
+                Console.WriteLine(useAnalytical
+                    ? "Using analytical gradients from AutoDiff"
+                    : "Using numerical finite-difference gradients");
             }
         }
 
@@ -579,16 +618,7 @@ namespace Optimal.Control
         private static double ComputeMaxViolation(ParallelTranscription transcription, double[] z, Func<double[], double[], double, double[]> dynamicsValue)
         {
             var allDefects = transcription.ComputeAllDefects(z, dynamicsValue);
-            var maxViolation = 0.0;
-            foreach (var d in allDefects)
-            {
-                var abs = Math.Abs(d);
-                if (abs > maxViolation)
-                {
-                    maxViolation = abs;
-                }
-            }
-            return maxViolation;
+            return allDefects.Select(Math.Abs).Max();
         }
 
         private AugmentedLagrangianOptimizer ConfigureOptimizer(
@@ -680,42 +710,55 @@ namespace Optimal.Control
 
         private static void AddBoundaryConstraints(ControlProblem problem, ParallelTranscription transcription, int segments, AugmentedLagrangianOptimizer optimizer)
         {
-            if (problem.InitialState != null)
+            AddInitialStateConstraints(problem, transcription, optimizer);
+            AddFinalStateConstraints(problem, transcription, segments, optimizer);
+        }
+
+        private static void AddInitialStateConstraints(ControlProblem problem, ParallelTranscription transcription, AugmentedLagrangianOptimizer optimizer)
+        {
+            if (problem.InitialState == null)
             {
-                for (var i = 0; i < problem.StateDim; i++)
-                {
-                    var stateIndex = i;
-                    var targetValue = problem.InitialState[i];
-                    optimizer.WithEqualityConstraint(z =>
-                    {
-                        var x = transcription.GetState(z, 0);
-                        var gradient = NumericalGradients.ComputeConstraintGradient(
-                            zz => transcription.GetState(zz, 0)[stateIndex] - targetValue, z);
-                        return (x[stateIndex] - targetValue, gradient);
-                    });
-                }
+                return;
             }
 
-            if (problem.FinalState != null)
+            for (var i = 0; i < problem.StateDim; i++)
             {
-                for (var i = 0; i < problem.StateDim; i++)
+                var stateIndex = i;
+                var targetValue = problem.InitialState[i];
+                optimizer.WithEqualityConstraint(z =>
                 {
-                    var stateIndex = i;
-                    var targetValue = problem.FinalState[i];
+                    var x = transcription.GetState(z, 0);
+                    var gradient = NumericalGradients.ComputeConstraintGradient(
+                        zz => transcription.GetState(zz, 0)[stateIndex] - targetValue, z);
+                    return (x[stateIndex] - targetValue, gradient);
+                });
+            }
+        }
 
-                    if (double.IsNaN(targetValue))
-                    {
-                        continue;
-                    }
+        private static void AddFinalStateConstraints(ControlProblem problem, ParallelTranscription transcription, int segments, AugmentedLagrangianOptimizer optimizer)
+        {
+            if (problem.FinalState == null)
+            {
+                return;
+            }
 
-                    optimizer.WithEqualityConstraint(z =>
-                    {
-                        var x = transcription.GetState(z, segments);
-                        var gradient = NumericalGradients.ComputeConstraintGradient(
-                            zz => transcription.GetState(zz, segments)[stateIndex] - targetValue, z);
-                        return (x[stateIndex] - targetValue, gradient);
-                    });
+            for (var i = 0; i < problem.StateDim; i++)
+            {
+                var stateIndex = i;
+                var targetValue = problem.FinalState[i];
+
+                if (double.IsNaN(targetValue))
+                {
+                    continue;
                 }
+
+                optimizer.WithEqualityConstraint(z =>
+                {
+                    var x = transcription.GetState(z, segments);
+                    var gradient = NumericalGradients.ComputeConstraintGradient(
+                        zz => transcription.GetState(zz, segments)[stateIndex] - targetValue, z);
+                    return (x[stateIndex] - targetValue, gradient);
+                });
             }
         }
 
