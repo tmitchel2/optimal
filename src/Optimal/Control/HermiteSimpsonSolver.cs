@@ -313,340 +313,293 @@ namespace Optimal.Control
         /// </summary>
         private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segments, double[]? initialGuess)
         {
-            // Create collocation grid
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, segments);
             var transcription = new ParallelTranscription(problem, grid, _enableParallelization);
 
-            // Create initial guess
-            double[] z0;
+            var z0 = CreateInitialGuess(problem, transcription, initialGuess);
+            var hasAnalyticalGradients = CheckAnalyticalGradientCapability(problem);
+            var iterationCount = new int[1];
+
+            var nlpObjective = CreateObjectiveFunction(problem, grid, transcription, segments, hasAnalyticalGradients, iterationCount);
+            var constrainedOptimizer = ConfigureOptimizer(problem, grid, transcription, segments, z0, hasAnalyticalGradients, nlpObjective);
+
+            if (_verbose)
+            {
+                LogInitialDiagnostics(problem, transcription, segments, z0, nlpObjective);
+            }
+
+            var nlpResult = constrainedOptimizer.Minimize(nlpObjective);
+            return ExtractSolution(problem, grid, transcription, segments, nlpResult);
+        }
+
+        private double[] CreateInitialGuess(ControlProblem problem, ParallelTranscription transcription, double[]? initialGuess)
+        {
             if (initialGuess != null && initialGuess.Length == transcription.DecisionVectorSize)
             {
-                z0 = initialGuess;
+                return initialGuess;
             }
-            else
+
+            var x0 = problem.InitialState ?? new double[problem.StateDim];
+            var xf = problem.FinalState ?? new double[problem.StateDim];
+            var u0 = ComputeInitialControlGuess(problem, x0, xf);
+            var z0 = transcription.CreateInitialGuess(x0, xf, u0);
+
+            if (_verbose)
             {
-                var x0 = problem.InitialState ?? new double[problem.StateDim];
-                var xf = problem.FinalState ?? new double[problem.StateDim];
+                var hasNaN = z0.Any(double.IsNaN);
+                Console.WriteLine($"Initial guess created: size={z0.Length}, hasNaN={hasNaN}");
+            }
 
-                // Compute reasonable initial control guess based on start/end states
-                var u0 = new double[problem.ControlDim];
-                if (problem.ControlDim == 1 && problem.StateDim >= 2 &&
-                    problem.InitialState != null && problem.FinalState != null)
+            return z0;
+        }
+
+        private static double[] ComputeInitialControlGuess(ControlProblem problem, double[] x0, double[] xf)
+        {
+            var u0 = new double[problem.ControlDim];
+
+            if (problem.ControlDim == 1 && problem.StateDim >= 2 &&
+                problem.InitialState != null && problem.FinalState != null)
+            {
+                var dx = xf[0] - x0[0];
+                var dy = xf[1] - x0[1];
+                if (Math.Abs(dx) > 1e-10 || Math.Abs(dy) > 1e-10)
                 {
-                    // For Brachistochrone-like problems, initialize control to point toward target
-                    var dx = xf[0] - x0[0];
-                    var dy = xf[1] - x0[1];  // Negative if descending
-                    if (Math.Abs(dx) > 1e-10 || Math.Abs(dy) > 1e-10)
-                    {
-                        // For Brachistochrone, angle is from horizontal, positive for descent
-                        // ẏ = -v·sin(θ), so when descending (dy < 0), we need θ > 0
-                        // Use absolute value of descent angle and clamp to [0, π/2]
-                        var angle = Math.Atan2(-dy, dx);  // Negate dy since we measure descent angle
-                        u0[0] = Math.Clamp(angle, 0.0, Math.PI / 2.0);
-                    }
-                }
-
-                z0 = transcription.CreateInitialGuess(x0, xf, u0);
-
-                if (_verbose)
-                {
-                    var hasNaN = false;
-                    for (var i = 0; i < z0.Length; i++)
-                    {
-                        if (double.IsNaN(z0[i]))
-                        {
-                            hasNaN = true;
-                            break;
-                        }
-                    }
-                    Console.WriteLine($"Initial guess created: size={z0.Length}, hasNaN={hasNaN}");
+                    var angle = Math.Atan2(-dy, dx);
+                    u0[0] = Math.Clamp(angle, 0.0, Math.PI / 2.0);
                 }
             }
 
-            // Extract dynamics evaluator (without gradients for now)
-            double[] DynamicsValue(double[] x, double[] u, double t)
-            {
-                var result = problem.Dynamics!(x, u, t);
-                return result.value;
-            }
+            return u0;
+        }
 
-            // Check if dynamics provides gradients
-            var hasAnalyticalGradients = false;
+        private bool CheckAnalyticalGradientCapability(ControlProblem problem)
+        {
             try
             {
                 var testX = new double[problem.StateDim];
                 var testU = new double[problem.ControlDim];
                 var testResult = problem.Dynamics!(testX, testU, 0.0);
-                // Check if gradients are not only present but also properly populated
-                if (testResult.gradients != null && testResult.gradients.Length >= 2)
+
+                if (testResult.gradients == null || testResult.gradients.Length < 2)
                 {
-                    var gradWrtState = testResult.gradients[0];
-                    var gradWrtControl = testResult.gradients[1];
-                    // Verify gradients are the right size and not all zeros
-                    var expectedStateGradSize = problem.StateDim * problem.StateDim;
-                    var expectedControlGradSize = problem.StateDim * problem.ControlDim;
-                    
-                    hasAnalyticalGradients = 
-                        gradWrtState != null && gradWrtState.Length == expectedStateGradSize &&
-                        gradWrtControl != null && gradWrtControl.Length == expectedControlGradSize;
+                    return false;
                 }
+
+                var gradWrtState = testResult.gradients[0];
+                var gradWrtControl = testResult.gradients[1];
+                var expectedStateGradSize = problem.StateDim * problem.StateDim;
+                var expectedControlGradSize = problem.StateDim * problem.ControlDim;
+
+                var hasGradients = gradWrtState != null && gradWrtState.Length == expectedStateGradSize &&
+                                   gradWrtControl != null && gradWrtControl.Length == expectedControlGradSize;
+
+                if (_verbose)
+                {
+                    Console.WriteLine(hasGradients
+                        ? "Using analytical gradients from AutoDiff"
+                        : "Using numerical finite-difference gradients");
+                }
+
+                return hasGradients;
             }
             catch
             {
-                // If evaluation fails, fall back to numerical gradients
+                if (_verbose)
+                {
+                    Console.WriteLine("Using numerical finite-difference gradients");
+                }
+                return false;
             }
+        }
 
-            if (_verbose && hasAnalyticalGradients)
+        private Func<double[], (double value, double[] gradient)> CreateObjectiveFunction(
+            ControlProblem problem,
+            CollocationGrid grid,
+            ParallelTranscription transcription,
+            int segments,
+            bool hasAnalyticalGradients,
+            int[] iterationCount)
+        {
+            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(x, u, t).value;
+
+            return z =>
             {
-                Console.WriteLine("Using analytical gradients from AutoDiff");
-            }
-            else if (_verbose)
-            {
-                Console.WriteLine("Using numerical finite-difference gradients");
-            }
+                var cost = ComputeTotalCost(problem, transcription, z);
+                var gradient = ComputeObjectiveGradient(problem, grid, transcription, z);
 
-            // Iteration counter for progress callback
-            var iterationCount = 0;
-
-            // Build objective function for NLP
-            Func<double[], (double value, double[] gradient)> nlpObjective = z =>
-            {
-                var cost = 0.0;
-
-                // Add running cost if defined
-                if (problem.RunningCost != null)
+                if (_verbose)
                 {
-                    double RunningCostValue(double[] x, double[] u, double t)
-                    {
-                        var result = problem.RunningCost(x, u, t);
-                        return result.value;
-                    }
-
-                    cost += transcription.ComputeRunningCost(z, RunningCostValue);
+                    LogObjectiveWarnings(cost, gradient);
                 }
 
-                // Add terminal cost if defined
-                if (problem.TerminalCost != null)
-                {
-                    double TerminalCostValue(double[] x, double t)
-                    {
-                        var result = problem.TerminalCost(x, t);
-                        return result.value;
-                    }
-
-                    cost += transcription.ComputeTerminalCost(z, TerminalCostValue);
-                }
-
-                // Compute gradient using AutoDiff if available, otherwise numerically
-                double[] gradient;
-
-                // Check if we can use analytical gradients for costs
-                var useAnalytical = true;
-                
-                if (problem.RunningCost != null)
-                {
-                    try
-                    {
-                        var testX = new double[problem.StateDim];
-                        var testU = new double[problem.ControlDim];
-                        var testResult = problem.RunningCost(testX, testU, 0.0);
-                        // gradients array for running cost should be: [∂L/∂x (StateDim), ∂L/∂u (ControlDim), ∂L/∂t]
-                        var expectedSize = problem.StateDim + problem.ControlDim + 1;
-                        useAnalytical = useAnalytical && 
-                            testResult.gradients != null && 
-                            testResult.gradients.Length >= expectedSize;
-                    }
-                    catch
-                    {
-                        useAnalytical = false;
-                    }
-                }
-
-                if (problem.TerminalCost != null)
-                {
-                    try
-                    {
-                        var testX = new double[problem.StateDim];
-                        var testResult = problem.TerminalCost(testX, 0.0);
-                        // gradients array for terminal cost should be: [∂Φ/∂x (StateDim), ∂Φ/∂t]
-                        var expectedSize = problem.StateDim + 1;
-                        useAnalytical = useAnalytical && 
-                            testResult.gradients != null && 
-                            testResult.gradients.Length >= expectedSize;
-                    }
-                    catch
-                    {
-                        useAnalytical = false;
-                    }
-                }
-
-                if (useAnalytical)
-                {
-                    // Use analytical gradients via AutoDiffGradientHelper
-                    gradient = new double[z.Length];
-
-                    if (problem.RunningCost != null)
-                    {
-                        var runningGrad = AutoDiffGradientHelper.ComputeRunningCostGradient(
-                            problem, grid, z, transcription.GetState, transcription.GetControl,
-                            (x, u, t) =>
-                            {
-                                var res = problem.RunningCost!(x, u, t);
-                                return (res.value, res.gradients!);
-                            });
-
-                        for (var i = 0; i < gradient.Length; i++)
-                        {
-                            gradient[i] += runningGrad[i];
-                        }
-                    }
-
-                    if (problem.TerminalCost != null)
-                    {
-                        var terminalGrad = AutoDiffGradientHelper.ComputeTerminalCostGradient(
-                            problem, grid, z, transcription.GetState,
-                            (x, t) =>
-                            {
-                                var res = problem.TerminalCost!(x, t);
-                                return (res.value, res.gradients!);
-                            });
-
-                        for (var i = 0; i < gradient.Length; i++)
-                        {
-                            gradient[i] += terminalGrad[i];
-                        }
-                    }
-                }
-                else
-                {
-                    // Fall back to numerical gradients
-                    double ObjectiveValue(double[] zz)
-                    {
-                        var obj = 0.0;
-
-                        if (problem.RunningCost != null)
-                        {
-                            double RunningCostValue(double[] x, double[] u, double t)
-                            {
-                                var result = problem.RunningCost(x, u, t);
-                                return result.value;
-                            }
-
-                            obj += transcription.ComputeRunningCost(zz, RunningCostValue);
-                        }
-
-                        if (problem.TerminalCost != null)
-                        {
-                            double TerminalCostValue(double[] x, double t)
-                            {
-                                var result = problem.TerminalCost(x, t);
-                                return result.value;
-                            }
-
-                            obj += transcription.ComputeTerminalCost(zz, TerminalCostValue);
-                        }
-
-                        return obj;
-                    }
-
-                    gradient = NumericalGradients.ComputeGradient(ObjectiveValue, z);
-                }
-
-                if (_verbose && double.IsNaN(cost))
-                {
-                    Console.WriteLine($"WARNING: Objective cost is NaN!");
-                }
-                if (_verbose && gradient.Length > 0 && double.IsNaN(gradient[0]))
-                {
-                    Console.WriteLine($"WARNING: Gradient is NaN!");
-                }
-
-                // Invoke progress callback
-                if (_progressCallback != null)
-                {
-                    iterationCount++;
-                    var states = new double[segments + 1][];
-                    var controls = new double[segments + 1][];
-                    for (var k = 0; k <= segments; k++)
-                    {
-                        states[k] = transcription.GetState(z, k);
-                        controls[k] = transcription.GetControl(z, k);
-                    }
-
-                    // Compute maximum constraint violation from defects
-                    var allDefects = transcription.ComputeAllDefects(z, DynamicsValue);
-                    var maxViolation = 0.0;
-                    foreach (var d in allDefects)
-                    {
-                        var abs = Math.Abs(d);
-                        if (abs > maxViolation)
-                        {
-                            maxViolation = abs;
-                        }
-                    }
-
-                    _progressCallback(iterationCount, cost, states, controls, grid.TimePoints, maxViolation, _tolerance);
-                }
+                InvokeProgressCallback(problem, grid, transcription, segments, z, cost, DynamicsValue, iterationCount);
 
                 return (cost, gradient);
             };
+        }
 
-            // Create defect constraints
-            Func<double[], (double value, double[] gradient)> DefectConstraint(int defectIndex)
+        private static double ComputeTotalCost(ControlProblem problem, ParallelTranscription transcription, double[] z)
+        {
+            var cost = 0.0;
+
+            if (problem.RunningCost != null)
             {
-                return z =>
-                {
-                    var allDefects = transcription.ComputeAllDefects(z, DynamicsValue);
-
-                    // Compute which segment and state component this defect corresponds to
-                    var segmentIndex = defectIndex / problem.StateDim;
-                    var stateComponentIndex = defectIndex % problem.StateDim;
-
-                    double[] gradient;
-
-                    // Try to use analytical gradients if dynamics provides them
-                    if (hasAnalyticalGradients)
-                    {
-                        try
-                        {
-                            gradient = AutoDiffGradientHelper.ComputeDefectGradient(
-                                problem, grid, z, transcription.GetState, transcription.GetControl,
-                                segmentIndex, stateComponentIndex,
-                                (x, u, t) =>
-                                {
-                                    var res = problem.Dynamics!(x, u, t);
-                                    return (res.value, res.gradients);
-                                });
-                        }
-                        catch
-                        {
-                            // Fall back to numerical if AutoDiff fails
-                            double DefectValue(double[] zz)
-                            {
-                                var defects = transcription.ComputeAllDefects(zz, DynamicsValue);
-                                return defects[defectIndex];
-                            }
-
-                            gradient = NumericalGradients.ComputeConstraintGradient(DefectValue, z);
-                        }
-                    }
-                    else
-                    {
-                        // Compute gradient numerically
-                        double DefectValue(double[] zz)
-                        {
-                            var defects = transcription.ComputeAllDefects(zz, DynamicsValue);
-                            return defects[defectIndex];
-                        }
-
-                        gradient = NumericalGradients.ComputeConstraintGradient(DefectValue, z);
-                    }
-
-                    return (allDefects[defectIndex], gradient);
-                };
+                double RunningCostValue(double[] x, double[] u, double t) => problem.RunningCost(x, u, t).value;
+                cost += transcription.ComputeRunningCost(z, RunningCostValue);
             }
 
-            // Set up constrained optimizer
+            if (problem.TerminalCost != null)
+            {
+                double TerminalCostValue(double[] x, double t) => problem.TerminalCost(x, t).value;
+                cost += transcription.ComputeTerminalCost(z, TerminalCostValue);
+            }
+
+            return cost;
+        }
+
+        private static double[] ComputeObjectiveGradient(ControlProblem problem, CollocationGrid grid, ParallelTranscription transcription, double[] z)
+        {
+            if (!CanUseAnalyticalGradientsForCosts(problem))
+            {
+                return NumericalGradients.ComputeGradient(zz => ComputeTotalCost(problem, transcription, zz), z);
+            }
+
+            var gradient = new double[z.Length];
+
+            if (problem.RunningCost != null)
+            {
+                var runningGrad = AutoDiffGradientHelper.ComputeRunningCostGradient(
+                    problem, grid, z, transcription.GetState, transcription.GetControl,
+                    (x, u, t) =>
+                    {
+                        var res = problem.RunningCost!(x, u, t);
+                        return (res.value, res.gradients!);
+                    });
+
+                for (var i = 0; i < gradient.Length; i++)
+                {
+                    gradient[i] += runningGrad[i];
+                }
+            }
+
+            if (problem.TerminalCost != null)
+            {
+                var terminalGrad = AutoDiffGradientHelper.ComputeTerminalCostGradient(
+                    problem, grid, z, transcription.GetState,
+                    (x, t) =>
+                    {
+                        var res = problem.TerminalCost!(x, t);
+                        return (res.value, res.gradients!);
+                    });
+
+                for (var i = 0; i < gradient.Length; i++)
+                {
+                    gradient[i] += terminalGrad[i];
+                }
+            }
+
+            return gradient;
+        }
+
+        private static bool CanUseAnalyticalGradientsForCosts(ControlProblem problem)
+        {
+            var useAnalytical = true;
+
+            if (problem.RunningCost != null)
+            {
+                try
+                {
+                    var testResult = problem.RunningCost(new double[problem.StateDim], new double[problem.ControlDim], 0.0);
+                    var expectedSize = problem.StateDim + problem.ControlDim + 1;
+                    useAnalytical = useAnalytical && testResult.gradients != null && testResult.gradients.Length >= expectedSize;
+                }
+                catch
+                {
+                    useAnalytical = false;
+                }
+            }
+
+            if (problem.TerminalCost != null)
+            {
+                try
+                {
+                    var testResult = problem.TerminalCost(new double[problem.StateDim], 0.0);
+                    var expectedSize = problem.StateDim + 1;
+                    useAnalytical = useAnalytical && testResult.gradients != null && testResult.gradients.Length >= expectedSize;
+                }
+                catch
+                {
+                    useAnalytical = false;
+                }
+            }
+
+            return useAnalytical;
+        }
+
+        private static void LogObjectiveWarnings(double cost, double[] gradient)
+        {
+            if (double.IsNaN(cost))
+            {
+                Console.WriteLine("WARNING: Objective cost is NaN!");
+            }
+            if (gradient.Length > 0 && double.IsNaN(gradient[0]))
+            {
+                Console.WriteLine("WARNING: Gradient is NaN!");
+            }
+        }
+
+        private void InvokeProgressCallback(
+            ControlProblem problem,
+            CollocationGrid grid,
+            ParallelTranscription transcription,
+            int segments,
+            double[] z,
+            double cost,
+            Func<double[], double[], double, double[]> dynamicsValue,
+            int[] iterationCount)
+        {
+            if (_progressCallback == null)
+            {
+                return;
+            }
+
+            iterationCount[0]++;
+            var states = new double[segments + 1][];
+            var controls = new double[segments + 1][];
+            for (var k = 0; k <= segments; k++)
+            {
+                states[k] = transcription.GetState(z, k);
+                controls[k] = transcription.GetControl(z, k);
+            }
+
+            var maxViolation = ComputeMaxViolation(transcription, z, dynamicsValue);
+            _progressCallback(iterationCount[0], cost, states, controls, grid.TimePoints, maxViolation, _tolerance);
+        }
+
+        private static double ComputeMaxViolation(ParallelTranscription transcription, double[] z, Func<double[], double[], double, double[]> dynamicsValue)
+        {
+            var allDefects = transcription.ComputeAllDefects(z, dynamicsValue);
+            var maxViolation = 0.0;
+            foreach (var d in allDefects)
+            {
+                var abs = Math.Abs(d);
+                if (abs > maxViolation)
+                {
+                    maxViolation = abs;
+                }
+            }
+            return maxViolation;
+        }
+
+        private AugmentedLagrangianOptimizer ConfigureOptimizer(
+            ControlProblem problem,
+            CollocationGrid grid,
+            ParallelTranscription transcription,
+            int segments,
+            double[] z0,
+            bool hasAnalyticalGradients,
+            Func<double[], (double value, double[] gradient)> nlpObjective)
+        {
             var constrainedOptimizer = new AugmentedLagrangianOptimizer()
                 .WithUnconstrainedOptimizer(_innerOptimizer ?? new LBFGSOptimizer())
                 .WithConstraintTolerance(_tolerance)
@@ -658,72 +611,86 @@ namespace Optimal.Control
                 .WithMaxIterations(_maxIterations)
                 .WithVerbose(_verbose);
 
-            // Add all defect constraints as equality constraints
-            var totalDefects = _segments * problem.StateDim;
+            AddDefectConstraints(problem, grid, transcription, segments, hasAnalyticalGradients, constrainedOptimizer);
+            AddBoundaryConstraints(problem, transcription, segments, constrainedOptimizer);
+            AddBoxConstraints(problem, transcription, constrainedOptimizer);
+            AddPathConstraints(problem, grid, transcription, segments, constrainedOptimizer);
 
-            if (_verbose)
-            {
-                // Test objective evaluation on initial guess
-                var (testCost, testGrad) = nlpObjective(z0);
-                Console.WriteLine($"Test objective on initial guess: cost={testCost}, grad[0]={testGrad[0]}");
+            return constrainedOptimizer;
+        }
 
-                // Test defect evaluation on initial guess
-                var testDefects = transcription.ComputeAllDefects(z0, DynamicsValue);
-                var defectHasNaN = false;
-                for (var i = 0; i < testDefects.Length; i++)
-                {
-                    if (double.IsNaN(testDefects[i]))
-                    {
-                        Console.WriteLine($"WARNING: Defect {i} is NaN on initial guess!");
-                        defectHasNaN = true;
-                        break;
-                    }
-                }
-                if (!defectHasNaN)
-                {
-                    Console.WriteLine($"All {testDefects.Length} defects are finite on initial guess");
-                }
-
-                // Report max defect per state component
-                var maxDefectPerState = new double[problem.StateDim];
-                for (var seg = 0; seg < segments; seg++)
-                {
-                    for (var state = 0; state < problem.StateDim; state++)
-                    {
-                        var defectIdx = seg * problem.StateDim + state;
-                        var absDefect = Math.Abs(testDefects[defectIdx]);
-                        if (absDefect > maxDefectPerState[state])
-                        {
-                            maxDefectPerState[state] = absDefect;
-                        }
-                    }
-                }
-                Console.WriteLine($"Max defect per state component (initial guess): [{string.Join(", ", maxDefectPerState.Select(d => d.ToString("E3", System.Globalization.CultureInfo.InvariantCulture)))}]");
-            }
+        private void AddDefectConstraints(
+            ControlProblem problem,
+            CollocationGrid grid,
+            ParallelTranscription transcription,
+            int segments,
+            bool hasAnalyticalGradients,
+            AugmentedLagrangianOptimizer optimizer)
+        {
+            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(x, u, t).value;
+            var totalDefects = segments * problem.StateDim;
 
             for (var i = 0; i < totalDefects; i++)
             {
-                constrainedOptimizer.WithEqualityConstraint(DefectConstraint(i));
+                var defectIndex = i;
+                optimizer.WithEqualityConstraint(z =>
+                {
+                    var allDefects = transcription.ComputeAllDefects(z, DynamicsValue);
+                    var gradient = ComputeDefectGradient(problem, grid, transcription, z, defectIndex, hasAnalyticalGradients, DynamicsValue);
+                    return (allDefects[defectIndex], gradient);
+                });
+            }
+        }
+
+        private static double[] ComputeDefectGradient(
+            ControlProblem problem,
+            CollocationGrid grid,
+            ParallelTranscription transcription,
+            double[] z,
+            int defectIndex,
+            bool hasAnalyticalGradients,
+            Func<double[], double[], double, double[]> dynamicsValue)
+        {
+            if (!hasAnalyticalGradients)
+            {
+                return NumericalGradients.ComputeConstraintGradient(
+                    zz => transcription.ComputeAllDefects(zz, dynamicsValue)[defectIndex], z);
             }
 
-            // Add boundary condition constraints
+            var segmentIndex = defectIndex / problem.StateDim;
+            var stateComponentIndex = defectIndex % problem.StateDim;
+
+            try
+            {
+                return AutoDiffGradientHelper.ComputeDefectGradient(
+                    problem, grid, z, transcription.GetState, transcription.GetControl,
+                    segmentIndex, stateComponentIndex,
+                    (x, u, t) =>
+                    {
+                        var res = problem.Dynamics!(x, u, t);
+                        return (res.value, res.gradients);
+                    });
+            }
+            catch
+            {
+                return NumericalGradients.ComputeConstraintGradient(
+                    zz => transcription.ComputeAllDefects(zz, dynamicsValue)[defectIndex], z);
+            }
+        }
+
+        private static void AddBoundaryConstraints(ControlProblem problem, ParallelTranscription transcription, int segments, AugmentedLagrangianOptimizer optimizer)
+        {
             if (problem.InitialState != null)
             {
                 for (var i = 0; i < problem.StateDim; i++)
                 {
                     var stateIndex = i;
                     var targetValue = problem.InitialState[i];
-                    constrainedOptimizer.WithEqualityConstraint(z =>
+                    optimizer.WithEqualityConstraint(z =>
                     {
                         var x = transcription.GetState(z, 0);
-
-                        double BoundaryValue(double[] zz)
-                        {
-                            var xx = transcription.GetState(zz, 0);
-                            return xx[stateIndex] - targetValue;
-                        }
-
-                        var gradient = NumericalGradients.ComputeConstraintGradient(BoundaryValue, z);
+                        var gradient = NumericalGradients.ComputeConstraintGradient(
+                            zz => transcription.GetState(zz, 0)[stateIndex] - targetValue, z);
                         return (x[stateIndex] - targetValue, gradient);
                     });
                 }
@@ -736,125 +703,153 @@ namespace Optimal.Control
                     var stateIndex = i;
                     var targetValue = problem.FinalState[i];
 
-                    // Skip NaN values (free terminal conditions)
                     if (double.IsNaN(targetValue))
                     {
                         continue;
                     }
 
-                    constrainedOptimizer.WithEqualityConstraint(z =>
+                    optimizer.WithEqualityConstraint(z =>
                     {
-                        var x = transcription.GetState(z, _segments);
-
-                        double BoundaryValue(double[] zz)
-                        {
-                            var xx = transcription.GetState(zz, _segments);
-                            return xx[stateIndex] - targetValue;
-                        }
-
-                        var gradient = NumericalGradients.ComputeConstraintGradient(BoundaryValue, z);
+                        var x = transcription.GetState(z, segments);
+                        var gradient = NumericalGradients.ComputeConstraintGradient(
+                            zz => transcription.GetState(zz, segments)[stateIndex] - targetValue, z);
                         return (x[stateIndex] - targetValue, gradient);
                     });
                 }
             }
+        }
 
-            // Add control bounds if specified
-            if (problem.ControlLowerBounds != null && problem.ControlUpperBounds != null)
+        private void AddBoxConstraints(ControlProblem problem, ParallelTranscription transcription, AugmentedLagrangianOptimizer optimizer)
+        {
+            if (problem.ControlLowerBounds == null || problem.ControlUpperBounds == null)
             {
-                // Build flat bounds for decision vector
-                var lowerBounds = new double[transcription.DecisionVectorSize];
-                var upperBounds = new double[transcription.DecisionVectorSize];
-
-                for (var k = 0; k <= _segments; k++)
-                {
-                    var offset = k * (problem.StateDim + problem.ControlDim);
-
-                    // State bounds (if specified)
-                    for (var i = 0; i < problem.StateDim; i++)
-                    {
-                        lowerBounds[offset + i] = problem.StateLowerBounds?[i] ?? double.NegativeInfinity;
-                        upperBounds[offset + i] = problem.StateUpperBounds?[i] ?? double.PositiveInfinity;
-                    }
-
-                    // Control bounds
-                    for (var i = 0; i < problem.ControlDim; i++)
-                    {
-                        lowerBounds[offset + problem.StateDim + i] = problem.ControlLowerBounds[i];
-                        upperBounds[offset + problem.StateDim + i] = problem.ControlUpperBounds[i];
-                    }
-                }
-
-                constrainedOptimizer.WithBoxConstraints(lowerBounds, upperBounds);
+                return;
             }
 
-            // Add path constraints if specified
-            if (problem.PathConstraints.Count > 0)
+            var lowerBounds = new double[transcription.DecisionVectorSize];
+            var upperBounds = new double[transcription.DecisionVectorSize];
+
+            for (var k = 0; k <= _segments; k++)
             {
-                // Apply each path constraint at all collocation nodes
-                for (var constraintIndex = 0; constraintIndex < problem.PathConstraints.Count; constraintIndex++)
+                var offset = k * (problem.StateDim + problem.ControlDim);
+
+                for (var i = 0; i < problem.StateDim; i++)
                 {
-                    var pathConstraint = problem.PathConstraints[constraintIndex];
+                    lowerBounds[offset + i] = problem.StateLowerBounds?[i] ?? double.NegativeInfinity;
+                    upperBounds[offset + i] = problem.StateUpperBounds?[i] ?? double.PositiveInfinity;
+                }
 
-                    for (var k = 0; k <= _segments; k++)
+                for (var i = 0; i < problem.ControlDim; i++)
+                {
+                    lowerBounds[offset + problem.StateDim + i] = problem.ControlLowerBounds[i];
+                    upperBounds[offset + problem.StateDim + i] = problem.ControlUpperBounds[i];
+                }
+            }
+
+            optimizer.WithBoxConstraints(lowerBounds, upperBounds);
+        }
+
+        private static void AddPathConstraints(ControlProblem problem, CollocationGrid grid, ParallelTranscription transcription, int segments, AugmentedLagrangianOptimizer optimizer)
+        {
+            if (problem.PathConstraints.Count == 0)
+            {
+                return;
+            }
+
+            for (var constraintIndex = 0; constraintIndex < problem.PathConstraints.Count; constraintIndex++)
+            {
+                var pathConstraint = problem.PathConstraints[constraintIndex];
+
+                for (var k = 0; k <= segments; k++)
+                {
+                    var nodeIndex = k;
+                    var timePoint = grid.TimePoints[k];
+
+                    optimizer.WithInequalityConstraint(z =>
                     {
-                        var nodeIndex = k;
-                        var timePoint = grid.TimePoints[k];
-
-                        constrainedOptimizer.WithInequalityConstraint(z =>
-                        {
-                            var x = transcription.GetState(z, nodeIndex);
-                            var u = transcription.GetControl(z, nodeIndex);
-                            var result = pathConstraint(x, u, timePoint);
-
-                            // Compute gradient numerically
-                            double ConstraintValue(double[] zz)
+                        var x = transcription.GetState(z, nodeIndex);
+                        var u = transcription.GetControl(z, nodeIndex);
+                        var result = pathConstraint(x, u, timePoint);
+                        var gradient = NumericalGradients.ComputeConstraintGradient(
+                            zz =>
                             {
                                 var xx = transcription.GetState(zz, nodeIndex);
                                 var uu = transcription.GetControl(zz, nodeIndex);
-                                var res = pathConstraint(xx, uu, timePoint);
-                                return res.value;
-                            }
+                                return pathConstraint(xx, uu, timePoint).value;
+                            }, z);
+                        return (result.value, gradient);
+                    });
+                }
+            }
+        }
 
-                            var gradient = NumericalGradients.ComputeConstraintGradient(ConstraintValue, z);
-                            return (result.value, gradient);
-                        });
+        private void LogInitialDiagnostics(
+            ControlProblem problem,
+            ParallelTranscription transcription,
+            int segments,
+            double[] z0,
+            Func<double[], (double value, double[] gradient)> nlpObjective)
+        {
+            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(x, u, t).value;
+
+            var (testCost, testGrad) = nlpObjective(z0);
+            Console.WriteLine($"Test objective on initial guess: cost={testCost}, grad[0]={testGrad[0]}");
+
+            var testDefects = transcription.ComputeAllDefects(z0, DynamicsValue);
+            var defectHasNaN = testDefects.Any(double.IsNaN);
+
+            if (defectHasNaN)
+            {
+                for (var i = 0; i < testDefects.Length; i++)
+                {
+                    if (double.IsNaN(testDefects[i]))
+                    {
+                        Console.WriteLine($"WARNING: Defect {i} is NaN on initial guess!");
+                        break;
                     }
                 }
             }
+            else
+            {
+                Console.WriteLine($"All {testDefects.Length} defects are finite on initial guess");
+            }
 
-            // Solve the NLP
-            var nlpResult = constrainedOptimizer.Minimize(nlpObjective);
+            var maxDefectPerState = new double[problem.StateDim];
+            for (var seg = 0; seg < segments; seg++)
+            {
+                for (var state = 0; state < problem.StateDim; state++)
+                {
+                    var defectIdx = seg * problem.StateDim + state;
+                    var absDefect = Math.Abs(testDefects[defectIdx]);
+                    if (absDefect > maxDefectPerState[state])
+                    {
+                        maxDefectPerState[state] = absDefect;
+                    }
+                }
+            }
+            Console.WriteLine($"Max defect per state component (initial guess): [{string.Join(", ", maxDefectPerState.Select(d => d.ToString("E3", System.Globalization.CultureInfo.InvariantCulture)))}]");
+        }
 
-            // Extract solution
+        private static CollocationResult ExtractSolution(ControlProblem problem, CollocationGrid grid, ParallelTranscription transcription, int segments, OptimizerResult nlpResult)
+        {
+            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(x, u, t).value;
             var zOpt = nlpResult.OptimalPoint;
 
-            var times = grid.TimePoints;
             var states = new double[segments + 1][];
             var controls = new double[segments + 1][];
-
             for (var k = 0; k <= segments; k++)
             {
                 states[k] = transcription.GetState(zOpt, k);
                 controls[k] = transcription.GetControl(zOpt, k);
             }
 
-            // Compute final defects
-            var finalDefects = transcription.ComputeAllDefects(zOpt, DynamicsValue);
-            var maxDefect = 0.0;
-            foreach (var d in finalDefects)
-            {
-                var abs = Math.Abs(d);
-                if (abs > maxDefect)
-                {
-                    maxDefect = abs;
-                }
-            }
+            var maxDefect = ComputeMaxViolation(transcription, zOpt, DynamicsValue);
 
             return new CollocationResult
             {
                 Success = nlpResult.Success,
                 Message = nlpResult.Message,
-                Times = times,
+                Times = grid.TimePoints,
                 States = states,
                 Controls = controls,
                 OptimalCost = nlpResult.OptimalValue,
