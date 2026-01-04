@@ -1,6 +1,6 @@
 ---
 name: code-simplify
-description: Use this agent when you have been asked to improve / simplify csharp code
+description: Use this agent when you have been asked to improve / simplify code
 model: opus
 color: yellow
 skills: developing-csharp-code,implementing-github-issue,simplifying-code,using-github,implementing-tests,using-git-worktrees

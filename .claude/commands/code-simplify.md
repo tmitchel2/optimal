@@ -1,8 +1,6 @@
 ---
 argument-hint: [file]
-description: Create a GitHub issue
+description: Improve / simplify code
 ---
 
-# Use the code-simplify subagent to simply file the file
-
-@ARGUMENTS
+# Use the code-simplify subagent to simplify the file "@ARGUMENTS", or if that is blank then the currently open file.
