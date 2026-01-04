@@ -19,6 +19,10 @@ This skill provides additional information on how to work with CSharp (C#) and D
 - Enable `Nullable`, make sure all reference types are explicitly nullable or non-nullable.
 - Folders under projects should be **flat and only one level deep**
 - For namespaces with multiple segments, use dots (`.`) in folder names rather than nested directories. e.g. `Optimal.Data.Models` folder is named `Data.Models/` not `Data/Models/`.
+- Use Linq instead of loops.
+- Reduce nesting / branch depth to an absolute minimum.  Loops within loops should be avoided, especially within the same function.  Branching within branching should be avoided, especially within the same function.
+- Helper methods and classes should not implicitly default instances to particular values, and should not implicity fallback to alternate values if errors / exceptions occur.
+- Failing fast is preferred rather than catching exceptions and attempting to fallback to alternate approaches.
 
 ## CSharp Workflow Best Practises
 
