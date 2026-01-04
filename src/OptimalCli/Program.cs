@@ -25,7 +25,7 @@ if (args.Length == 0 || args[0] == "--help" || args[0] == "-h")
 var headless = false;
 var solver = SolverType.HS;
 var variant = BrachistochroneVariant.FreeFinalTime;
-var goddardVariant = GoddardRocketVariant.Default;
+var goddardVariant = GoddardRocketVariant.FreeFinalTime;
 var problemName = args[0].ToLowerInvariant();
 
 for (var i = 1; i < args.Length; i++)
@@ -58,10 +58,9 @@ for (var i = 1; i < args.Length; i++)
             {
                 goddardVariant = variantArg switch
                 {
-                    "default" => GoddardRocketVariant.Default,
                     "fixed" or "fixed-time" or "fixed-tf" => GoddardRocketVariant.FixedFinalTime,
                     "free" or "free-time" or "free-tf" => GoddardRocketVariant.FreeFinalTime,
-                    _ => throw new ArgumentException($"Unknown Goddard variant: {variantArg}. Use 'default', 'fixed', or 'free'.")
+                    _ => throw new ArgumentException($"Unknown Goddard variant: {variantArg}. Use 'fixed' or 'free'.")
                 };
             }
             else

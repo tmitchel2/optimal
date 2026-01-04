@@ -51,11 +51,6 @@ public enum BrachistochroneVariant
 public enum GoddardRocketVariant
 {
     /// <summary>
-    /// Default variant with normalized parameters (original implementation).
-    /// </summary>
-    Default,
-
-    /// <summary>
     /// Fixed final time variant (tf = 100s) based on PROPT example 45.
     /// Uses physical SI units from YOptimization.
     /// </summary>
@@ -79,4 +74,4 @@ public record CommandOptions(
     bool Headless = false,
     SolverType Solver = SolverType.HS,
     BrachistochroneVariant Variant = BrachistochroneVariant.FreeFinalTime,
-    GoddardRocketVariant GoddardVariant = GoddardRocketVariant.Default);
+    GoddardRocketVariant GoddardVariant = GoddardRocketVariant.FreeFinalTime);

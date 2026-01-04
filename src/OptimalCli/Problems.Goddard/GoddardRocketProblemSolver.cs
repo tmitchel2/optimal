@@ -38,7 +38,6 @@ public sealed class GoddardRocketProblemSolver : ICommand
 
         var (problem, problemParams) = options.GoddardVariant switch
         {
-            GoddardRocketVariant.Default => CreateDefaultProblem(),
             GoddardRocketVariant.FixedFinalTime => CreateFixedFinalTimeProblem(),
             GoddardRocketVariant.FreeFinalTime => CreateFreeFinalTimeProblem(),
             _ => throw new ArgumentException($"Unknown variant: {options.GoddardVariant}")
@@ -109,7 +108,7 @@ public sealed class GoddardRocketProblemSolver : ICommand
             .WithParallelLineSearch(enable: true, batchSize: 4)
             .WithTolerance(0.0001)  // Relaxed inner tolerance
             .WithMaxIterations(1000)  // More inner iterations
-            .WithVerbose(false);
+            .WithVerbose(true);
 
         ISolver solver = useLGL
             ? new LegendreGaussLobattoSolver()
@@ -125,7 +124,7 @@ public sealed class GoddardRocketProblemSolver : ICommand
                 .WithMaxIterations(300)
                 // .WithMeshRefinement(true, 5, 0.1)
                 .WithMeshRefinement(false)
-                .WithInitialPenalty(100.0)
+                // .WithInitialPenalty(100.0)
                 .WithMeshRefinement(false)
                 .WithVerbose(true)
                 .WithInnerOptimizer(lbfgInnerOptimizer);
@@ -234,56 +233,6 @@ public sealed class GoddardRocketProblemSolver : ICommand
         Console.WriteLine($"  Optimal cost: {result.OptimalCost:F6} (negative altitude)");
         Console.WriteLine($"  Iterations: {result.Iterations}");
         Console.WriteLine();
-    }
-
-    /// <summary>
-    /// Creates the default Goddard rocket problem with normalized parameters (original implementation).
-    /// </summary>
-    private static (ControlProblem problem, GoddardRocketParams parameters) CreateDefaultProblem()
-    {
-        // Physical parameters (normalized Goddard rocket problem)
-        var g = 1.0;         // Gravitational acceleration (normalized)
-        var Dc = 620.0;      // Drag coefficient (D = Dc * v^2 * exp(-h/h0))
-        var c = 0.5;         // Exhaust velocity (sqrt(T_max/(m0*g)))
-        var h0 = 500.0;      // Scale height for drag (exponential atmosphere)
-        var Tmax = 3.5;      // Maximum thrust
-        var mInitial = 1.0;  // Initial mass (rocket + fuel)
-        var mEmpty = 0.6;    // Empty mass (rocket without fuel)
-        var finalTime = 5.0; // Final time - enough for thrust phase + coast to peak
-
-        var description = $"""
-            Problem setup (normalized parameters):
-              Initial altitude: 0 m
-              Initial velocity: 0 m/s
-              Initial mass: {mInitial} kg (including fuel)
-              Empty mass: {mEmpty} kg (rocket structure)
-              Fuel available: {mInitial - mEmpty} kg
-              Max thrust: {Tmax} N
-              Exhaust velocity: c = {c}
-              Gravity: {g} m/s²
-              Drag coefficient: {Dc}
-              Atmosphere scale height: {h0} m
-              Time horizon: {finalTime} s (fixed)
-              Final condition: velocity = 0 (at peak altitude)
-              Objective: Maximize final altitude
-            """;
-
-        var problem = new ControlProblem()
-            .WithStateSize(3)
-            .WithControlSize(1)
-            .WithTimeHorizon(0.0, finalTime)
-            .WithInitialCondition([0.0, 0.0, mInitial])
-            .WithFinalCondition([double.NaN, 0.0, mEmpty])
-            .WithControlBounds([0.0], [Tmax])
-            .WithStateBounds(
-                [0.0, -2.0, mEmpty],
-                [1000.0, 2.0, mInitial])
-            .WithDynamics((x, u, t) => CreateDynamics(x, u, g, Dc, c, h0))
-            .WithRunningCost(CreateRunningCost)
-            .WithTerminalCost(CreateTerminalCost)
-            .WithPathConstraint((x, u, t) => CreatePathConstraint(x, u, mEmpty));
-
-        return (problem, new GoddardRocketParams(description, h0, mEmpty));
     }
 
     /// <summary>
@@ -402,40 +351,6 @@ public sealed class GoddardRocketProblemSolver : ICommand
             .WithPathConstraint((x, u, t) => CreatePathConstraint(x, u, mf));
 
         return (problem, new GoddardRocketParams(description, h0, mf));
-    }
-
-    /// <summary>
-    /// Creates dynamics for the default (normalized) Goddard rocket problem.
-    /// </summary>
-    private static (double[] value, double[][] gradients) CreateDynamics(
-        double[] x, double[] u, double g, double Dc, double c, double h0)
-    {
-        var h = x[0];
-        var v = x[1];
-        var m = x[2];
-        var T = u[0];
-
-        // Use AutoDiff-generated gradients
-        var (hrate, hrate_gradients) = GoddardRocketDynamicsGradients.AltitudeRateReverse(h, v, m, T, g, Dc, c, h0);
-        var (vrate, vrate_gradients) = GoddardRocketDynamicsGradients.VelocityRateReverse(h, v, m, T, g, Dc, c, h0);
-        var (mrate, mrate_gradients) = GoddardRocketDynamicsGradients.MassRateReverse(h, v, m, T, g, Dc, c, h0);
-
-        var value = new[] { hrate, vrate, mrate };
-        var gradients = new double[2][];
-
-        gradients[0] = new[] {
-            hrate_gradients[0], hrate_gradients[1], hrate_gradients[2],
-            vrate_gradients[0], vrate_gradients[1], vrate_gradients[2],
-            mrate_gradients[0], mrate_gradients[1], mrate_gradients[2]
-        };
-
-        gradients[1] = new[] {
-            hrate_gradients[3],
-            vrate_gradients[3],
-            mrate_gradients[3]
-        };
-
-        return (value, gradients);
     }
 
     /// <summary>
