@@ -14,7 +14,7 @@ namespace Optimal.Control
     /// <summary>
     /// Parallel version of Hermite-Simpson transcription with optimized constraint and gradient evaluation.
     /// </summary>
-    public sealed class ParallelTranscription
+    public sealed class ParallelTranscription : ITranscription
     {
 #pragma warning disable IDE0052 // Remove unread private members
         private readonly ControlProblem _problem;
@@ -54,7 +54,7 @@ namespace Optimal.Control
         /// <summary>
         /// Extracts state vector at a given node from the decision vector.
         /// </summary>
-        public double[] GetState(double[] z, int nodeIndex)
+        public double[] GetState(double[] decisionVector, int nodeIndex)
         {
             if (nodeIndex < 0 || nodeIndex > _grid.Segments)
             {
@@ -63,14 +63,14 @@ namespace Optimal.Control
 
             var state = new double[_stateDim];
             var offset = nodeIndex * (_stateDim + _controlDim);
-            Array.Copy(z, offset, state, 0, _stateDim);
+            Array.Copy(decisionVector, offset, state, 0, _stateDim);
             return state;
         }
 
         /// <summary>
         /// Extracts control vector at a given node from the decision vector.
         /// </summary>
-        public double[] GetControl(double[] z, int nodeIndex)
+        public double[] GetControl(double[] decisionVector, int nodeIndex)
         {
             if (nodeIndex < 0 || nodeIndex > _grid.Segments)
             {
@@ -79,14 +79,14 @@ namespace Optimal.Control
 
             var control = new double[_controlDim];
             var offset = nodeIndex * (_stateDim + _controlDim) + _stateDim;
-            Array.Copy(z, offset, control, 0, _controlDim);
+            Array.Copy(decisionVector, offset, control, 0, _controlDim);
             return control;
         }
 
         /// <summary>
         /// Sets state vector at a given node in the decision vector.
         /// </summary>
-        public void SetState(double[] z, int nodeIndex, double[] state)
+        public void SetState(double[] decisionVector, int nodeIndex, double[] state)
         {
             if (nodeIndex < 0 || nodeIndex > _grid.Segments)
             {
@@ -99,13 +99,13 @@ namespace Optimal.Control
             }
 
             var offset = nodeIndex * (_stateDim + _controlDim);
-            Array.Copy(state, 0, z, offset, _stateDim);
+            Array.Copy(state, 0, decisionVector, offset, _stateDim);
         }
 
         /// <summary>
         /// Sets control vector at a given node in the decision vector.
         /// </summary>
-        public void SetControl(double[] z, int nodeIndex, double[] control)
+        public void SetControl(double[] decisionVector, int nodeIndex, double[] control)
         {
             if (nodeIndex < 0 || nodeIndex > _grid.Segments)
             {
@@ -118,7 +118,7 @@ namespace Optimal.Control
             }
 
             var offset = nodeIndex * (_stateDim + _controlDim) + _stateDim;
-            Array.Copy(control, 0, z, offset, _controlDim);
+            Array.Copy(control, 0, decisionVector, offset, _controlDim);
         }
 
         /// <summary>
@@ -376,7 +376,7 @@ namespace Optimal.Control
         /// <summary>
         /// Creates an initial guess for the decision vector.
         /// </summary>
-        public double[] CreateInitialGuess(double[] initialState, double[] finalState, double[] constantControl)
+        public double[] CreateInitialGuess(double[] x0, double[] xf, double[] u0)
         {
             var z = new double[_decisionVectorSize];
 
@@ -387,19 +387,19 @@ namespace Optimal.Control
 
                 for (var i = 0; i < _stateDim; i++)
                 {
-                    // Handle NaN in finalState (free/unspecified terminal condition)
-                    if (double.IsNaN(finalState[i]))
+                    // Handle NaN in xf (free/unspecified terminal condition)
+                    if (double.IsNaN(xf[i]))
                     {
-                        state[i] = initialState[i];
+                        state[i] = x0[i];
                     }
                     else
                     {
-                        state[i] = (1.0 - alpha) * initialState[i] + alpha * finalState[i];
+                        state[i] = (1.0 - alpha) * x0[i] + alpha * xf[i];
                     }
                 }
 
                 SetState(z, k, state);
-                SetControl(z, k, constantControl);
+                SetControl(z, k, u0);
             }
 
             return z;
