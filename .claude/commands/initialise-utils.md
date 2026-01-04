@@ -5,8 +5,8 @@
 - Create each script in order, verify that each one works correctly before moving onto the next, get confirmation to move onto the next script.
 - If the script already exists then just verify that it works correctly before moving onto the next item, if it does not work correctly then delete the file and create the script from scratch.
 - When writing scripts that use dotnet make sure to disable MSBuild node reuse to prevent hanging processes (e.g. export MSBUILDDISABLENODEREUSE=1)
-- Dotnet build requires several parameters to sport lingering processes, e.g. dotnet build src/Optimal.sln --no-incremental -p:UseSharedCompilation=false -p:UseRazorBuildServer=false /nodeReuse:false --verbosity quiet
-- Dotnet test should not use the --no-build flag, it should rebuild if required, it should use similar flags to build, e.g. dotnet test src/Optimal.sln --no-incremental -p:UseSharedCompilation=false -p:UseRazorBuildServer=false /nodeReuse:false --verbosity quiet
+- Dotnet build requires several parameters to sport lingering processes, e.g. dotnet build src/Optimal.slnx --no-incremental -p:UseSharedCompilation=false -p:UseRazorBuildServer=false /nodeReuse:false --verbosity quiet
+- Dotnet test should not use the --no-build flag, it should rebuild if required, it should use similar flags to build, e.g. dotnet test src/Optimal.slnx --no-incremental -p:UseSharedCompilation=false -p:UseRazorBuildServer=false /nodeReuse:false --verbosity quiet
 
 ## Your task
 
