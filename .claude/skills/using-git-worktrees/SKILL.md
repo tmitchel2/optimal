@@ -21,12 +21,6 @@ git worktree add [-f] [--detach] [--checkout] [--lock [--reason <string>]]
    or: git worktree unlock <worktree>
 ```
 
-## Using Git Worktrees Notes
-
-- Executing scripts in a git worktree may require one "cd" before calling the script and then another "cd" after to return to the original directory. E.g. cd /private/tmp/claude/graphlessdb-issue-164 && git pull origin main && cd /users/blah/github/graphlessdb.  Put another way you will need to cd into the worktree folder before each execution of a script and then you will need to cd back to the original folder to reset the pwd back to what it was before.
-- Check for existing branches before creating one. Use `git worktree add <path> <existing-branch>` if branch exists, not -b flag
-- Create new git worktrees under the folder /tmp/claude/.
-
 ## IMPORTANT Using A Git Worktree with Submodules
 
 There are some important considerations when using a git worktree with a project that has submodules:
@@ -47,4 +41,17 @@ Potential Issues
 
 - Detached HEAD states: Submodules in worktrees can sometimes end up in detached HEAD states, requiring manual checkout
 - Nested worktrees: You cannot create a worktree inside a submodule's directory
-- Update carefully: When updating submodules, be aware that changes affect the shared submodule repository
+- Update carefully: When updating submodules, be aware that changes affect the shared submodule repository.
+
+## Using Git Worktrees Workflow
+
+1. Create the worktree.
+2. Navigate to the worktree folder.
+3. Check for the usage of git submodules by checking for a .gitmodules file.
+4. Initialize and update submodules.
+
+## Using Git Worktrees Notes
+
+- Executing scripts in a git worktree may require one "cd" before calling the script and then another "cd" after to return to the original directory. E.g. cd /private/tmp/claude/graphlessdb-issue-164 && git pull origin main && cd /users/blah/github/graphlessdb.  Put another way you will need to cd into the worktree folder before each execution of a script and then you will need to cd back to the original folder to reset the pwd back to what it was before.
+- Check for existing branches before creating one. Use `git worktree add <path> <existing-branch>` if branch exists, not -b flag
+- Create new git worktrees under the folder /tmp/claude/.
