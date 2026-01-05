@@ -10,12 +10,11 @@ This skill provides additional information on how to simplify and improve existi
 ## Code Folder Simplification Workflow
 
 1. Extract a list of file names and sub folders recursively from the specified folder.
-2. Verify that the folder depth and naming follows project / language conventions and best practises.
-3. The number of files within any single folder should be a reasonable amount, approximately 1-15.  If the number is higher than this then the folder should be analysed further to see how the files can be partitioned into a larger amount of folders each given a suitable name that groups the files logically and simply.  Ensure that you follow solution and project structure best practises.
-4. Plan changes required to the folder structure based upon the files and folders contained within it so that it follows project / language conventions and best practises.
-5. Tackle the restructuring, folder creation and file moves as a whole if possible.
+2. Verify that the folder depth and naming follows project / language conventions and best practises.  For example, the number of files within any single folder should be a reasonable amount, approximately 1-15.  If the number is higher than this then the folder should be analysed further to see how the files can be partitioned into a larger amount of folders each given a suitable name that groups the files logically and simply.  Ensure that you follow solution and project structure best practises.
+3. Think and plan changes required to the **folder structure only** based upon the types of files and folders contained within it.  The folder structures **MUST** follow project / language conventions and best practises.
+4. Execute the plan for restructuring the **folder structure only**.
 
-## Individual Code File Simplification Workflow
+## Individual Code File Simplification Workflow (ignore if working on a folder)
 
 1. Make sure you have understood the coding language that is being simplified, make sure to read any skills that relate to the coding language (e.g. developing-csharp-code for CSharp code).
 2. Before starting, ensure that there are unit tests for the file / area of the file to be simplified and that they provide comprehensive line coverage, approximately 90% or more for that part to be simplified.  The tests can be updated but the intent behind each test should not change.
