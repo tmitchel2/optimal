@@ -463,8 +463,8 @@ namespace Optimal.Control
 
             return z =>
             {
-                var cost = ComputeTotalCost(problem, transcription, z);
-                var gradient = ComputeObjectiveGradient(problem, grid, transcription, z);
+                var cost = ObjectiveFunctionFactory.ComputeTotalCost(problem, transcription, z);
+                var gradient = ObjectiveFunctionFactory.ComputeObjectiveGradient(problem, grid, transcription, z);
 
                 if (_verbose)
                 {
@@ -475,104 +475,6 @@ namespace Optimal.Control
 
                 return (cost, gradient);
             };
-        }
-
-        private static double ComputeTotalCost(ControlProblem problem, ParallelTranscription transcription, double[] z)
-        {
-            var cost = 0.0;
-
-            if (problem.RunningCost != null)
-            {
-                double RunningCostValue(double[] x, double[] u, double t) => problem.RunningCost(x, u, t).value;
-                cost += transcription.ComputeRunningCost(z, RunningCostValue);
-            }
-
-            if (problem.TerminalCost != null)
-            {
-                double TerminalCostValue(double[] x, double t) => problem.TerminalCost(x, t).value;
-                cost += transcription.ComputeTerminalCost(z, TerminalCostValue);
-            }
-
-            return cost;
-        }
-
-        private static double[] ComputeObjectiveGradient(ControlProblem problem, CollocationGrid grid, ParallelTranscription transcription, double[] z)
-        {
-            if (!CanUseAnalyticalGradientsForCosts(problem))
-            {
-                return NumericalGradients.ComputeGradient(zz => ComputeTotalCost(problem, transcription, zz), z);
-            }
-
-            var gradient = new double[z.Length];
-
-            if (problem.RunningCost != null)
-            {
-                var runningGrad = AutoDiffGradientHelper.ComputeRunningCostGradient(
-                    problem, grid, z, transcription.GetState, transcription.GetControl,
-                    (x, u, t) =>
-                    {
-                        var res = problem.RunningCost!(x, u, t);
-                        return (res.value, res.gradients!);
-                    });
-
-                for (var i = 0; i < gradient.Length; i++)
-                {
-                    gradient[i] += runningGrad[i];
-                }
-            }
-
-            if (problem.TerminalCost != null)
-            {
-                var terminalGrad = AutoDiffGradientHelper.ComputeTerminalCostGradient(
-                    problem, grid, z, transcription.GetState,
-                    (x, t) =>
-                    {
-                        var res = problem.TerminalCost!(x, t);
-                        return (res.value, res.gradients!);
-                    });
-
-                for (var i = 0; i < gradient.Length; i++)
-                {
-                    gradient[i] += terminalGrad[i];
-                }
-            }
-
-            return gradient;
-        }
-
-        private static bool CanUseAnalyticalGradientsForCosts(ControlProblem problem)
-        {
-            var useAnalytical = true;
-
-            if (problem.RunningCost != null)
-            {
-                try
-                {
-                    var testResult = problem.RunningCost(new double[problem.StateDim], new double[problem.ControlDim], 0.0);
-                    var expectedSize = problem.StateDim + problem.ControlDim + 1;
-                    useAnalytical = useAnalytical && testResult.gradients != null && testResult.gradients.Length >= expectedSize;
-                }
-                catch
-                {
-                    useAnalytical = false;
-                }
-            }
-
-            if (problem.TerminalCost != null)
-            {
-                try
-                {
-                    var testResult = problem.TerminalCost(new double[problem.StateDim], 0.0);
-                    var expectedSize = problem.StateDim + 1;
-                    useAnalytical = useAnalytical && testResult.gradients != null && testResult.gradients.Length >= expectedSize;
-                }
-                catch
-                {
-                    useAnalytical = false;
-                }
-            }
-
-            return useAnalytical;
         }
 
         private static void LogObjectiveWarnings(double cost, double[] gradient)
