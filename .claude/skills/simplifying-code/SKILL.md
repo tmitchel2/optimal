@@ -9,10 +9,9 @@ This skill provides additional information on how to simplify and improve existi
 
 ## Code Folder Simplification Workflow
 
-1. Extract a list of file names and sub folders recursively from the specified folder.
-2. Verify that the folder depth and naming follows project / language conventions and best practises.  For example, the number of files within any single folder should be a reasonable amount, approximately 1-15.  If the number is higher than this then the folder should be analysed further to see how the files can be partitioned into a larger amount of folders each given a suitable name that groups the files logically and simply.  Ensure that you follow solution and project structure best practises.
-3. Think and plan changes required to the **folder structure only** based upon the types of files and folders contained within it.  The folder structures **MUST** follow project / language conventions and best practises.
-4. Execute the plan for restructuring the **folder structure only**.
+1. Enter planning mode to create detailed plan for potentially reorganising / restructuring a folder that requires simplification.
+2. To formulate the plan, research should be carried out on folder depth and naming against specified project / language conventions and best practises.  For example, the number of files within any single folder should be a reasonable amount, approximately 1-15.  If the number is higher than this then the folder should be analysed further to see how the files can be partitioned into a larger amount of folders each given a suitable name that groups the files logically and simply.  Ensure that you follow solution and project structure best practises.  The resultant modifications planned should be limited to file and folder moves and renames and internal changes related to references and namespacing.  Functionality of the code should not be modified.  The resultant folder structures **MUST** follow project / language conventions and best practises.
+3. Execute the plan.
 
 ## Individual Code File Simplification Workflow (ignore if working on a folder)
 
