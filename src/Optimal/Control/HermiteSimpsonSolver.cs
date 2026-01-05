@@ -564,38 +564,36 @@ namespace Optimal.Control
             Console.WriteLine($"Test objective on initial guess: cost={testCost}, grad[0]={testGrad[0]}");
 
             var testDefects = transcription.ComputeAllDefects(z0, DynamicsValue);
-            var defectHasNaN = testDefects.Any(double.IsNaN);
+            LogDefectNaNStatus(testDefects);
+            LogMaxDefectPerState(testDefects, problem.StateDim, segments);
+        }
 
-            if (defectHasNaN)
+        private static void LogDefectNaNStatus(double[] defects)
+        {
+            var firstNaNIndex = Array.FindIndex(defects, double.IsNaN);
+
+            if (firstNaNIndex >= 0)
             {
-                for (var i = 0; i < testDefects.Length; i++)
-                {
-                    if (double.IsNaN(testDefects[i]))
-                    {
-                        Console.WriteLine($"WARNING: Defect {i} is NaN on initial guess!");
-                        break;
-                    }
-                }
+                Console.WriteLine($"WARNING: Defect {firstNaNIndex} is NaN on initial guess!");
             }
             else
             {
-                Console.WriteLine($"All {testDefects.Length} defects are finite on initial guess");
+                Console.WriteLine($"All {defects.Length} defects are finite on initial guess");
             }
+        }
 
-            var maxDefectPerState = new double[problem.StateDim];
-            for (var seg = 0; seg < segments; seg++)
-            {
-                for (var state = 0; state < problem.StateDim; state++)
-                {
-                    var defectIdx = seg * problem.StateDim + state;
-                    var absDefect = Math.Abs(testDefects[defectIdx]);
-                    if (absDefect > maxDefectPerState[state])
-                    {
-                        maxDefectPerState[state] = absDefect;
-                    }
-                }
-            }
-            Console.WriteLine($"Max defect per state component (initial guess): [{string.Join(", ", maxDefectPerState.Select(d => d.ToString("E3", System.Globalization.CultureInfo.InvariantCulture)))}]");
+        private static void LogMaxDefectPerState(double[] defects, int stateDim, int segments)
+        {
+            var maxDefectPerState = Enumerable.Range(0, stateDim)
+                .Select(state => Enumerable.Range(0, segments)
+                    .Select(seg => Math.Abs(defects[seg * stateDim + state]))
+                    .Max())
+                .ToArray();
+
+            var formattedDefects = maxDefectPerState
+                .Select(d => d.ToString("E3", System.Globalization.CultureInfo.InvariantCulture));
+
+            Console.WriteLine($"Max defect per state component (initial guess): [{string.Join(", ", formattedDefects)}]");
         }
 
         private static CollocationResult ExtractSolution(ControlProblem problem, CollocationGrid grid, ParallelTranscription transcription, int segments, OptimizerResult nlpResult)
