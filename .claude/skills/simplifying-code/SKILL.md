@@ -12,6 +12,8 @@ This skill provides additional information on how to simplify and improve existi
 1. Extract a list of file names and sub folders recursively from the specified folder.
 2. Verify that the folder depth and naming follows project / language conventions and best practises.
 3. The number of files within any single folder should be a reasonable amount, approximately 1-15.  If the number is higher than this then the folder should be analysed further to see how the files can be partitioned into a larger amount of folders each given a suitable name that groups the files logically and simply.  Ensure that you follow solution and project structure best practises.
+4. Plan changes required to the folder structure based upon the files and folders contained within it so that it follows project / language conventions and best practises.
+5. Tackle the restructuring, folder creation and file moves as a whole if possible.
 
 ## Individual Code File Simplification Workflow
 
@@ -22,3 +24,6 @@ This skill provides additional information on how to simplify and improve existi
 5. Think and create a step by step high level plan for simplifying the code area, make sure you use the simplifying-code and developing-csharp-code skills for this task.  Apply best practises outlined in these skills.
 6. Keep interating on the code until a suitable level of simplification has been achieved.  Code should be analysed for each best practise.
 
+## Simplifying Code Notes
+
+- When you have been asked to simplify a single code file then only follow the "Individual Code File Simplification Workflow", if you have been asked to simplify a folder then only follow the "Code Folder Simplification Workflow", dont do both.
