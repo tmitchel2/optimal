@@ -7,6 +7,18 @@ description: You are an expert developer using the CSharp (C#) language and usin
 
 This skill provides additional information on how to work with CSharp (C#) and Dotnet.
 
+## CSharp Solution And Project Structure Best Practises
+
+- The solution should use .slnx format located within ./src folder
+- Projects should be organised flatly within the ./src folder
+- Test projects should be named the same as the project under test with a ".Tests" suffix.
+- Folders under projects should be **flat and only one level deep**
+- For futher subdivision of files, namespaces with multiple segments can still be used.  To allow for this within the filesystem, folders should be named using dots (`.`) to separate the folder names rather than nested directories. e.g. `Optimal.Data.Models` folder is named `Data.Models/` not `Data/Models/`.
+- A file containing code **is allowed** to reference files within the same folder.
+- A file containing code **is allowed** to reference files within descendant folders.
+- A file containing code **is allowed** to reference files within ascendant folders.
+- Referencing of files between any folder pair is allowed but only in one direction.  If bi-directional referencing exists between the files in a pair of folders then that suggests that the files are coupled tightly and the should be placed all together within the same folder.
+
 ## CSharp Language Best Practises
 
 - Strive to create "Pure" functions, they should be deterministic, have no side effects, referencially transparent.
@@ -17,8 +29,6 @@ This skill provides additional information on how to work with CSharp (C#) and D
 - Formatting, use 4 spaces for C#, UTF-8 BOM encoding, final newline required.
 - Treat warnings as errors, enabled via `TreatWarningsAsErrors=true`
 - Enable `Nullable`, make sure all reference types are explicitly nullable or non-nullable.
-- Folders under projects should be **flat and only one level deep**
-- For namespaces with multiple segments, use dots (`.`) in folder names rather than nested directories. e.g. `Optimal.Data.Models` folder is named `Data.Models/` not `Data/Models/`.
 - Use Linq instead of loops.
 - Reduce nesting / branch depth to an absolute minimum.  Loops within loops should be avoided, especially within the same function.  Branching within branching should be avoided, especially within the same function.
 - Helper methods and classes should not implicitly default instances to particular values, and should not implicity fallback to alternate values if errors / exceptions occur.

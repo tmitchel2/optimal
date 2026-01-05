@@ -7,7 +7,13 @@ description: You are working on code to simplify and improve it from an understa
 
 This skill provides additional information on how to simplify and improve existing code so that it is more understandable, maintainable and more easily debugged.  You use language best practises to do this.
 
-## Code Simplification Workflow
+## Code Folder Simplification Workflow
+
+1. Extract a list of file names and sub folders recursively from the specified folder.
+2. Verify that the folder depth and naming follows project / language conventions and best practises.
+3. The number of files within any single folder should be a reasonable amount, approximately 1-15.  If the number is higher than this then the folder should be analysed further to see how the files can be partitioned into a larger amount of folders each given a suitable name that groups the files logically and simply.  Ensure that you follow solution and project structure best practises.
+
+## Individual Code File Simplification Workflow
 
 1. Make sure you have understood the coding language that is being simplified, make sure to read any skills that relate to the coding language (e.g. developing-csharp-code for CSharp code).
 2. Before starting, ensure that there are unit tests for the file / area of the file to be simplified and that they provide comprehensive line coverage, approximately 90% or more for that part to be simplified.  The tests can be updated but the intent behind each test should not change.
