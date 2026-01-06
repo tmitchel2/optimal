@@ -11,14 +11,13 @@ You MUST read the following skills.
 
 - developing-csharp-code
 - implementing-github-issue
-- simplifying-code
 - using-github
 - implementing-tests
 - using-git-worktrees
 
-## Code Simplify Command Workflow
+## Code Simplify Command
 
-1. Determine the code you have been asked to simplify and ensure it exists.  It could be a file or a folder, determine which one it is.  The simplifying-code skill instructs on how to deal with either.
-2. Use a github issue and pr.
-3. Use a git worktree, give it a name in the format "{PROJECT_NAME}-issue-{ISSUE_ID}", clean up the local git worktree once you are finished with it.
-4. Immediately proceed to implementation of the issue using implementing-github-issue skill.
+- Determine the code you have been asked to simplify and ensure it exists and whether it is a file or folder.
+- If the target is a file then use the orchestrating-code-file-simplification skill to work on the issue, otherwise if the target is a folder then use the orchestrating-code-folder-simplification skill to work on the issue.
+- Use the implementing-github-issue skill to ensure an issue and pr are created.
+- Use the using-git-worktrees to ensure the work is carried out on a git worktree.
