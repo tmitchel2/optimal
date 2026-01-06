@@ -9,7 +9,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Optimal.Control
+namespace Optimal.Control.Collocation
 {
     /// <summary>
     /// Provides Legendre-Gauss-Lobatto (LGL) quadrature points, weights, and differentiation matrices.

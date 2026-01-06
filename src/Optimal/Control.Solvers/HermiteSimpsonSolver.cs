@@ -8,22 +8,13 @@
 
 using System;
 using System.Linq;
+using Optimal.Control.Collocation;
+using Optimal.Control.Core;
+using Optimal.Control.Optimization;
 using Optimal.NonLinear;
 
-namespace Optimal.Control
+namespace Optimal.Control.Solvers
 {
-    /// <summary>
-    /// Callback invoked during optimization to report progress.
-    /// </summary>
-    /// <param name="iteration">Current iteration number.</param>
-    /// <param name="cost">Current cost value.</param>
-    /// <param name="states">Current state trajectory.</param>
-    /// <param name="controls">Current control trajectory.</param>
-    /// <param name="times">Time points.</param>
-    /// <param name="maxViolation">Maximum constraint violation.</param>
-    /// <param name="constraintTolerance">Constraint tolerance for convergence.</param>
-    public delegate void ProgressCallback(int iteration, double cost, double[][] states, double[][] controls, double[] times, double maxViolation, double constraintTolerance);
-
     /// <summary>
     /// Solves optimal control problems using Hermite-Simpson collocation.
     /// Converts the continuous problem into a nonlinear programming (NLP) problem

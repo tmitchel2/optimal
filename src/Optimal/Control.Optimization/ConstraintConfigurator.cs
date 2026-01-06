@@ -7,9 +7,11 @@
  */
 
 using System;
+using Optimal.Control.Collocation;
+using Optimal.Control.Core;
 using Optimal.NonLinear;
 
-namespace Optimal.Control
+namespace Optimal.Control.Optimization
 {
     /// <summary>
     /// Helper class for configuring constraints in collocation-based optimal control solvers.

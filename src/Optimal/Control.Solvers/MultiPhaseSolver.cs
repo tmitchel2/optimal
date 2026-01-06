@@ -7,11 +7,14 @@
  */
 
 using System;
+using Optimal.Control.Collocation;
+using Optimal.Control.Core;
+using Optimal.Control.Optimization;
 using System.Collections.Generic;
 using System.Linq;
 using Optimal.NonLinear;
 
-namespace Optimal.Control
+namespace Optimal.Control.Solvers
 {
     /// <summary>
     /// Solves multi-phase optimal control problems.

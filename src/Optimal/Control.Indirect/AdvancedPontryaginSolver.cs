@@ -7,9 +7,10 @@
  */
 
 using System;
+using Optimal.Control.Core;
 using System.Linq;
 
-namespace Optimal.Control
+namespace Optimal.Control.Indirect
 {
     /// <summary>
     /// Advanced Pontryagin solver with multiple shooting, Newton's method, and continuation.

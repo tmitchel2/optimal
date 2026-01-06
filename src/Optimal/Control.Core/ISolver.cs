@@ -8,7 +8,7 @@
 
 using Optimal.NonLinear;
 
-namespace Optimal.Control
+namespace Optimal.Control.Core
 {
     /// <summary>
     /// Interface for optimal control problem solvers.

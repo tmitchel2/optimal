@@ -8,7 +8,7 @@
 
 using System;
 
-namespace Optimal.Control
+namespace Optimal.Control.Core
 {
     /// <summary>
     /// Result of an optimal control problem solved via collocation.

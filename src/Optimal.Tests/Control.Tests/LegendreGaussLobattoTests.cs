@@ -8,7 +8,9 @@
 
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Optimal.Control;
+using Optimal.Control.Collocation;
+using Optimal.Control.Core;
+using Optimal.Control.Solvers;
 
 namespace Optimal.Tests.Control.Tests
 {

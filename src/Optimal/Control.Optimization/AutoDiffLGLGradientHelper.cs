@@ -7,8 +7,10 @@
  */
 
 using System;
+using Optimal.Control.Collocation;
+using Optimal.Control.Core;
 
-namespace Optimal.Control
+namespace Optimal.Control.Optimization
 {
     /// <summary>
     /// Helper methods for computing gradients using AutoDiff-generated derivatives

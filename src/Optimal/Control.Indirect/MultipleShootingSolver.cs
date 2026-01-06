@@ -8,9 +8,11 @@
 
 using System;
 using System.Collections.Generic;
+using Optimal.Control.Core;
+using Optimal.Control.Solvers;
 using Optimal.NonLinear;
 
-namespace Optimal.Control
+namespace Optimal.Control.Indirect
 {
     /// <summary>
     /// Multiple shooting solver for optimal control problems.
