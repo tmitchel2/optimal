@@ -6,7 +6,10 @@
  *
  */
 
-namespace Optimal.Control
+using Optimal.Control.Collocation;
+using Optimal.Control.Core;
+
+namespace Optimal.Control.Optimization
 {
     /// <summary>
     /// Factory for creating objective functions for collocation-based optimal control solvers.

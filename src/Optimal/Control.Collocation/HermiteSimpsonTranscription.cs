@@ -7,8 +7,9 @@
  */
 
 using System;
+using Optimal.Control.Core;
 
-namespace Optimal.Control
+namespace Optimal.Control.Collocation
 {
     /// <summary>
     /// Hermite-Simpson collocation transcription for optimal control problems.

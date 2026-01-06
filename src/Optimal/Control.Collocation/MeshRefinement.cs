@@ -10,7 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Optimal.Control
+namespace Optimal.Control.Collocation
 {
     /// <summary>
     /// Provides adaptive mesh refinement for Hermite-Simpson collocation.

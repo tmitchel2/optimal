@@ -8,7 +8,7 @@
 
 using System;
 
-namespace Optimal.Control
+namespace Optimal.Control.Collocation
 {
     /// <summary>
     /// Represents a time discretization grid for collocation methods.

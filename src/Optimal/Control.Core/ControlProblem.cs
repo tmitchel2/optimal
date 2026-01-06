@@ -8,7 +8,7 @@
 
 using System;
 
-namespace Optimal.Control
+namespace Optimal.Control.Core
 {
     /// <summary>
     /// Defines an optimal control problem with dynamics, objective, and constraints.

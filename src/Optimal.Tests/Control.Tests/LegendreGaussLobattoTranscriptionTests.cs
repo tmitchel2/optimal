@@ -7,6 +7,10 @@
  */
 
 using System;
+using Optimal.Control.Collocation;
+using Optimal.Control.Core;
+using Optimal.Control.Optimization;
+using Optimal.Control.Solvers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Optimal.Control.Tests

@@ -8,7 +8,7 @@
 
 using System;
 
-namespace Optimal.Control
+namespace Optimal.Control.Optimization
 {
     /// <summary>
     /// Provides numerical gradient computation utilities for optimal control problems.

@@ -7,9 +7,12 @@
  */
 
 using System;
+using Optimal.Control.Collocation;
+using Optimal.Control.Core;
+using Optimal.Control.Optimization;
 using System.Collections.Generic;
 
-namespace Optimal.Control
+namespace Optimal.Control.Solvers
 {
     /// <summary>
     /// Provides parameter continuation (homotopy) methods for solving difficult optimal control problems.

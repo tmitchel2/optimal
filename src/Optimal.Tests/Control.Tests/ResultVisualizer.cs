@@ -11,7 +11,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Optimal.Control;
+using Optimal.Control.Collocation;
+using Optimal.Control.Core;
+using Optimal.Control.Solvers;
 
 namespace Optimal.Control.Tests
 {

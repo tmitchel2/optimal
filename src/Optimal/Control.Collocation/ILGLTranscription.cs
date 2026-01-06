@@ -8,7 +8,7 @@
 
 using System;
 
-namespace Optimal.Control
+namespace Optimal.Control.Collocation
 {
     /// <summary>
     /// Interface for Legendre-Gauss-Lobatto transcription implementations.

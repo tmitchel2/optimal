@@ -7,9 +7,10 @@
  */
 
 using System;
+using Optimal.Control.Core;
 using System.Threading.Tasks;
 
-namespace Optimal.Control
+namespace Optimal.Control.Collocation
 {
     /// <summary>
     /// Parallel version of Hermite-Simpson transcription with optimized constraint and gradient evaluation.

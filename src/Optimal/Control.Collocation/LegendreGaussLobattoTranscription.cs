@@ -7,15 +7,15 @@
  */
 
 using System;
-using System.Threading.Tasks;
+using Optimal.Control.Core;
 
-namespace Optimal.Control
+namespace Optimal.Control.Collocation
 {
     /// <summary>
-    /// Parallel version of Legendre-Gauss-Lobatto (LGL) collocation transcription.
-    /// Uses TPL parallelization for constraint and cost evaluation on larger problems.
+    /// Legendre-Gauss-Lobatto (LGL) collocation transcription for optimal control problems.
+    /// Converts a continuous-time ODE into a discrete NLP using high-order LGL collocation.
     /// </summary>
-    public sealed class ParallelLGLTranscription : ILGLTranscription
+    public sealed class LegendreGaussLobattoTranscription : ILGLTranscription
     {
 #pragma warning disable IDE0052 // Remove unread private members
         private readonly ControlProblem _problem;
@@ -29,7 +29,6 @@ namespace Optimal.Control
         private readonly double[] _lglPoints;
         private readonly double[] _lglWeights;
         private readonly double[,] _lglDiffMatrix;
-        private readonly bool _enableParallelization;
 
         /// <summary>
         /// Gets the total size of the decision vector.
@@ -54,13 +53,12 @@ namespace Optimal.Control
         public int TotalPoints => _totalPoints;
 
         /// <summary>
-        /// Creates a parallel Legendre-Gauss-Lobatto transcription.
+        /// Creates a Legendre-Gauss-Lobatto transcription.
         /// </summary>
         /// <param name="problem">The control problem to transcribe.</param>
         /// <param name="grid">The collocation grid.</param>
         /// <param name="order">Number of LGL points per segment (must be >= 2).</param>
-        /// <param name="enableParallelization">If true, use parallel computation for larger problems.</param>
-        public ParallelLGLTranscription(ControlProblem problem, CollocationGrid grid, int order, bool enableParallelization)
+        public LegendreGaussLobattoTranscription(ControlProblem problem, CollocationGrid grid, int order)
         {
             _problem = problem ?? throw new ArgumentNullException(nameof(problem));
             _grid = grid ?? throw new ArgumentNullException(nameof(grid));
@@ -73,7 +71,6 @@ namespace Optimal.Control
             _order = order;
             _stateDim = problem.StateDim;
             _controlDim = problem.ControlDim;
-            _enableParallelization = enableParallelization;
 
             // Shared-endpoint layout: N segments with order p → N*(p-1) + 1 total points
             _totalPoints = grid.Segments * (order - 1) + 1;
@@ -256,7 +253,6 @@ namespace Optimal.Control
 
         /// <summary>
         /// Computes all defect constraints for the entire trajectory.
-        /// Uses parallel computation for problems with 4 or more segments.
         /// Returns a flat array of all defects at all interior LGL points.
         /// Total defects: Segments * (Order - 2) * StateDim
         /// </summary>
@@ -269,25 +265,11 @@ namespace Optimal.Control
             var totalDefects = _grid.Segments * numInteriorPointsPerSegment * _stateDim;
             var defects = new double[totalDefects];
 
-            if (_enableParallelization && _grid.Segments >= 4)
+            for (var k = 0; k < _grid.Segments; k++)
             {
-                // Parallel computation for larger problems
-                Parallel.For(0, _grid.Segments, k =>
-                {
-                    var segmentDefects = ComputeSegmentDefects(k, z, dynamicsEvaluator);
-                    var defectOffset = k * numInteriorPointsPerSegment * _stateDim;
-                    Array.Copy(segmentDefects, 0, defects, defectOffset, segmentDefects.Length);
-                });
-            }
-            else
-            {
-                // Sequential computation for small problems or when disabled
-                for (var k = 0; k < _grid.Segments; k++)
-                {
-                    var segmentDefects = ComputeSegmentDefects(k, z, dynamicsEvaluator);
-                    var defectOffset = k * numInteriorPointsPerSegment * _stateDim;
-                    Array.Copy(segmentDefects, 0, defects, defectOffset, segmentDefects.Length);
-                }
+                var segmentDefects = ComputeSegmentDefects(k, z, dynamicsEvaluator);
+                var defectOffset = k * numInteriorPointsPerSegment * _stateDim;
+                Array.Copy(segmentDefects, 0, defects, defectOffset, segmentDefects.Length);
             }
 
             return defects;
@@ -373,38 +355,7 @@ namespace Optimal.Control
         }
 
         /// <summary>
-        /// Computes the running cost contribution for a single segment.
-        /// </summary>
-        /// <param name="z">Decision vector.</param>
-        /// <param name="segmentIndex">Segment index.</param>
-        /// <param name="runningCostEvaluator">Running cost function: L(x, u, t).</param>
-        /// <returns>Segment running cost contribution.</returns>
-        private double ComputeSegmentRunningCost(
-            double[] z,
-            int segmentIndex,
-            Func<double[], double[], double, double> runningCostEvaluator)
-        {
-            var h = _grid.GetTimeStep(segmentIndex);
-            var segmentCost = 0.0;
-
-            for (var i = 0; i < _order; i++)
-            {
-                var globalIdx = GetGlobalPointIndex(segmentIndex, i);
-                var xi = GetState(z, globalIdx);
-                var ui = GetControl(z, globalIdx);
-                var ti = TauToPhysicalTime(_lglPoints[i], segmentIndex);
-
-                var Li = runningCostEvaluator(xi, ui, ti);
-                segmentCost += _lglWeights[i] * Li;
-            }
-
-            // LGL quadrature on [-1, 1] → scale by h/2 for physical interval
-            return (h / 2.0) * segmentCost;
-        }
-
-        /// <summary>
         /// Computes the running cost (Lagrange term) integrated over the trajectory using LGL quadrature.
-        /// Uses parallel computation for problems with 10 or more segments.
         /// J_running = ∫[t0, tf] L(x(t), u(t), t) dt
         /// Approximated as: Σ_k (h/2) * Σ_i w_i * L(x_i^k, u_i^k, t_i^k)
         /// </summary>
@@ -413,33 +364,29 @@ namespace Optimal.Control
         /// <returns>Integrated running cost.</returns>
         public double ComputeRunningCost(double[] z, Func<double[], double[], double, double> runningCostEvaluator)
         {
-            if (_enableParallelization && _grid.Segments >= 10)
-            {
-                // Parallel cost computation for larger problems
-                var segmentCosts = new double[_grid.Segments];
+            var totalCost = 0.0;
 
-                Parallel.For(0, _grid.Segments, k =>
-                {
-                    segmentCosts[k] = ComputeSegmentRunningCost(z, k, runningCostEvaluator);
-                });
-
-                var totalCost = 0.0;
-                foreach (var cost in segmentCosts)
-                {
-                    totalCost += cost;
-                }
-                return totalCost;
-            }
-            else
+            for (var k = 0; k < _grid.Segments; k++)
             {
-                // Sequential computation for small problems or when disabled
-                var totalCost = 0.0;
-                for (var k = 0; k < _grid.Segments; k++)
+                var h = _grid.GetTimeStep(k);
+                var segmentCost = 0.0;
+
+                for (var i = 0; i < _order; i++)
                 {
-                    totalCost += ComputeSegmentRunningCost(z, k, runningCostEvaluator);
+                    var globalIdx = GetGlobalPointIndex(k, i);
+                    var xi = GetState(z, globalIdx);
+                    var ui = GetControl(z, globalIdx);
+                    var ti = TauToPhysicalTime(_lglPoints[i], k);
+
+                    var Li = runningCostEvaluator(xi, ui, ti);
+                    segmentCost += _lglWeights[i] * Li;
                 }
-                return totalCost;
+
+                // LGL quadrature on [-1, 1] → scale by h/2 for physical interval
+                totalCost += (h / 2.0) * segmentCost;
             }
+
+            return totalCost;
         }
 
         /// <summary>

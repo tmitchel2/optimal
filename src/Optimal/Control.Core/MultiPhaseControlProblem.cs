@@ -9,7 +9,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Optimal.Control
+namespace Optimal.Control.Core
 {
     /// <summary>
     /// Defines a phase in a multi-phase optimal control problem.

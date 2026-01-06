@@ -7,10 +7,13 @@
  */
 
 using System;
+using Optimal.Control.Collocation;
+using Optimal.Control.Core;
+using Optimal.Control.Optimization;
 using System.Linq;
 using Optimal.NonLinear;
 
-namespace Optimal.Control
+namespace Optimal.Control.Solvers
 {
     /// <summary>
     /// Solves optimal control problems using Legendre-Gauss-Lobatto (LGL) collocation.
