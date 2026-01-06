@@ -10,6 +10,7 @@ This skill provides information on items to consider when deciding if a file sho
 ## Planning Code File Location Simplification Considerations
 
 - Enter planning mode when planning to simplify and improve the location of a file.
+- Use the name-categorize agent to determine a suitable category for the file, this could be used to better namespace the items within the file and its location within the project.
 - Research the list of files with direct references to this file.
 - Research the list of files that this file directly references.
 - Research the names of folders within the current project.
