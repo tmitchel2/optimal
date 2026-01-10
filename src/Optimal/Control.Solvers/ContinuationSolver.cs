@@ -7,10 +7,9 @@
  */
 
 using System;
+using System.Collections.Generic;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
-using Optimal.Control.Optimization;
-using System.Collections.Generic;
 
 namespace Optimal.Control.Solvers
 {

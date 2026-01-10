@@ -8,7 +8,7 @@
 
 using System;
 
-namespace Optimal.NonLinear
+namespace Optimal.NonLinear.Unconstrained
 {
     /// <summary>
     /// Interface for nonlinear optimization algorithms.

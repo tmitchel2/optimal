@@ -10,7 +10,7 @@ using System;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 
-namespace Optimal.Control.Optimization
+namespace Optimal.Control.Initialization
 {
     /// <summary>
     /// Linear Quadratic Regulator (LQR) solver for generating initial guesses.

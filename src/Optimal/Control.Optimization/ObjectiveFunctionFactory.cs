@@ -19,7 +19,7 @@ namespace Optimal.Control.Optimization
         /// <summary>
         /// Computes the total cost (running + terminal) for the given decision vector.
         /// </summary>
-        public static double ComputeTotalCost(ControlProblem problem, ParallelTranscription transcription, double[] z)
+        public static double ComputeTotalCost(ControlProblem problem, ParallelHermiteSimpsonTranscription transcription, double[] z)
         {
             var cost = 0.0;
 
@@ -44,7 +44,7 @@ namespace Optimal.Control.Optimization
         public static double[] ComputeObjectiveGradient(
             ControlProblem problem,
             CollocationGrid grid,
-            ParallelTranscription transcription,
+            ParallelHermiteSimpsonTranscription transcription,
             double[] z)
         {
             if (!CanUseAnalyticalGradientsForCosts(problem))

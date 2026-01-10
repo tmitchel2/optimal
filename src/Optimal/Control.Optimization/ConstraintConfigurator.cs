@@ -9,7 +9,7 @@
 using System;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
-using Optimal.NonLinear;
+using Optimal.NonLinear.Constrained;
 
 namespace Optimal.Control.Optimization
 {
@@ -24,7 +24,7 @@ namespace Optimal.Control.Optimization
         public static void AddDefectConstraints(
             ControlProblem problem,
             CollocationGrid grid,
-            ParallelTranscription transcription,
+            ParallelHermiteSimpsonTranscription transcription,
             int segments,
             bool hasAnalyticalGradients,
             AugmentedLagrangianOptimizer optimizer)
@@ -49,7 +49,7 @@ namespace Optimal.Control.Optimization
         /// </summary>
         public static void AddBoundaryConstraints(
             ControlProblem problem,
-            ParallelTranscription transcription,
+            ParallelHermiteSimpsonTranscription transcription,
             int segments,
             AugmentedLagrangianOptimizer optimizer)
         {
@@ -62,7 +62,7 @@ namespace Optimal.Control.Optimization
         /// </summary>
         public static void AddBoxConstraints(
             ControlProblem problem,
-            ParallelTranscription transcription,
+            ParallelHermiteSimpsonTranscription transcription,
             int segments,
             AugmentedLagrangianOptimizer optimizer)
         {
@@ -100,7 +100,7 @@ namespace Optimal.Control.Optimization
         public static void AddPathConstraints(
             ControlProblem problem,
             CollocationGrid grid,
-            ParallelTranscription transcription,
+            ParallelHermiteSimpsonTranscription transcription,
             int segments,
             AugmentedLagrangianOptimizer optimizer)
         {
@@ -139,7 +139,7 @@ namespace Optimal.Control.Optimization
         private static double[] ComputeDefectGradient(
             ControlProblem problem,
             CollocationGrid grid,
-            ParallelTranscription transcription,
+            ParallelHermiteSimpsonTranscription transcription,
             double[] z,
             int defectIndex,
             bool hasAnalyticalGradients,
@@ -174,7 +174,7 @@ namespace Optimal.Control.Optimization
 
         private static void AddInitialStateConstraints(
             ControlProblem problem,
-            ParallelTranscription transcription,
+            ParallelHermiteSimpsonTranscription transcription,
             AugmentedLagrangianOptimizer optimizer)
         {
             if (problem.InitialState == null)
@@ -198,7 +198,7 @@ namespace Optimal.Control.Optimization
 
         private static void AddFinalStateConstraints(
             ControlProblem problem,
-            ParallelTranscription transcription,
+            ParallelHermiteSimpsonTranscription transcription,
             int segments,
             AugmentedLagrangianOptimizer optimizer)
         {

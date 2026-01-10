@@ -11,7 +11,7 @@
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
-using Optimal.NonLinear;
+using Optimal.NonLinear.Unconstrained;
 
 namespace OptimalCli.Problems.Pendulum;
 

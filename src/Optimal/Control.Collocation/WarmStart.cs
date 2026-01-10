@@ -7,10 +7,8 @@
  */
 
 using System;
-using Optimal.Control.Collocation;
-using Optimal.Control.Core;
 
-namespace Optimal.Control.Optimization
+namespace Optimal.Control.Collocation
 {
     /// <summary>
     /// Provides warm starting capabilities for optimal control problems.

@@ -61,7 +61,7 @@ namespace Optimal.Control.Tests
             var z = CreateRandomDecisionVector(segments, 2, 1);
 
             // Sequential transcription
-            var seqTranscription = new ParallelTranscription(problem, grid, enableParallelization: false);
+            var seqTranscription = new ParallelHermiteSimpsonTranscription(problem, grid, enableParallelization: false);
             var sw = Stopwatch.StartNew();
             for (var i = 0; i < iterations; i++)
             {
@@ -71,7 +71,7 @@ namespace Optimal.Control.Tests
             var seqTime = sw.Elapsed.TotalMilliseconds;
 
             // Parallel transcription
-            var parTranscription = new ParallelTranscription(problem, grid, enableParallelization: true);
+            var parTranscription = new ParallelHermiteSimpsonTranscription(problem, grid, enableParallelization: true);
             sw = Stopwatch.StartNew();
             for (var i = 0; i < iterations; i++)
             {
@@ -125,7 +125,7 @@ namespace Optimal.Control.Tests
             var z = CreateRandomDecisionVector(segments, 2, 1);
 
             // Sequential
-            var seqTranscription = new ParallelTranscription(problem, grid, enableParallelization: false);
+            var seqTranscription = new ParallelHermiteSimpsonTranscription(problem, grid, enableParallelization: false);
             var sw = Stopwatch.StartNew();
             for (var i = 0; i < iterations; i++)
             {
@@ -137,7 +137,7 @@ namespace Optimal.Control.Tests
             var seqTime = sw.Elapsed.TotalMilliseconds;
 
             // Parallel
-            var parTranscription = new ParallelTranscription(problem, grid, enableParallelization: true);
+            var parTranscription = new ParallelHermiteSimpsonTranscription(problem, grid, enableParallelization: true);
             sw = Stopwatch.StartNew();
             for (var i = 0; i < iterations; i++)
             {
@@ -193,7 +193,7 @@ namespace Optimal.Control.Tests
             var z = CreateRandomDecisionVector(segments, 2, 1);
 
             // Sequential
-            var seqTranscription = new ParallelTranscription(problem, grid, enableParallelization: false);
+            var seqTranscription = new ParallelHermiteSimpsonTranscription(problem, grid, enableParallelization: false);
             var sw = Stopwatch.StartNew();
             for (var i = 0; i < iterations; i++)
             {
@@ -203,7 +203,7 @@ namespace Optimal.Control.Tests
             var seqTime = sw.Elapsed.TotalMilliseconds;
 
             // Parallel
-            var parTranscription = new ParallelTranscription(problem, grid, enableParallelization: true);
+            var parTranscription = new ParallelHermiteSimpsonTranscription(problem, grid, enableParallelization: true);
             sw = Stopwatch.StartNew();
             for (var i = 0; i < iterations; i++)
             {

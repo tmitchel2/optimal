@@ -12,6 +12,8 @@ using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Optimization;
 using Optimal.NonLinear;
+using Optimal.NonLinear.Constrained;
+using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers
 {
@@ -277,7 +279,7 @@ namespace Optimal.Control.Solvers
             ControlProblem problem, CollocationResult result, int currentSegments)
         {
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, currentSegments);
-            var transcription = new ParallelTranscription(problem, grid, _enableParallelization);
+            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _enableParallelization);
 
             double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(x, u, t).value;
 
@@ -314,7 +316,7 @@ namespace Optimal.Control.Solvers
             return (true, newSegments, newSolution);
         }
 
-        private static double[] RebuildSolutionVector(ParallelTranscription transcription, CollocationResult result, int segments)
+        private static double[] RebuildSolutionVector(ParallelHermiteSimpsonTranscription transcription, CollocationResult result, int segments)
         {
             var z = new double[transcription.DecisionVectorSize];
             for (var k = 0; k <= segments; k++)
@@ -331,7 +333,7 @@ namespace Optimal.Control.Solvers
         private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segments, double[]? initialGuess)
         {
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, segments);
-            var transcription = new ParallelTranscription(problem, grid, _enableParallelization);
+            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _enableParallelization);
 
             var z0 = CreateInitialGuess(problem, transcription, initialGuess);
             var hasAnalyticalGradients = CheckAnalyticalGradientCapability(problem);
@@ -349,7 +351,7 @@ namespace Optimal.Control.Solvers
             return ExtractSolution(problem, grid, transcription, segments, nlpResult);
         }
 
-        private double[] CreateInitialGuess(ControlProblem problem, ParallelTranscription transcription, double[]? initialGuess)
+        private double[] CreateInitialGuess(ControlProblem problem, ParallelHermiteSimpsonTranscription transcription, double[]? initialGuess)
         {
             if (initialGuess != null && initialGuess.Length == transcription.DecisionVectorSize)
             {
@@ -445,7 +447,7 @@ namespace Optimal.Control.Solvers
         private Func<double[], (double value, double[] gradient)> CreateObjectiveFunction(
             ControlProblem problem,
             CollocationGrid grid,
-            ParallelTranscription transcription,
+            ParallelHermiteSimpsonTranscription transcription,
             int segments,
             bool hasAnalyticalGradients,
             int[] iterationCount)
@@ -483,7 +485,7 @@ namespace Optimal.Control.Solvers
         private void InvokeProgressCallback(
             ControlProblem problem,
             CollocationGrid grid,
-            ParallelTranscription transcription,
+            ParallelHermiteSimpsonTranscription transcription,
             int segments,
             double[] z,
             double cost,
@@ -508,7 +510,7 @@ namespace Optimal.Control.Solvers
             _progressCallback(iterationCount[0], cost, states, controls, grid.TimePoints, maxViolation, _tolerance);
         }
 
-        private static double ComputeMaxViolation(ParallelTranscription transcription, double[] z, Func<double[], double[], double, double[]> dynamicsValue)
+        private static double ComputeMaxViolation(ParallelHermiteSimpsonTranscription transcription, double[] z, Func<double[], double[], double, double[]> dynamicsValue)
         {
             var allDefects = transcription.ComputeAllDefects(z, dynamicsValue);
             return allDefects.Select(Math.Abs).Max();
@@ -517,7 +519,7 @@ namespace Optimal.Control.Solvers
         private AugmentedLagrangianOptimizer ConfigureOptimizer(
             ControlProblem problem,
             CollocationGrid grid,
-            ParallelTranscription transcription,
+            ParallelHermiteSimpsonTranscription transcription,
             int segments,
             double[] z0,
             bool hasAnalyticalGradients,
@@ -544,7 +546,7 @@ namespace Optimal.Control.Solvers
 
         private void LogInitialDiagnostics(
             ControlProblem problem,
-            ParallelTranscription transcription,
+            ParallelHermiteSimpsonTranscription transcription,
             int segments,
             double[] z0,
             Func<double[], (double value, double[] gradient)> nlpObjective)
@@ -587,7 +589,7 @@ namespace Optimal.Control.Solvers
             Console.WriteLine($"Max defect per state component (initial guess): [{string.Join(", ", formattedDefects)}]");
         }
 
-        private static CollocationResult ExtractSolution(ControlProblem problem, CollocationGrid grid, ParallelTranscription transcription, int segments, OptimizerResult nlpResult)
+        private static CollocationResult ExtractSolution(ControlProblem problem, CollocationGrid grid, ParallelHermiteSimpsonTranscription transcription, int segments, OptimizerResult nlpResult)
         {
             double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(x, u, t).value;
             var zOpt = nlpResult.OptimalPoint;

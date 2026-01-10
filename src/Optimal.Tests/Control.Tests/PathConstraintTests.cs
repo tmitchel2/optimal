@@ -14,7 +14,7 @@ using Optimal.Control.Core;
 using Optimal.Control.Optimization;
 using Optimal.Control.Solvers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Optimal.NonLinear;
+using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Tests
 {

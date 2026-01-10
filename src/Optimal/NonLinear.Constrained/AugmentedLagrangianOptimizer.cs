@@ -9,8 +9,9 @@
 using System;
 using System.Collections.Generic;
 using Optimal.NonLinear.Constraints;
+using Optimal.NonLinear.Unconstrained;
 
-namespace Optimal.NonLinear
+namespace Optimal.NonLinear.Constrained
 {
     /// <summary>
     /// Augmented Lagrangian optimizer for constrained optimization problems.

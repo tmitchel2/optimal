@@ -14,7 +14,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
-using Optimal.NonLinear;
+using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Problems.Brachistochrone.Tests
 {

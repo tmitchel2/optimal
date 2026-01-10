@@ -7,8 +7,9 @@
  */
 
 using System;
-using Optimal.Control.Core;
 using System.Linq;
+using Optimal.Control.Collocation;
+using Optimal.Control.Core;
 
 namespace Optimal.Control.Indirect
 {
@@ -16,32 +17,32 @@ namespace Optimal.Control.Indirect
     /// Advanced Pontryagin solver with multiple shooting, Newton's method, and continuation.
     /// Uses sophisticated techniques to solve difficult two-point boundary value problems.
     /// </summary>
-    public sealed class AdvancedPontryaginSolver
+    public sealed class MultipleShootingPontryaginSolver
     {
         private int _maxIterations = 50;
         private double _tolerance = 1e-3;
         private int _shootingIntervals = 4;
         private bool _verbose;
 
-        public AdvancedPontryaginSolver WithMaxIterations(int maxIterations)
+        public MultipleShootingPontryaginSolver WithMaxIterations(int maxIterations)
         {
             _maxIterations = maxIterations;
             return this;
         }
 
-        public AdvancedPontryaginSolver WithTolerance(double tolerance)
+        public MultipleShootingPontryaginSolver WithTolerance(double tolerance)
         {
             _tolerance = tolerance;
             return this;
         }
 
-        public AdvancedPontryaginSolver WithShootingIntervals(int intervals)
+        public MultipleShootingPontryaginSolver WithShootingIntervals(int intervals)
         {
             _shootingIntervals = intervals;
             return this;
         }
 
-        public AdvancedPontryaginSolver WithVerbose(bool verbose = true)
+        public MultipleShootingPontryaginSolver WithVerbose(bool verbose = true)
         {
             _verbose = verbose;
             return this;

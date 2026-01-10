@@ -8,6 +8,7 @@
 
 using System;
 using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.NonLinear
 {

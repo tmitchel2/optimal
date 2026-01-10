@@ -9,7 +9,7 @@
 using System;
 using Optimal.NonLinear.LineSearch;
 
-namespace Optimal.NonLinear
+namespace Optimal.NonLinear.Unconstrained
 {
     /// <summary>
     /// Limited-memory BFGS (L-BFGS) quasi-Newton optimizer.

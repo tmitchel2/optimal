@@ -11,13 +11,19 @@ This skill provides additional information on how to work with CSharp (C#) and D
 
 - The solution should use .slnx format located within ./src folder
 - Projects should be organised flatly within the ./src folder
-- Test projects should be named the same as the project under test with a ".Tests" suffix.
 - Folders under projects should be **flat and only one level deep**
 - For futher subdivision of files, namespaces with multiple segments can still be used.  To allow for this within the filesystem, folders should be named using dots (`.`) to separate the folder names rather than nested directories. e.g. `Optimal.Data.Models` folder is named `Data.Models/` not `Data/Models/`.
 - A file containing code **is allowed** to reference files within the same folder.
 - A file containing code **is allowed** to reference files within descendant folders.
 - A file containing code **is allowed** to reference files within ascendant folders.
 - Referencing of files between any folder pair is allowed but only in one direction.  If bi-directional referencing exists between the files in a pair of folders then that suggests that the files are coupled tightly and the should be placed all together within the same folder.
+
+## CSharp Test Project Structure Best Practises
+
+- There should be one test project per regular project.
+- Test projects should be named the same as the project under test with a ".Tests" suffix.
+- There should be a one to one unit test file per regular file, the namespace should be the same but with a ".Tests" suffix.
+- The unit test class name should be the same as the type under test but wiht a "Tests" suffix.
 
 ## CSharp Language Best Practises
 

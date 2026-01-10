@@ -8,6 +8,7 @@
 
 using System;
 using System.Collections.Generic;
+using Optimal.Control.Collocation;
 
 namespace Optimal.Control.Core
 {

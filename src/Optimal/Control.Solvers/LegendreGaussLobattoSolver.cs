@@ -7,11 +7,12 @@
  */
 
 using System;
+using System.Linq;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Optimization;
-using System.Linq;
-using Optimal.NonLinear;
+using Optimal.NonLinear.Constrained;
+using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers
 {

@@ -6,7 +6,8 @@
  *
  */
 
-using Optimal.NonLinear;
+using Optimal.Control.Collocation;
+using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Core
 {

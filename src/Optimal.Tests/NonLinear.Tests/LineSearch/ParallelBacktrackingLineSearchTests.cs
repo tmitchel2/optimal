@@ -8,6 +8,7 @@
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.NonLinear.Tests.LineSearch
 {

@@ -15,7 +15,7 @@ namespace Optimal.Control.Collocation
     /// <summary>
     /// Parallel version of Hermite-Simpson transcription with optimized constraint and gradient evaluation.
     /// </summary>
-    public sealed class ParallelTranscription
+    public sealed class ParallelHermiteSimpsonTranscription
     {
 #pragma warning disable IDE0052 // Remove unread private members
         private readonly ControlProblem _problem;
@@ -42,7 +42,7 @@ namespace Optimal.Control.Collocation
         /// <param name="problem">The control problem to transcribe.</param>
         /// <param name="grid">The collocation grid.</param>
         /// <param name="enableParallelization">Enable parallel computation (default: true).</param>
-        public ParallelTranscription(ControlProblem problem, CollocationGrid grid, bool enableParallelization = true)
+        public ParallelHermiteSimpsonTranscription(ControlProblem problem, CollocationGrid grid, bool enableParallelization = true)
         {
             _problem = problem ?? throw new ArgumentNullException(nameof(problem));
             _grid = grid ?? throw new ArgumentNullException(nameof(grid));

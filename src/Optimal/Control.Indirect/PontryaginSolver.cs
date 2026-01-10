@@ -7,8 +7,9 @@
  */
 
 using System;
-using Optimal.Control.Core;
 using System.Linq;
+using Optimal.Control.Collocation;
+using Optimal.Control.Core;
 
 namespace Optimal.Control.Indirect
 {
