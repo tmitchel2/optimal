@@ -16,7 +16,7 @@ using Optimal.Control.Solvers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.Unconstrained;
 
-namespace Optimal.Control.Tests
+namespace Optimal.Control.Solvers.Tests
 {
     [TestClass]
     public sealed class ContinuationTests

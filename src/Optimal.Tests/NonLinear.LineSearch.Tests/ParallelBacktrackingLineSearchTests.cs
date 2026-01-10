@@ -8,9 +8,10 @@
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Tests;
 using Optimal.NonLinear.Unconstrained;
 
-namespace Optimal.NonLinear.Tests.LineSearch
+namespace Optimal.NonLinear.LineSearch.Tests
 {
     [TestClass]
     public sealed class ParallelBacktrackingLineSearchTests

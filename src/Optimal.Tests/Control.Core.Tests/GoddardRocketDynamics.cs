@@ -12,7 +12,7 @@ using Optimal.Control.Core;
 using Optimal.Control.Optimization;
 using Optimal.Control.Solvers;
 
-namespace Optimal.Control.Tests
+namespace Optimal.Control.Core.Tests
 {
     /// <summary>
     /// Goddard Rocket problem dynamics with AutoDiff support.

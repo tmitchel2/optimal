@@ -15,7 +15,7 @@ using Optimal.Control.Optimization;
 using Optimal.Control.Solvers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Optimal.Control.Tests
+namespace Optimal.Control.Optimization.Tests
 {
     /// <summary>
     /// Tests for AutoDiffGradientHelper (Hermite-Simpson) to verify gradient computation correctness.

@@ -13,7 +13,7 @@ using Optimal.Control.Optimization;
 using Optimal.Control.Solvers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Optimal.Control.Tests
+namespace Optimal.Control.Collocation.Tests
 {
     [TestClass]
     public sealed class CollocationGridTests

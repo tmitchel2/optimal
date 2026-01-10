@@ -14,7 +14,7 @@ using Optimal.Control.Solvers;
 using System.Diagnostics;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Optimal.Control.Tests
+namespace Optimal.Control.Solvers.Tests
 {
     [TestClass]
     [Ignore]

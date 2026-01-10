@@ -15,7 +15,7 @@ using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
 
-namespace Optimal.Control.Tests
+namespace Optimal.Control.Core.Tests
 {
     /// <summary>
     /// Generates HTML visualizations of CollocationResult for visual verification.

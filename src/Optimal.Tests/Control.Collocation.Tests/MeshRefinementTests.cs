@@ -16,7 +16,7 @@ using Optimal.Control.Solvers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.Unconstrained;
 
-namespace Optimal.Control.Tests
+namespace Optimal.Control.Collocation.Tests
 {
     [TestClass]
     public sealed class MeshRefinementTests

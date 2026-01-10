@@ -8,14 +8,16 @@
 
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Optimal.NonLinear;
 using Optimal.NonLinear.Constrained;
 using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Tests;
 using Optimal.NonLinear.Unconstrained;
 
-namespace Optimal.NonLinear.Tests
+namespace Optimal.NonLinear.Constrained.Tests
 {
     [TestClass]
-    public sealed class ConstrainedOptimizerTests
+    public sealed class AugmentedLagrangianOptimizerTests
     {
         private static readonly double[] s_boxInitial = new[] { 0.0, 0.0 };
         private static readonly double[] s_boxLower = new[] { -0.5, -0.5 };

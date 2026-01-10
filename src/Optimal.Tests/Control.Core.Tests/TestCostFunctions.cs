@@ -6,7 +6,7 @@
  *
  */
 
-namespace Optimal.Control.Tests
+namespace Optimal.Control.Core.Tests
 {
     /// <summary>
     /// Test cost functions for optimal control validation.

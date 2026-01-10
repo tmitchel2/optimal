@@ -12,7 +12,7 @@ using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
 
-namespace Optimal.Tests.Control.Tests
+namespace Optimal.Control.Collocation.Tests
 {
     [TestClass]
     public class LegendreGaussLobattoTests

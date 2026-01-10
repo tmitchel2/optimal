@@ -7,10 +7,12 @@
  */
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Optimal.NonLinear;
 using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Tests;
 using Optimal.NonLinear.Unconstrained;
 
-namespace Optimal.NonLinear.Tests
+namespace Optimal.NonLinear.Unconstrained.Tests
 {
     [TestClass]
     public sealed class LBFGSOptimizerTests
