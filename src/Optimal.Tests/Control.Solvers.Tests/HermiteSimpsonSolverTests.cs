@@ -9,11 +9,11 @@
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
 using System;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Optimization;
 using Optimal.Control.Solvers;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers.Tests
@@ -104,6 +104,7 @@ namespace Optimal.Control.Solvers.Tests
         }
 
         [TestMethod]
+        [TestCategory("Integration")]
         public void CanSolveDoubleIntegratorMinimumEnergy()
         {
             // Problem: min ∫ u² dt

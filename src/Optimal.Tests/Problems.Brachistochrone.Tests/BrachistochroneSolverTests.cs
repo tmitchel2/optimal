@@ -83,6 +83,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
         }
 
         [TestMethod]
+        [TestCategory("Integration")]
         public void HermiteSimpsonFixedTimeConservesEnergy()
         {
             var problem = CreateFixedTimeProblem();
