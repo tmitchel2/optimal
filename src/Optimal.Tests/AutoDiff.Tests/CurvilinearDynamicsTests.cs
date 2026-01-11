@@ -321,6 +321,120 @@ namespace Optimal.AutoDiff.Tests
 
         #endregion
 
+        #region ProgressWithProperty Tests (Property Access)
+
+        [TestMethod]
+        public void ProgressWithPropertyEntryRegion()
+        {
+            // In entry region (s < 15), returns v directly
+            var s = 10.0;
+            var v = 20.0;
+
+            var expected = v;
+            var actual = CurvilinearDynamicsFunctions.ProgressWithProperty(s, v);
+            Assert.AreEqual(expected, actual, 1e-10);
+
+            // Verify gradient w.r.t. v
+            var (value, gradient) = CurvilinearDynamicsFunctionsGradients.ProgressWithPropertyForward_v(s, v);
+            Assert.AreEqual(expected, value, 1e-10);
+            Assert.AreEqual(1.0, gradient, 1e-10, "d(v)/dv = 1");
+        }
+
+        [TestMethod]
+        public void ProgressWithPropertyArcRegion()
+        {
+            // In arc region, returns v * (1 - 0.3 * arcProgress)
+            var entryEnd = 15.0;
+            var arcLength = Math.PI * 5.0 / 2.0;
+            var s = entryEnd + arcLength / 2.0; // Middle of arc
+            var v = 20.0;
+
+            var arcProgress = (s - entryEnd) / arcLength;
+            var expected = v * (1.0 - 0.3 * arcProgress);
+            var actual = CurvilinearDynamicsFunctions.ProgressWithProperty(s, v);
+            Assert.AreEqual(expected, actual, 1e-10);
+
+            // Verify gradient w.r.t. s
+            var (value, gradient) = CurvilinearDynamicsFunctionsGradients.ProgressWithPropertyForward_s(s, v);
+            Assert.AreEqual(expected, value, 1e-10);
+            ValidateGradient(s, gradient, ss => CurvilinearDynamicsFunctions.ProgressWithProperty(ss, v));
+        }
+
+        [TestMethod]
+        public void ProgressWithPropertyExitRegion()
+        {
+            // In exit region (s >= arcEnd), returns v * 0.7
+            var entryEnd = 15.0;
+            var arcLength = Math.PI * 5.0 / 2.0;
+            var s = entryEnd + arcLength + 5.0;
+            var v = 20.0;
+
+            var expected = v * 0.7;
+            var actual = CurvilinearDynamicsFunctions.ProgressWithProperty(s, v);
+            Assert.AreEqual(expected, actual, 1e-10);
+
+            // Verify gradient w.r.t. v
+            var (value, gradient) = CurvilinearDynamicsFunctionsGradients.ProgressWithPropertyForward_v(s, v);
+            Assert.AreEqual(expected, value, 1e-10);
+            Assert.AreEqual(0.7, gradient, 1e-10, "d(0.7*v)/dv = 0.7");
+        }
+
+        #endregion
+
+        #region ConditionalWithDivision Tests - Minimal test for reverse mode branch bug
+
+        /// <summary>
+        /// This test demonstrates the reverse mode conditional adjoint bug.
+        /// When x=0, the first branch (factor=2.0) is taken.
+        /// But the backward pass unconditionally computes adjoints for ALL branches,
+        /// including the else branch (factor = y/x) which causes division by zero.
+        /// </summary>
+        [TestMethod]
+        public void ConditionalWithDivisionReverseAtX0HasNoNaN()
+        {
+            var x = 0.0;  // First branch will be taken (x < 10)
+            var y = 5.0;
+
+            var (value, gradients) = CurvilinearDynamicsFunctionsGradients.ConditionalWithDivisionReverse(x, y);
+
+            // First branch: factor = 2.0, result = y * factor = 10
+            Assert.AreEqual(10.0, value, 1e-10, "Value should be y * 2 = 10");
+
+            // Gradients should be well-defined
+            Assert.IsFalse(double.IsNaN(gradients[0]), "Gradient w.r.t. x should not be NaN");
+            Assert.IsFalse(double.IsNaN(gradients[1]), "Gradient w.r.t. y should not be NaN");
+
+            // In branch 1, result = y * 2, so d/dy = 2, d/dx = 0
+            Assert.AreEqual(0.0, gradients[0], 1e-10, "d/dx should be 0 in first branch");
+            Assert.AreEqual(2.0, gradients[1], 1e-10, "d/dy should be 2 in first branch");
+        }
+
+        [TestMethod]
+        public void ConditionalWithDivisionReverseInSecondBranch()
+        {
+            var x = 15.0;  // Second branch will be taken (x >= 10)
+            var y = 30.0;
+
+            var (value, gradients) = CurvilinearDynamicsFunctionsGradients.ConditionalWithDivisionReverse(x, y);
+
+            // Second branch: factor = y/x = 2, result = y * factor = y * y/x = y^2/x = 60
+            var expected = y * y / x;
+            Assert.AreEqual(expected, value, 1e-10, "Value should be y^2/x = 60");
+
+            // d(y^2/x)/dx = -y^2/x^2 = -4
+            // d(y^2/x)/dy = 2y/x = 4
+            var expectedDx = -y * y / (x * x);
+            var expectedDy = 2 * y / x;
+
+            Assert.IsFalse(double.IsNaN(gradients[0]), "Gradient w.r.t. x should not be NaN");
+            Assert.IsFalse(double.IsNaN(gradients[1]), "Gradient w.r.t. y should not be NaN");
+
+            Assert.AreEqual(expectedDx, gradients[0], 1e-10, $"d/dx should be {expectedDx}");
+            Assert.AreEqual(expectedDy, gradients[1], 1e-10, $"d/dy should be {expectedDy}");
+        }
+
+        #endregion
+
         #region Helper Methods
 
         private static void ValidateGradient(double x, double analyticalGradient, Func<double, double> function)

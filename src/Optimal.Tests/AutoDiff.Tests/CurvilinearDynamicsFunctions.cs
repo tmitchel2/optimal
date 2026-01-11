@@ -190,5 +190,59 @@ namespace Optimal.AutoDiff.Tests
             var headingError = theta - thetaRoad;
             return v * Math.Sin(headingError);
         }
+
+        // Computed property - tests generator's ability to inline property access
+        public static double ArcLength => Math.PI * CenterlineRadius / 2.0;
+
+        /// <summary>
+        /// Function that uses a computed property.
+        /// Tests the generator's ability to resolve and inline property access.
+        /// </summary>
+        public static double ProgressWithProperty(double s, double v)
+        {
+            // Use the computed property ArcLength in the function
+            var arcLength = ArcLength;
+            var entryEnd = EntryLength;
+            var arcEnd = entryEnd + arcLength;
+
+            if (s < entryEnd)
+            {
+                return v;
+            }
+            else if (s < arcEnd)
+            {
+                // Slow down in the arc based on progress
+                var arcProgress = (s - entryEnd) / arcLength;
+                return v * (1.0 - 0.3 * arcProgress);
+            }
+            else
+            {
+                return v * 0.7;
+            }
+        }
+
+        /// <summary>
+        /// Minimal test function for reverse mode conditional bug.
+        /// Uses if-else with assignments (no early returns) and division.
+        /// When x=0, the first branch is taken, but the backward pass 
+        /// attempts to compute adjoints for branch 2 which has uninitialized nodes.
+        /// </summary>
+        public static double ConditionalWithDivision(double x, double y)
+        {
+            double factor;
+
+            if (x < 10.0)
+            {
+                // Branch 1: simple assignment
+                factor = 2.0;
+            }
+            else
+            {
+                // Branch 2: division by x - never executed when x < 10
+                factor = y / x;
+            }
+
+            return y * factor;
+        }
     }
 }

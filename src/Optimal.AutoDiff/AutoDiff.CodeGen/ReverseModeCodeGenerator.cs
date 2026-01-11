@@ -25,7 +25,9 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
         private readonly HashSet<string> _differentiableParamNames = new();
         private readonly List<object> _operations = new();
         private readonly HashSet<string> _declaredVariables = new();
-        private readonly Dictionary<string, int> _intermediateVariableToNodeIndex = new(); // NEW: Track intermediate variables
+        private readonly Dictionary<string, int> _intermediateVariableToNodeIndex = new(); // Track intermediate variables
+        // Track variable assignments in branches: (varName, conditionIdx, isTrueBranch, nodeIdx)
+        private readonly List<(string varName, int conditionIdx, bool isTrueBranch, int nodeIdx)> _branchVariableAssignments = new();
         private int _nodeCounter;
         private string _currentIndent = "            "; // 12 spaces = 3 levels
 
@@ -41,7 +43,8 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             _differentiableParamNames.Clear();
             _operations.Clear();
             _declaredVariables.Clear();
-            _intermediateVariableToNodeIndex.Clear(); // NEW: Clear intermediate tracking
+            _intermediateVariableToNodeIndex.Clear();
+            _branchVariableAssignments.Clear();
             _nodeCounter = 0;
 
             // Mark parameters as declared
@@ -173,6 +176,12 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
                 _ => throw new NotSupportedException($"Node type not supported: {node.GetType().Name}")
             };
 
+            // For variable nodes that were assigned in branches, add a merge operation
+            if (node is VariableNode varNode)
+            {
+                AddVariableReferenceOperation(varNode.Name, nodeIdx);
+            }
+
             // Assign to nodes array (accessible from anywhere in method)
             sb.AppendLine($"{_currentIndent}nodes[{nodeIdx}] = {code};");
             _generatedNodes.Add(node);
@@ -203,14 +212,30 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
 
         private string GenerateVariable(VariableNode variable)
         {
-            // NEW: If this variable is an intermediate with a tracked node index, use that
-            // This enables gradient propagation through intermediate variables
-            if (_intermediateVariableToNodeIndex.TryGetValue(variable.Name, out var nodeIdx))
+            // Check if this variable was assigned in conditional branches
+            // If so, we'll use the variable name (for correct runtime value)
+            // but we DON'T use nodes[idx] because the branch assignments 
+            // will be handled by VariableMerge operations
+            if (_intermediateVariableToNodeIndex.TryGetValue(variable.Name, out var _))
             {
-                return $"nodes[{nodeIdx}]";
+                // Variable was assigned somewhere - use the C# variable directly
+                // This ensures we get the correct value from whichever branch was taken
+                return variable.Name;
             }
 
             return variable.Name;
+        }
+
+        // Called during GenerateNodeCode to add operations for variable references
+        private void AddVariableReferenceOperation(string varName, int outputNodeIdx)
+        {
+            // Check if this variable was assigned in conditional branches
+            var branchAssignments = _branchVariableAssignments.Where(a => a.varName == varName).ToList();
+            if (branchAssignments.Count > 0)
+            {
+                // Add a VariableMerge operation for adjoint propagation
+                _operations.Add(("VariableMerge", outputNodeIdx, branchAssignments));
+            }
         }
 
         private string GenerateBinaryOp(BinaryOpNode binary, StringBuilder sb, int outputIdx)
@@ -374,11 +399,16 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             }
             else
             {
+                // Add branch start marker for backward pass
+                _operations.Add(("BranchStart", conditionIdx, true)); // true branch
                 foreach (var stmt in conditional.TrueBranch)
                 {
                     if (stmt is AssignmentNode assignment)
                     {
                         var valueIdx = GenerateNodeCode(assignment.Value, sb);
+
+                        // Track branch variable assignment for adjoint propagation
+                        _branchVariableAssignments.Add((assignment.TargetVariable, conditionIdx, true, valueIdx));
 
                         if (!_declaredVariables.Contains(assignment.TargetVariable))
                         {
@@ -395,6 +425,8 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
                         GenerateNestedConditionalStatement(nested, sb, indent + "    ");
                     }
                 }
+                // Add branch end marker
+                _operations.Add(("BranchEnd", conditionIdx, true));
             }
 
             sb.AppendLine($"{indent}}}");
@@ -437,11 +469,16 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
                 }
                 else
                 {
+                    // Add branch start marker for backward pass (false branch)
+                    _operations.Add(("BranchStart", conditionIdx, false)); // false branch
                     foreach (var stmt in conditional.FalseBranch)
                     {
                         if (stmt is AssignmentNode assignment)
                         {
                             var valueIdx = GenerateNodeCode(assignment.Value, sb);
+
+                            // Track branch variable assignment for adjoint propagation
+                            _branchVariableAssignments.Add((assignment.TargetVariable, conditionIdx, false, valueIdx));
 
                             if (!_declaredVariables.Contains(assignment.TargetVariable))
                             {
@@ -458,6 +495,8 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
                             GenerateNestedConditionalStatement(nested, sb, indent + "    ");
                         }
                     }
+                    // Add branch end marker
+                    _operations.Add(("BranchEnd", conditionIdx, false));
                 }
 
                 sb.AppendLine($"{indent}}}");
@@ -630,24 +669,106 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             sb.AppendLine($"            adj[{resultIndex}] = 1.0;");
             sb.AppendLine();
 
+            // Track current indentation for branch-conditional wrapping
+            var currentIndent = "            ";
+            // Stack tracks active branches (condition index, is true branch)
+            var branchStack = new Stack<(int conditionIdx, bool isTrueBranch)>();
+
             for (int i = _operations.Count - 1; i >= 0; i--)
             {
                 var operation = _operations[i];
+
+                // Handle branch markers - when iterating backward, we encounter End before Start
+                if (operation is ValueTuple<string, int, bool> branchMarker)
+                {
+                    if (branchMarker.Item1 == "BranchEnd")
+                    {
+                        // Starting a new branch (end marker comes first when iterating backward)
+                        var conditionIdx = branchMarker.Item2;
+                        var isTrueBranch = branchMarker.Item3;
+                        branchStack.Push((conditionIdx, isTrueBranch));
+
+                        // Generate conditional start
+                        var condition = isTrueBranch ? $"nodes[{conditionIdx}] != 0" : $"nodes[{conditionIdx}] == 0";
+                        sb.AppendLine($"{currentIndent}if ({condition})");
+                        sb.AppendLine($"{currentIndent}{{");
+                        currentIndent += "    ";
+                    }
+                    else if (branchMarker.Item1 == "BranchStart")
+                    {
+                        // Exiting a branch (start marker comes last when iterating backward)
+                        if (branchStack.Count > 0)
+                        {
+                            branchStack.Pop();
+                            currentIndent = currentIndent.Substring(0, currentIndent.Length - 4);
+                            sb.AppendLine($"{currentIndent}}}");
+                        }
+                    }
+                    continue;
+                }
+
                 if (operation is ValueTuple<string, int, BinaryOperator, int, int> binaryOp && binaryOp.Item1 == "BinaryOp")
                 {
-                    GenerateBinaryOpBackprop(sb, binaryOp.Item2, binaryOp.Item3, binaryOp.Item4, binaryOp.Item5);
+                    GenerateBinaryOpBackpropWithIndent(sb, binaryOp.Item2, binaryOp.Item3, binaryOp.Item4, binaryOp.Item5, currentIndent);
                 }
                 else if (operation is ValueTuple<string, int, UnaryOperator, int> unaryOp && unaryOp.Item1 == "UnaryOp")
                 {
-                    GenerateUnaryOpBackprop(sb, unaryOp.Item2, unaryOp.Item3, unaryOp.Item4);
+                    GenerateUnaryOpBackpropWithIndent(sb, unaryOp.Item2, unaryOp.Item3, unaryOp.Item4, currentIndent);
                 }
                 else if (operation is ValueTuple<string, int, string, List<int>> methodCall && methodCall.Item1 == "MethodCall")
                 {
-                    GenerateMethodCallBackprop(sb, methodCall.Item2, methodCall.Item3, methodCall.Item4);
+                    GenerateMethodCallBackpropWithIndent(sb, methodCall.Item2, methodCall.Item3, methodCall.Item4, currentIndent);
                 }
                 else if (operation is ValueTuple<string, int, int, int, int> conditionalExpr && conditionalExpr.Item1 == "ConditionalExpression")
                 {
-                    GenerateConditionalExpressionBackprop(sb, conditionalExpr.Item2, conditionalExpr.Item3, conditionalExpr.Item4, conditionalExpr.Item5);
+                    GenerateConditionalExpressionBackpropWithIndent(sb, conditionalExpr.Item2, conditionalExpr.Item3, conditionalExpr.Item4, conditionalExpr.Item5, currentIndent);
+                }
+                else if (operation is ValueTuple<string, int, List<(string, int, bool, int)>> varMerge && varMerge.Item1 == "VariableMerge")
+                {
+                    GenerateVariableMergeBackprop(sb, varMerge.Item2, varMerge.Item3, currentIndent);
+                }
+            }
+        }
+
+        private void GenerateVariableMergeBackprop(StringBuilder sb, int outputIdx, List<(string varName, int conditionIdx, bool isTrueBranch, int nodeIdx)> branchAssignments, string indent)
+        {
+            // Generate conditional adjoint propagation for each branch assignment
+            // Group by condition index to handle if-else pairs together
+            var groupedByCondition = branchAssignments.GroupBy(a => a.conditionIdx).ToList();
+
+            foreach (var group in groupedByCondition)
+            {
+                var conditionIdx = group.Key;
+                var trueAssign = group.FirstOrDefault(a => a.isTrueBranch);
+                var falseAssign = group.FirstOrDefault(a => !a.isTrueBranch);
+
+                if (trueAssign.varName != null && falseAssign.varName != null)
+                {
+                    // Both branches exist - generate if-else
+                    sb.AppendLine($"{indent}if (nodes[{conditionIdx}] != 0)");
+                    sb.AppendLine($"{indent}{{");
+                    sb.AppendLine($"{indent}    adj[{trueAssign.nodeIdx}] += adj[{outputIdx}];");
+                    sb.AppendLine($"{indent}}}");
+                    sb.AppendLine($"{indent}else");
+                    sb.AppendLine($"{indent}{{");
+                    sb.AppendLine($"{indent}    adj[{falseAssign.nodeIdx}] += adj[{outputIdx}];");
+                    sb.AppendLine($"{indent}}}");
+                }
+                else if (trueAssign.varName != null)
+                {
+                    // Only true branch
+                    sb.AppendLine($"{indent}if (nodes[{conditionIdx}] != 0)");
+                    sb.AppendLine($"{indent}{{");
+                    sb.AppendLine($"{indent}    adj[{trueAssign.nodeIdx}] += adj[{outputIdx}];");
+                    sb.AppendLine($"{indent}}}");
+                }
+                else if (falseAssign.varName != null)
+                {
+                    // Only false branch
+                    sb.AppendLine($"{indent}if (nodes[{conditionIdx}] == 0)");
+                    sb.AppendLine($"{indent}{{");
+                    sb.AppendLine($"{indent}    adj[{falseAssign.nodeIdx}] += adj[{outputIdx}];");
+                    sb.AppendLine($"{indent}}}");
                 }
             }
         }

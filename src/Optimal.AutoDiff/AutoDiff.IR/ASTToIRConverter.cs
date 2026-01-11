@@ -231,8 +231,56 @@ namespace Optimal.AutoDiff.Analyzers.IR
                 var value = fieldSymbol.ConstantValue;
                 return new ConstantNode(NewNodeId(), value!, fieldSymbol.Type);
             }
+            else if (symbol is IPropertySymbol propertySymbol)
+            {
+                // Handle property access by inlining the getter expression
+                return ConvertPropertyAccess(propertySymbol);
+            }
 
             throw new InvalidOperationException($"Unknown identifier: {name}");
+        }
+
+        private IRNode ConvertPropertyAccess(IPropertySymbol propertySymbol)
+        {
+            // Get the property declaration syntax from the symbol
+            var syntaxReference = propertySymbol.DeclaringSyntaxReferences.FirstOrDefault();
+            if (syntaxReference == null)
+            {
+                throw new InvalidOperationException($"Property '{propertySymbol.Name}' has no syntax reference - cannot inline external properties");
+            }
+
+            var propertySyntax = syntaxReference.GetSyntax() as PropertyDeclarationSyntax;
+            if (propertySyntax == null)
+            {
+                throw new InvalidOperationException($"Property '{propertySymbol.Name}' is not a property declaration");
+            }
+
+            // Handle expression-bodied property: public static double Prop => expression;
+            if (propertySyntax.ExpressionBody != null)
+            {
+                return ConvertExpression(propertySyntax.ExpressionBody.Expression);
+            }
+
+            // Handle get accessor with expression body: public static double Prop { get => expression; }
+            var getter = propertySyntax.AccessorList?.Accessors
+                .FirstOrDefault(a => a.IsKind(SyntaxKind.GetAccessorDeclaration));
+
+            if (getter?.ExpressionBody != null)
+            {
+                return ConvertExpression(getter.ExpressionBody.Expression);
+            }
+
+            // Handle get accessor with block body: public static double Prop { get { return expression; } }
+            if (getter?.Body != null)
+            {
+                var returnStatement = getter.Body.Statements.OfType<ReturnStatementSyntax>().FirstOrDefault();
+                if (returnStatement?.Expression != null)
+                {
+                    return ConvertExpression(returnStatement.Expression);
+                }
+            }
+
+            throw new InvalidOperationException($"Property '{propertySymbol.Name}' does not have a simple expression body that can be inlined");
         }
 
         private IRNode ConvertBinaryExpression(BinaryExpressionSyntax binary)

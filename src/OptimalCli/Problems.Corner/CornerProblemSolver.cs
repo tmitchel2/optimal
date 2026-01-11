@@ -263,7 +263,7 @@ public sealed class CornerProblemSolver : ICommand
         // Convert final state from curvilinear to Cartesian for display
         var finalS = result.States[^1][0];
         var finalN = result.States[^1][1];
-        var (finalX, finalY) = CornerDynamics.CurvilinearToCartesian(finalS, finalN);
+        var (finalX, finalY) = CornerDynamicsHelpers.CurvilinearToCartesian(finalS, finalN);
 
         Console.WriteLine("\n" + "=".PadRight(70, '=') + "\n");
         Console.WriteLine("SOLUTION SUMMARY:");

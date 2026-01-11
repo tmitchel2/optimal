@@ -186,15 +186,22 @@ namespace OptimalCli.Problems.Corner
         {
             return 1.0;
         }
+    }
 
+    /// <summary>
+    /// Helper methods for coordinate conversions and visualization.
+    /// Not marked with [OptimalCode] since these don't need gradients.
+    /// </summary>
+    public static class CornerDynamicsHelpers
+    {
         /// <summary>
         /// Convert curvilinear coordinates (s, n) to Cartesian coordinates (x, y).
         /// Used for visualization.
         /// </summary>
         public static (double x, double y) CurvilinearToCartesian(double s, double n)
         {
-            var arcLength = ArcLength;
-            var entryEnd = EntryLength;
+            var arcLength = CornerDynamics.ArcLength;
+            var entryEnd = CornerDynamics.EntryLength;
             var arcEnd = entryEnd + arcLength;
 
             double x, y;
@@ -204,64 +211,36 @@ namespace OptimalCli.Problems.Corner
                 // Entry straight: centerline is y=0, heading east
                 // x = s - EntryLength (so at s=0, x=-15; at s=EntryLength, x=0)
                 // n positive = right of centerline = negative y
-                x = s - EntryLength;
+                x = s - CornerDynamics.EntryLength;
                 y = -n;  // Flipped: positive n = right of centerline = negative y
             }
             else if (s < arcEnd)
             {
                 // Arc: centerline is quarter circle from (0,0) to (5,-5)
-                // Arc center is at (5, -5) with radius 5
-                // At s=entryEnd (arc start), angle=π/2 (pointing up), position on circle is (5, 0)
-                // Wait, we need to re-derive this properly.
-                //
                 // The centerline arc starts at (0, 0) heading east, curves right 90°.
-                // The arc is centered at (0, -5) with radius 5 (so it starts at (0, 0) and ends at (5, -5)).
-                // Wait, that doesn't give the right geometry either.
-                //
-                // Let's define it correctly:
-                // - Entry ends at world position (0, 0), heading θ=0 (east)
-                // - Arc curves right (clockwise) by 90°
-                // - Exit starts heading θ=-π/2 (south)
-                //
-                // For a right turn: center of curvature is to the right of the path.
-                // At (0, 0) heading east, right is negative y, so center is at (0, -R) = (0, -5)
-                // Arc: from (0, 0) to (5, -5), centered at (0, -5), radius 5
-                //
-                // Parametric: angle α goes from π/2 (north) to 0 (east) as we traverse
-                // Actually with center at (0, -5):
-                // - Start point (0, 0): angle = π/2 (from center, going up)
-                // - End point (5, -5): angle = 0 (from center, going right)
-                //
-                // For the centerline position at arc progress p ∈ [0, 1]:
-                // angle = π/2 - p × π/2 = π/2 × (1 - p)
-                // x = 0 + 5 × cos(angle) = 5 × cos(π/2 × (1 - p)) = 5 × sin(π/2 × p)
-                // y = -5 + 5 × sin(angle) = -5 + 5 × sin(π/2 × (1 - p)) = -5 + 5 × cos(π/2 × p)
+                // Arc is centered at (0, -5) with radius 5.
+                // Start point (0, 0): angle = π/2 (from center, going up)
+                // End point (5, -5): angle = 0 (from center, going right)
                 
                 var arcProgress = (s - entryEnd) / arcLength;
                 var angle = Math.PI / 2.0 * (1.0 - arcProgress);
                 
                 // Centerline position
-                var cx = CenterlineRadius * Math.Cos(angle);
-                var cy = -CenterlineRadius + CenterlineRadius * Math.Sin(angle);
+                var cx = CornerDynamics.CenterlineRadius * Math.Cos(angle);
+                var cy = -CornerDynamics.CenterlineRadius + CornerDynamics.CenterlineRadius * Math.Sin(angle);
                 
                 // n offset: perpendicular to arc, positive = outward (right of centerline)
-                // Outward direction from center at this angle: (cos(angle), sin(angle))
-                // But n positive = right of centerline when facing forward
-                // Forward tangent is perpendicular to radius, going clockwise
-                // If radius points at angle α, tangent points at α - π/2
-                // Right is perpendicular to tangent, which is same as radius direction (outward)
                 x = cx + n * Math.Cos(angle);
                 y = cy + n * Math.Sin(angle);
             }
             else
             {
                 // Exit straight: centerline is x=5, heading south
-                // Position along exit: s - arcEnd
                 var exitProgress = s - arcEnd;
                 // Centerline: x=5, y=-5-exitProgress
                 // n positive = right of centerline = positive x direction
-                x = CenterlineRadius + n;
-                y = -CenterlineRadius - exitProgress;
+                x = CornerDynamics.CenterlineRadius + n;
+                y = -CornerDynamics.CenterlineRadius - exitProgress;
             }
 
             return (x, y);
