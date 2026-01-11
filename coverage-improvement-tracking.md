@@ -6,8 +6,8 @@ Files needing improved code coverage for Optimal.csproj, ordered by coverage rat
 
 - [x] `src/Optimal/Control.Solvers/MultipleShootingSolver.cs` - 0% (0/500 lines) - Tests added
 - [x] `src/Optimal/Control.Initialization/LQRInitializer.cs` - 0% (0/364 lines) - Tests added
-- [ ] `src/Optimal/Control.Indirect/MultipleShootingPontryaginSolver.cs` - 0% (0/836 lines)
-- [ ] `src/Optimal/Control.Indirect/PontryaginSolver.cs` - 0% (0/464 lines)
+- [x] `src/Optimal/Control.Indirect/MultipleShootingPontryaginSolver.cs` - 0% (0/836 lines) - Tests added
+- [x] `src/Optimal/Control.Indirect/PontryaginSolver.cs` - 0% (0/464 lines) - Tests added
 - [ ] `src/Optimal/Control.Collocation/MeshRefinement.cs` - 48.28% (168/348 lines)
 - [ ] `src/Optimal/Control.Optimization/ObjectiveFunctionFactory.cs` - 56% (84/150 lines)
 - [ ] `src/Optimal/Control.Collocation/ParallelHermiteSimpsonTranscription.cs` - 59.62% (310/520 lines)
