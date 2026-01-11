@@ -248,8 +248,8 @@ namespace OptimalCli.Problems.Corner
                 // θ_road = -arcProgress * π/2 = -(1 - angle/(π/2)) * π/2 = angle - π/2
                 // sin(θ_road) = sin(angle - π/2) = -cos(angle)
                 // cos(θ_road) = cos(angle - π/2) = sin(angle)
-                // perpendicular = (-(-cos(angle)), -sin(angle)) = (cos(angle), -sin(angle))
-                x = cx + n * Math.Cos(angle);
+                // perpendicular = (-cos(angle), -sin(angle))
+                x = cx - n * Math.Cos(angle);
                 y = cy - n * Math.Sin(angle);
             }
             else

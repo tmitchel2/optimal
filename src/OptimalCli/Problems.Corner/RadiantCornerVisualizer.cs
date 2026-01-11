@@ -247,39 +247,40 @@ internal static class RadiantCornerVisualizer
         // Outer edge: radius = CenterlineRadius + RoadHalfWidth = 10
         const int ArcSegments = 30;
         
-        // Inner arc (at n = -RoadHalfWidth)
-        // This is actually a point at the apex when CenterlineRadius == RoadHalfWidth
+        // Inner of curve (at n = +RoadHalfWidth, right of centerline = toward arc center)
+        // This collapses to a point at the apex when CenterlineRadius == RoadHalfWidth
         if (Math.Abs(CenterlineRadius - RoadHalfWidth) > 0.1)
         {
             for (var i = 0; i < ArcSegments; i++)
             {
-                var (ix1, iy1) = GetArcBoundaryPoint(i, ArcSegments, -RoadHalfWidth);
-                var (ix2, iy2) = GetArcBoundaryPoint(i + 1, ArcSegments, -RoadHalfWidth);
+                var (ix1, iy1) = GetArcBoundaryPoint(i, ArcSegments, RoadHalfWidth);
+                var (ix2, iy2) = GetArcBoundaryPoint(i + 1, ArcSegments, RoadHalfWidth);
                 renderer.DrawLine(new Vector2((float)ix1 * scale, -(float)iy1 * scale),
                                  new Vector2((float)ix2 * scale, -(float)iy2 * scale), boundaryColor);
             }
         }
         else
         {
-            // Inner boundary is a single point - just mark it
-            var (apexX, apexY) = GetArcBoundaryPoint(ArcSegments / 2, ArcSegments, -RoadHalfWidth + 0.01);
+            // Inner of curve is a single point - mark as apex
+            var (apexX, apexY) = GetArcBoundaryPoint(ArcSegments / 2, ArcSegments, RoadHalfWidth - 0.01);
             renderer.DrawCircleOutline((float)apexX * scale, -(float)apexY * scale, 8, Colors.Amber400, 16);
             renderer.DrawText("APEX", (float)apexX * scale + 12, -(float)apexY * scale + 5, 2, Colors.Amber400);
         }
 
-        // Outer arc (at n = +RoadHalfWidth)
+        // Outer of curve (at n = -RoadHalfWidth, left of centerline = away from arc center)
         for (var i = 0; i < ArcSegments; i++)
         {
-            var (ox1, oy1) = GetArcBoundaryPoint(i, ArcSegments, RoadHalfWidth);
-            var (ox2, oy2) = GetArcBoundaryPoint(i + 1, ArcSegments, RoadHalfWidth);
+            var (ox1, oy1) = GetArcBoundaryPoint(i, ArcSegments, -RoadHalfWidth);
+            var (ox2, oy2) = GetArcBoundaryPoint(i + 1, ArcSegments, -RoadHalfWidth);
             renderer.DrawLine(new Vector2((float)ox1 * scale, -(float)oy1 * scale),
                              new Vector2((float)ox2 * scale, -(float)oy2 * scale), boundaryColor);
         }
 
         // === EXIT STRAIGHT ===
-        // From CurvilinearToCartesian for exit: x = CenterlineRadius + n, y = -CenterlineRadius - exitProgress
-        // Left edge: n = -RoadHalfWidth → x = CenterlineRadius - RoadHalfWidth = 0
-        // Right edge: n = +RoadHalfWidth → x = CenterlineRadius + RoadHalfWidth = 10
+        // From CurvilinearToCartesian for exit: x = CenterlineRadius - n, y = -CenterlineRadius - exitProgress
+        // When heading south, positive n (right of centerline) = west = smaller x
+        // Inner of curve (n = +RoadHalfWidth): x = CenterlineRadius - RoadHalfWidth = 0
+        // Outer of curve (n = -RoadHalfWidth): x = CenterlineRadius + RoadHalfWidth = 10
         var exitLeftX = CenterlineRadius - RoadHalfWidth;
         var exitRightX = CenterlineRadius + RoadHalfWidth;
         var exitStartY = -CenterlineRadius;
