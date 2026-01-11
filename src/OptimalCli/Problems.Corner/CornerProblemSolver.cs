@@ -16,41 +16,27 @@ using Optimal.NonLinear.Unconstrained;
 namespace OptimalCli.Problems.Corner;
 
 /// <summary>
-/// Solves the Corner problem: Optimal racing line through a 90° turn.
-/// State: [x, y, θ, v] - position, heading, and velocity
+/// Solves the Corner problem: Optimal racing line through a 90° turn using curvilinear coordinates.
+/// State: [s, n, θ, v, T_f] - progress along centerline, lateral deviation, heading, velocity, final time
 /// Control: [a, ω] - acceleration and steering rate
 /// Minimize: Time to complete the corner
-/// Constraints: Vehicle must stay within road boundaries
+/// Constraints: Vehicle must stay within road boundaries (|n| ≤ RoadHalfWidth)
 /// </summary>
 public sealed class CornerProblemSolver : ICommand
 {
-    // Road geometry: 90° right turn
-    // The turn connects an entry straight (heading east) to an exit straight (heading south).
-    // 
-    // Layout (world coordinates, Y+ is up):
-    //   - Entry: x <= 0, y ∈ [-HalfRoadWidth, +HalfRoadWidth] = [-5, +5]
-    //   - Corner: The outer boundary is a quarter-circle arc centered at (HalfRoadWidth, -HalfRoadWidth) = (5, -5)
-    //             with radius = RoadWidth = 10. The inner corner is the single point (5, -5).
-    //   - Exit: y <= -HalfRoadWidth = -5, x ∈ [HalfRoadWidth, HalfRoadWidth + RoadWidth] = [5, 15]
-    //
-    // Region detection:
-    //   - Entry region: x <= 0
-    //   - Exit region: x > 0 AND y <= -HalfRoadWidth
-    //   - Corner region: x > 0 AND y > -HalfRoadWidth
-    private const double RoadWidth = 10.0;
-    private const double HalfRoadWidth = RoadWidth / 2.0;
-    // Corner center is at the inner corner where entry and exit meet
-    private const double CornerCenterX = HalfRoadWidth;  // = 5
-    private const double CornerCenterY = -HalfRoadWidth; // = -5
-    private const double CornerRadius = RoadWidth;       // = 10 (outer boundary arc radius)
+    // Road geometry (from CornerDynamics)
+    private static readonly double EntryLength = CornerDynamics.EntryLength;
+    private static readonly double ArcLength = CornerDynamics.ArcLength;
+    private static readonly double RoadHalfWidth = CornerDynamics.RoadHalfWidth;
+    private static readonly double TotalLength = EntryLength + ArcLength + 20.0; // Exit length of 20m
 
     public string Name => "corner";
 
-    public string Description => "Optimal racing line through 90° corner with road constraints";
+    public string Description => "Optimal racing line through 90° corner with road constraints (curvilinear coordinates)";
 
     public void Run(CommandOptions options)
     {
-        Console.WriteLine("=== CORNER PROBLEM ===");
+        Console.WriteLine("=== CORNER PROBLEM (CURVILINEAR COORDINATES) ===");
         Console.WriteLine("Finding optimal racing line through 90° right turn");
         Console.WriteLine("(Minimum time with free final time optimization)");
         Console.WriteLine();
@@ -61,85 +47,84 @@ public sealed class CornerProblemSolver : ICommand
         var maxSteerRate = 1.0;  // Maximum steering rate (rad/s)
         var initialVelocity = 15.0;  // Entry speed (m/s)
 
-        // Final position: center of exit road at x = HalfRoadWidth + HalfRoadWidth = RoadWidth = 10
-        var exitCenterX = HalfRoadWidth + HalfRoadWidth; // = 10
-        var tfGuess = 3.0; // Initial guess for final time
+        // Final position: at the end of the exit section
+        var sInit = 0.0;           // Start at beginning of entry
+        var sFinal = TotalLength;  // End at exit
+        var tfGuess = 3.0;         // Initial guess for final time
 
-        Console.WriteLine($"Problem setup (free final time with time-scaling):");
-        Console.WriteLine($"  Road width: {RoadWidth} m");
-        Console.WriteLine($"  Corner center: ({CornerCenterX}, {CornerCenterY})");
-        Console.WriteLine($"  Corner outer radius: {CornerRadius} m");
-        Console.WriteLine($"  Initial velocity: {initialVelocity} m/s");
-        Console.WriteLine($"  Initial position: (-15, 0) heading east (θ=0)");
-        Console.WriteLine($"  Final position: ({exitCenterX}, -25) heading south (θ=-π/2)");
+        Console.WriteLine($"Problem setup (curvilinear coordinates):");
+        Console.WriteLine($"  Entry length: {EntryLength} m");
+        Console.WriteLine($"  Arc length: {ArcLength:F3} m (π × {CornerDynamics.CenterlineRadius} / 2)");
+        Console.WriteLine($"  Road half-width: {RoadHalfWidth} m");
+        Console.WriteLine($"  Initial state: s=0, n=0, θ=0, v={initialVelocity} m/s");
+        Console.WriteLine($"  Final state: s={sFinal:F1}, n=free, θ=-π/2, v=free");
         Console.WriteLine($"  Acceleration bounds: [{maxDecel}, {maxAccel}] m/s²");
         Console.WriteLine($"  Steering rate bounds: [-{maxSteerRate}, {maxSteerRate}] rad/s");
         Console.WriteLine($"  Final time T_f: free (to be optimized, guess {tfGuess} s)");
-        Console.WriteLine($"  Normalized time: τ ∈ [0, 1]");
         Console.WriteLine();
 
-        // State: [x, y, θ, v, T_f] where T_f is the free final time
+        // State: [s, n, θ, v, T_f] where T_f is the free final time
         // Control: [a, ω] - acceleration and steering rate
         // Time is normalized to τ ∈ [0, 1]
         // Dynamics are scaled: dx/dτ = T_f · (dx/dt)
 
         var problem = new ControlProblem()
-            .WithStateSize(5) // [x, y, θ, v, T_f]
+            .WithStateSize(5) // [s, n, θ, v, T_f]
             .WithControlSize(2) // [a, ω]
             .WithTimeHorizon(0.0, 1.0) // Normalized time τ ∈ [0, 1]
-            .WithInitialCondition(new[] { -15.0, 0.0, 0.0, initialVelocity, tfGuess }) // Entry straight, heading east
-            .WithFinalCondition(new[] { exitCenterX, -25.0, -Math.PI / 2, double.NaN, double.NaN }) // Exit straight, heading south, free v and T_f
+            .WithInitialCondition(new[] { sInit, 0.0, 0.0, initialVelocity, tfGuess }) // Start on centerline, heading east
+            .WithFinalCondition(new[] { sFinal, double.NaN, -Math.PI / 2.0, double.NaN, double.NaN }) // End at exit, heading south, free n, v, T_f
             .WithControlBounds(new[] { maxDecel, -maxSteerRate }, new[] { maxAccel, maxSteerRate })
             .WithStateBounds(
-                new[] { -20.0, -30.0, -Math.PI, 1.0, 0.5 },  // Min: x, y, θ, v >= 1 m/s, T_f >= 0.5s
-                new[] { 20.0, 10.0, Math.PI, 30.0, 10.0 })   // Max: x, y, θ, v <= 30 m/s, T_f <= 10s
+                new[] { -1.0, -RoadHalfWidth, -Math.PI, 1.0, 0.5 },  // Min: s >= -1, |n| <= RoadHalfWidth, θ, v >= 1 m/s, T_f >= 0.5s
+                new[] { TotalLength + 5.0, RoadHalfWidth, Math.PI, 30.0, 10.0 })   // Max: s, |n|, θ, v <= 30 m/s, T_f <= 10s
             .WithDynamics((x, u, tau) =>
             {
-                var xPos = x[0];
-                var yPos = x[1];
+                var s = x[0];
+                var n = x[1];
                 var theta = x[2];
                 var v = x[3];
                 var Tf = x[4];
                 var a = u[0];
                 var omega = u[1];
 
-                // Physical dynamics (before time scaling)
-                var (xdotPhys, xdot_gradients) = CornerDynamicsGradients.XRateReverse(xPos, yPos, theta, v);
-                var (ydotPhys, ydot_gradients) = CornerDynamicsGradients.YRateReverse(xPos, yPos, theta, v);
+                // Physical dynamics using curvilinear coordinates
+                var (sdotPhys, sdot_gradients) = CornerDynamicsGradients.ProgressRateReverse(s, n, theta, v);
+                var (ndotPhys, ndot_gradients) = CornerDynamicsGradients.LateralRateReverse(s, n, theta, v);
                 var (thetadotPhys, thetadot_gradients) = CornerDynamicsGradients.ThetaRateReverse(omega);
                 var (vdotPhys, vdot_gradients) = CornerDynamicsGradients.VelocityRateReverse(a);
 
                 // Time-scaled dynamics: dx/dτ = T_f · (dx/dt)
-                var xdot = Tf * xdotPhys;
-                var ydot = Tf * ydotPhys;
+                var sdot = Tf * sdotPhys;
+                var ndot = Tf * ndotPhys;
                 var thetadot = Tf * thetadotPhys;
                 var vdot = Tf * vdotPhys;
                 var Tfdot = 0.0; // T_f is constant over the trajectory
 
-                var value = new[] { xdot, ydot, thetadot, vdot, Tfdot };
+                var value = new[] { sdot, ndot, thetadot, vdot, Tfdot };
                 var gradients = new double[2][];
 
                 // Gradients w.r.t. state: chain rule ∂(T_f·f)/∂x = T_f·(∂f/∂x), ∂(T_f·f)/∂T_f = f
-                // State order: [x, y, θ, v, T_f]
+                // State order: [s, n, θ, v, T_f]
                 gradients[0] = new[]
                 {
-                    // ∂ẋ/∂[x, y, θ, v, T_f]
-                    Tf * xdot_gradients[0], Tf * xdot_gradients[1], Tf * xdot_gradients[2], Tf * xdot_gradients[3], xdotPhys,
-                    // ∂ẏ/∂[x, y, θ, v, T_f]
-                    Tf * ydot_gradients[0], Tf * ydot_gradients[1], Tf * ydot_gradients[2], Tf * ydot_gradients[3], ydotPhys,
-                    // ∂θ̇/∂[x, y, θ, v, T_f] - thetadot only depends on omega, not state
+                    // ∂ṡ/∂[s, n, θ, v, T_f]
+                    Tf * sdot_gradients[0], Tf * sdot_gradients[1], Tf * sdot_gradients[2], Tf * sdot_gradients[3], sdotPhys,
+                    // ∂ṅ/∂[s, n, θ, v, T_f]
+                    Tf * ndot_gradients[0], Tf * ndot_gradients[1], Tf * ndot_gradients[2], Tf * ndot_gradients[3], ndotPhys,
+                    // ∂θ̇/∂[s, n, θ, v, T_f] - thetadot only depends on omega, not state
                     0.0, 0.0, 0.0, 0.0, thetadotPhys,
-                    // ∂v̇/∂[x, y, θ, v, T_f] - vdot only depends on a, not state
+                    // ∂v̇/∂[s, n, θ, v, T_f] - vdot only depends on a, not state
                     0.0, 0.0, 0.0, 0.0, vdotPhys,
-                    // ∂Ṫf/∂[x, y, θ, v, T_f] = 0
+                    // ∂Ṫf/∂[s, n, θ, v, T_f] = 0
                     0.0, 0.0, 0.0, 0.0, 0.0
                 };
 
                 // Gradients w.r.t. control: [a, ω]
                 gradients[1] = new[]
                 {
-                    0.0, 0.0,  // ∂ẋ/∂[a, ω] = 0
-                    0.0, 0.0,  // ∂ẏ/∂[a, ω] = 0
+                    0.0, 0.0,  // ∂ṡ/∂[a, ω] = 0
+                    0.0, 0.0,  // ∂ṅ/∂[a, ω] = 0
                     0.0, Tf * thetadot_gradients[0],  // ∂θ̇/∂[a, ω]
                     Tf * vdot_gradients[0], 0.0,  // ∂v̇/∂[a, ω]
                     0.0, 0.0   // ∂Ṫf/∂[a, ω] = 0
@@ -151,100 +136,25 @@ public sealed class CornerProblemSolver : ICommand
             {
                 // Minimize final time T_f
                 var Tf = x[4];
-                var gradients = new double[6]; // [x, y, θ, v, T_f, τ]
+                var gradients = new double[6]; // [s, n, θ, v, T_f, τ]
                 gradients[4] = 1.0; // ∂Φ/∂T_f = 1
                 return (Tf, gradients);
             })
-            // Road boundary constraints
-            // The road consists of:
-            //   Entry section: y ∈ [-HalfRoadWidth, +HalfRoadWidth], for any x <= HalfRoadWidth
-            //   Exit section: x ∈ [HalfRoadWidth, HalfRoadWidth + RoadWidth], for any y <= -HalfRoadWidth
-            //   Corner section: outer arc (distance from (5,-5) <= 10) connecting entry upper to exit right
-            //
-            // Simplified inner constraint: vehicle cannot cut the corner
-            // - If y > -HalfRoadWidth: must have x <= HalfRoadWidth (still on entry side)
-            // - If x < HalfRoadWidth: must have y >= -HalfRoadWidth (still on entry side)  
-            // - Combined: if in corner region, must satisfy y >= -HalfRoadWidth OR x >= HalfRoadWidth
-            //   i.e., cannot be in the "cut corner" region where x < 5 AND y < -5
-            //
-            // Actually, let's define it region by region:
-            // - Entry (x <= 0): y ∈ [-5, +5]
-            // - Exit (y <= -5): x ∈ [5, 15]
-            // - Transition (x > 0 AND y > -5): no inner constraint, but outer arc applies
+            // Road boundary constraints: |n| <= RoadHalfWidth
+            // Left boundary: n >= -RoadHalfWidth  =>  -RoadHalfWidth - n <= 0
             .WithPathConstraint((x, u, t) =>
             {
-                var xPos = x[0];
-                var yPos = x[1];
-
-                double violation;
-                double[] grads;
-
-                if (xPos <= 0)
-                {
-                    // Entry region: lower boundary is y >= -HalfRoadWidth
-                    violation = -HalfRoadWidth - yPos;
-                    grads = new[] { 0.0, -1.0, 0.0, 0.0, 0.0 };
-                }
-                else if (yPos <= -HalfRoadWidth)
-                {
-                    // Exit region: left boundary is x >= HalfRoadWidth
-                    violation = HalfRoadWidth - xPos;
-                    grads = new[] { -1.0, 0.0, 0.0, 0.0, 0.0 };
-                }
-                else
-                {
-                    // Transition region (x > 0 AND y > -HalfRoadWidth): 
-                    // Inner boundary is the corner point (5, -5)
-                    // Must stay "outside" this corner: not (x >= 5 AND y <= -5)
-                    // Since we're in y > -5, we're automatically satisfying this
-                    // No active inner constraint in this region
-                    violation = -1.0;  // Always satisfied
-                    grads = new[] { 0.0, 0.0, 0.0, 0.0, 0.0 };
-                }
-
+                var n = x[1];
+                var violation = -RoadHalfWidth - n;  // violation <= 0 when n >= -RoadHalfWidth
+                var grads = new[] { 0.0, -1.0, 0.0, 0.0, 0.0 };
                 return (violation, grads);
             })
-            // Outer boundary constraint (upper edge of entry, outer arc, right edge of exit)
-            // The outer boundary is a quarter-circle arc centered at (HalfRoadWidth, -HalfRoadWidth) = (5, -5)
-            // with radius = RoadWidth = 10
+            // Right boundary: n <= RoadHalfWidth  =>  n - RoadHalfWidth <= 0
             .WithPathConstraint((x, u, t) =>
             {
-                var xPos = x[0];
-                var yPos = x[1];
-
-                double violation;
-                double[] grads;
-
-                if (xPos <= 0)
-                {
-                    // Entry region: upper boundary is y <= HalfRoadWidth
-                    violation = yPos - HalfRoadWidth;  // violation <= 0 when y <= HalfRoadWidth
-                    grads = new[] { 0.0, 1.0, 0.0, 0.0, 0.0 };
-                }
-                else if (yPos > -HalfRoadWidth)
-                {
-                    // Corner region: outer boundary is distance from corner center <= CornerRadius
-                    var dx = xPos - CornerCenterX;
-                    var dy = yPos - CornerCenterY;
-                    var dist = Math.Sqrt(dx * dx + dy * dy);
-                    violation = dist - CornerRadius;  // violation <= 0 when dist <= CornerRadius
-                    if (dist > 1e-6)
-                    {
-                        grads = new[] { dx / dist, dy / dist, 0.0, 0.0, 0.0 };
-                    }
-                    else
-                    {
-                        grads = new[] { 0.0, 0.0, 0.0, 0.0, 0.0 };
-                    }
-                }
-                else
-                {
-                    // Exit region: right boundary is x <= HalfRoadWidth + RoadWidth = 15
-                    var rightBoundary = HalfRoadWidth + RoadWidth;
-                    violation = xPos - rightBoundary;  // violation <= 0 when x <= rightBoundary
-                    grads = new[] { 1.0, 0.0, 0.0, 0.0, 0.0 };
-                }
-
+                var n = x[1];
+                var violation = n - RoadHalfWidth;  // violation <= 0 when n <= RoadHalfWidth
+                var grads = new[] { 0.0, 1.0, 0.0, 0.0, 0.0 };
                 return (violation, grads);
             });
 
@@ -350,11 +260,17 @@ public sealed class CornerProblemSolver : ICommand
             return;
         }
 
+        // Convert final state from curvilinear to Cartesian for display
+        var finalS = result.States[^1][0];
+        var finalN = result.States[^1][1];
+        var (finalX, finalY) = CornerDynamics.CurvilinearToCartesian(finalS, finalN);
+
         Console.WriteLine("\n" + "=".PadRight(70, '=') + "\n");
         Console.WriteLine("SOLUTION SUMMARY:");
         Console.WriteLine($"  Success: {result.Success}");
         Console.WriteLine($"  Message: {result.Message}");
-        Console.WriteLine($"  Final position: ({result.States[^1][0]:F3}, {result.States[^1][1]:F3})");
+        Console.WriteLine($"  Final curvilinear: s={finalS:F3}, n={finalN:F3}");
+        Console.WriteLine($"  Final Cartesian: ({finalX:F3}, {finalY:F3})");
         Console.WriteLine($"  Final heading: {result.States[^1][2]:F3} rad ({result.States[^1][2] * 180 / Math.PI:F1}°)");
         Console.WriteLine($"  Final velocity: {result.States[^1][3]:F3} m/s");
         Console.WriteLine($"  Optimal time T_f: {result.States[^1][4]:F3} seconds");

@@ -14,19 +14,17 @@ namespace OptimalCli.Problems.Corner;
 /// <summary>
 /// Renders a real-time graphical display of the corner problem using Radiant.
 /// Shows the road layout, boundaries, and vehicle trajectory through the 90° turn.
+/// Converts curvilinear coordinates (s, n) to Cartesian (x, y) for display.
 /// </summary>
 internal static class RadiantCornerVisualizer
 {
     private const int WindowWidth = 900;
     private const int WindowHeight = 800;
 
-    // Road geometry constants (must match CornerProblemSolver)
-    private const double RoadWidth = 10.0;
-    private const double HalfRoadWidth = RoadWidth / 2.0;
-    // Corner center is at the inner corner where entry and exit meet
-    private const double CornerCenterX = HalfRoadWidth;  // = 5
-    private const double CornerCenterY = -HalfRoadWidth; // = -5
-    private const double CornerRadius = RoadWidth;       // = 10 (outer boundary arc radius)
+    // Road geometry constants (from CornerDynamics)
+    private static readonly double RoadHalfWidth = CornerDynamics.RoadHalfWidth;
+    private static readonly double CenterlineRadius = CornerDynamics.CenterlineRadius;
+    private static readonly double EntryLength = CornerDynamics.EntryLength;
 
     private static double[][]? s_currentStates;
     private static double[][]? s_currentControls;
@@ -79,7 +77,7 @@ internal static class RadiantCornerVisualizer
         try
         {
             using var app = new RadiantApplication();
-            app.Run("Corner Racing Line Optimization", WindowWidth, WindowHeight, RenderFrame, Colors.Slate900);
+            app.Run("Corner Racing Line Optimization (Curvilinear)", WindowWidth, WindowHeight, RenderFrame, Colors.Slate900);
         }
         finally
         {
@@ -169,19 +167,24 @@ internal static class RadiantCornerVisualizer
         // Draw road layout first (background)
         DrawRoadLayout(renderer, Scale);
 
-        // Draw trajectory path
+        // Draw trajectory path (convert curvilinear to Cartesian)
         DrawPathTrace(renderer, states, frameIndex, Scale);
 
-        // Draw the vehicle
+        // Draw the vehicle (convert curvilinear to Cartesian)
         var state = states[frameIndex];
-        DrawVehicle(renderer, state[0], state[1], state[2], state[3], Scale);
+        var s = state[0];
+        var n = state[1];
+        var theta = state[2];
+        var v = state[3];
+        var (x, y) = CornerDynamics.CurvilinearToCartesian(s, n);
+        DrawVehicle(renderer, x, y, theta, v, Scale);
 
         // Draw start and end markers
         DrawMarkers(renderer, states, Scale);
 
         // Draw information overlay
         var control = controls[frameIndex];
-        DrawInformation(renderer, state[0], state[1], state[2], state[3], control[0], control[1],
+        DrawInformation(renderer, s, n, x, y, theta, v, control[0], control[1],
             iteration, cost, maxViolation, constraintTolerance, frameIndex, states.Length);
     }
 
@@ -190,109 +193,108 @@ internal static class RadiantCornerVisualizer
         var boundaryColor = Colors.Red500;
         var centerLineColor = new Vector4(1.0f, 1.0f, 1.0f, 0.3f);
 
-        // Screen coordinate: screen_y = -world_y * scale (matching trajectory drawing)
-        // +Y screen is UP in Radiant
+        // Road geometry for curvilinear coordinates:
+        // - Entry: s ∈ [0, EntryLength), centerline at y=0, x = s - EntryLength
+        //   Inner edge at y = +RoadHalfWidth (n = -RoadHalfWidth in curvilinear)
+        //   Outer edge at y = -RoadHalfWidth (n = +RoadHalfWidth in curvilinear)
+        //   Wait, let me check the coordinate system...
         //
-        // NEW Road geometry (matching solver constraints):
-        //   Entry: x <= 0, y ∈ [-HalfRoadWidth, +HalfRoadWidth] = [-5, +5]
-        //   Corner: x > 0 AND y > -HalfRoadWidth, outer arc centered at (5, -5) with radius 10
-        //   Exit: y <= -HalfRoadWidth = -5, x ∈ [HalfRoadWidth, HalfRoadWidth + RoadWidth] = [5, 15]
+        // From CurvilinearToCartesian for entry: x = s - EntryLength, y = -n
+        // So n > 0 means y < 0 (right side of road when facing east)
+        // Road bounds: |n| <= RoadHalfWidth, so |y| <= RoadHalfWidth
         //
-        // Inner corner is a sharp 90° angle at (5, -5) world = (5, +5) screen
-        // Outer corner is a quarter-circle arc from (0, +5) world to (15, -5) world
+        // Entry straight: from x = -EntryLength to x = 0, y ∈ [-RoadHalfWidth, +RoadHalfWidth]
 
         // === ENTRY STRAIGHT ===
-        // Lower edge: y = -HalfRoadWidth = -5 world → +5 screen, from x=-25 to x=0
-        renderer.DrawLine(new Vector2(-25.0f * scale, (float)HalfRoadWidth * scale),
-                         new Vector2(0, (float)HalfRoadWidth * scale), boundaryColor);
-        // Upper edge: y = +HalfRoadWidth = +5 world → -5 screen, from x=-25 to x=0
-        renderer.DrawLine(new Vector2(-25.0f * scale, -(float)HalfRoadWidth * scale),
-                         new Vector2(0, -(float)HalfRoadWidth * scale), boundaryColor);
+        // Lower edge: y = -RoadHalfWidth
+        renderer.DrawLine(new Vector2(-(float)EntryLength * scale, (float)RoadHalfWidth * scale),
+                         new Vector2(0, (float)RoadHalfWidth * scale), boundaryColor);
+        // Upper edge: y = +RoadHalfWidth
+        renderer.DrawLine(new Vector2(-(float)EntryLength * scale, -(float)RoadHalfWidth * scale),
+                         new Vector2(0, -(float)RoadHalfWidth * scale), boundaryColor);
 
-        // === EXIT STRAIGHT ===
-        // Exit is at y <= -HalfRoadWidth = -5 world → +5 screen and below (increasing screen y)
-        // Left edge: x = HalfRoadWidth = 5, from y=-5 world to y=-40 world (screen y=+5 to +40)
-        renderer.DrawLine(new Vector2((float)HalfRoadWidth * scale, (float)HalfRoadWidth * scale),
-                         new Vector2((float)HalfRoadWidth * scale, 40.0f * scale), boundaryColor);
-        // Right edge: x = HalfRoadWidth + RoadWidth = 15, from y=-5 world to y=-40 world
-        renderer.DrawLine(new Vector2((float)(HalfRoadWidth + RoadWidth) * scale, (float)HalfRoadWidth * scale),
-                         new Vector2((float)(HalfRoadWidth + RoadWidth) * scale, 40.0f * scale), boundaryColor);
-
-        // === INNER CORNER (sharp 90° angle) ===
-        // The inner boundary goes: entry lower at (0, -5) → corner at (5, -5) → exit left at (5, -5)
-        // In screen coords: (0, +5) → (5, +5) horizontal, then (5, +5) → (5, +40) vertical
-        // The corner point is at (5, +5) screen = (5, -5) world
-        renderer.DrawLine(new Vector2(0, (float)HalfRoadWidth * scale),
-                         new Vector2((float)HalfRoadWidth * scale, (float)HalfRoadWidth * scale), boundaryColor);
-
-        // === OUTER CORNER (quarter-circle arc) ===
-        // Arc centered at (CornerCenterX, CornerCenterY) = (5, -5) world = (5, +5) screen
-        // Radius = CornerRadius = 10
-        // Arc goes from angle 90° (pointing up in world, connects to entry upper at (0, +5) world)
-        // to angle 0° (pointing right in world, connects to exit right at (15, -5) world)
+        // === ARC SECTION ===
+        // Arc centerline is at (0,0) start, curves to (CenterlineRadius, -CenterlineRadius)
+        // Inner edge: radius = CenterlineRadius - RoadHalfWidth = 0 (point!)
+        // Outer edge: radius = CenterlineRadius + RoadHalfWidth = 10
         const int ArcSegments = 30;
+        
+        // Inner arc (at n = -RoadHalfWidth)
+        // This is actually a point at the apex when CenterlineRadius == RoadHalfWidth
+        if (Math.Abs(CenterlineRadius - RoadHalfWidth) > 0.1)
+        {
+            for (var i = 0; i < ArcSegments; i++)
+            {
+                var (ix1, iy1) = GetArcBoundaryPoint(i, ArcSegments, -RoadHalfWidth);
+                var (ix2, iy2) = GetArcBoundaryPoint(i + 1, ArcSegments, -RoadHalfWidth);
+                renderer.DrawLine(new Vector2((float)ix1 * scale, -(float)iy1 * scale),
+                                 new Vector2((float)ix2 * scale, -(float)iy2 * scale), boundaryColor);
+            }
+        }
+        else
+        {
+            // Inner boundary is a single point - just mark it
+            var (apexX, apexY) = GetArcBoundaryPoint(ArcSegments / 2, ArcSegments, -RoadHalfWidth + 0.01);
+            renderer.DrawCircleOutline((float)apexX * scale, -(float)apexY * scale, 8, Colors.Amber400, 16);
+            renderer.DrawText("APEX", (float)apexX * scale + 12, -(float)apexY * scale + 5, 2, Colors.Amber400);
+        }
+
+        // Outer arc (at n = +RoadHalfWidth)
         for (var i = 0; i < ArcSegments; i++)
         {
-            // Angles from 90° down to 0° (counterclockwise in screen coords because of Y flip)
-            var angle1 = Math.PI / 2.0 * (1.0 - (double)i / ArcSegments);
-            var angle2 = Math.PI / 2.0 * (1.0 - (double)(i + 1) / ArcSegments);
-            
-            // World coords: center + radius * (cos, sin)
-            // Screen y = -world_y
-            var world_x1 = CornerCenterX + CornerRadius * Math.Cos(angle1);
-            var world_y1 = CornerCenterY + CornerRadius * Math.Sin(angle1);
-            var world_x2 = CornerCenterX + CornerRadius * Math.Cos(angle2);
-            var world_y2 = CornerCenterY + CornerRadius * Math.Sin(angle2);
-            
-            var screen_x1 = (float)world_x1 * scale;
-            var screen_y1 = -(float)world_y1 * scale;
-            var screen_x2 = (float)world_x2 * scale;
-            var screen_y2 = -(float)world_y2 * scale;
-            
-            renderer.DrawLine(new Vector2(screen_x1, screen_y1), new Vector2(screen_x2, screen_y2), boundaryColor);
+            var (ox1, oy1) = GetArcBoundaryPoint(i, ArcSegments, RoadHalfWidth);
+            var (ox2, oy2) = GetArcBoundaryPoint(i + 1, ArcSegments, RoadHalfWidth);
+            renderer.DrawLine(new Vector2((float)ox1 * scale, -(float)oy1 * scale),
+                             new Vector2((float)ox2 * scale, -(float)oy2 * scale), boundaryColor);
         }
 
+        // === EXIT STRAIGHT ===
+        // From CurvilinearToCartesian for exit: x = CenterlineRadius + n, y = -CenterlineRadius - exitProgress
+        // Left edge: n = -RoadHalfWidth → x = CenterlineRadius - RoadHalfWidth = 0
+        // Right edge: n = +RoadHalfWidth → x = CenterlineRadius + RoadHalfWidth = 10
+        var exitLeftX = CenterlineRadius - RoadHalfWidth;
+        var exitRightX = CenterlineRadius + RoadHalfWidth;
+        var exitStartY = -CenterlineRadius;
+        var exitEndY = -CenterlineRadius - 25.0; // Show 25m of exit
+
+        renderer.DrawLine(new Vector2((float)exitLeftX * scale, -(float)exitStartY * scale),
+                         new Vector2((float)exitLeftX * scale, -(float)exitEndY * scale), boundaryColor);
+        renderer.DrawLine(new Vector2((float)exitRightX * scale, -(float)exitStartY * scale),
+                         new Vector2((float)exitRightX * scale, -(float)exitEndY * scale), boundaryColor);
+
         // === CENTER LINE (dashed) ===
-        // Entry center (y=0 world = 0 screen)
-        for (var x = -25.0f * scale; x < 0; x += 20)
+        // Entry center
+        for (var xc = -(float)EntryLength * scale; xc < 0; xc += 20)
         {
-            renderer.DrawLine(new Vector2(x, 0), new Vector2(Math.Min(x + 10, 0), 0), centerLineColor);
+            renderer.DrawLine(new Vector2(xc, 0), new Vector2(Math.Min(xc + 10, 0), 0), centerLineColor);
         }
-        // Corner center arc (radius = 5, centered at (5, -5) world = (5, +5) screen)
-        // This gives the center of the road through the corner
-        var centerRadius = RoadWidth / 2.0; // = 5
+        // Arc center
         for (var i = 0; i < ArcSegments; i++)
         {
             if (i % 2 == 0)
             {
-                var angle1 = Math.PI / 2.0 * (1.0 - (double)i / ArcSegments);
-                var angle2 = Math.PI / 2.0 * (1.0 - (double)(i + 1) / ArcSegments);
-                
-                var world_x1 = CornerCenterX + centerRadius * Math.Cos(angle1);
-                var world_y1 = CornerCenterY + centerRadius * Math.Sin(angle1);
-                var world_x2 = CornerCenterX + centerRadius * Math.Cos(angle2);
-                var world_y2 = CornerCenterY + centerRadius * Math.Sin(angle2);
-                
-                renderer.DrawLine(
-                    new Vector2((float)world_x1 * scale, -(float)world_y1 * scale),
-                    new Vector2((float)world_x2 * scale, -(float)world_y2 * scale),
-                    centerLineColor);
+                var (cx1, cy1) = GetArcBoundaryPoint(i, ArcSegments, 0);
+                var (cx2, cy2) = GetArcBoundaryPoint(i + 1, ArcSegments, 0);
+                renderer.DrawLine(new Vector2((float)cx1 * scale, -(float)cy1 * scale),
+                                 new Vector2((float)cx2 * scale, -(float)cy2 * scale), centerLineColor);
             }
         }
-        // Exit center (x = HalfRoadWidth + RoadWidth/2 = 10, from y=-5 to y=-40 world)
-        var exitCenterX = HalfRoadWidth + RoadWidth / 2.0; // = 10
-        for (var y = (float)HalfRoadWidth * scale; y < 40.0f * scale; y += 20)
+        // Exit center
+        var exitCenterX = CenterlineRadius;
+        for (var yc = (float)exitStartY; yc > (float)exitEndY; yc -= 20.0f / scale)
         {
-            renderer.DrawLine(new Vector2((float)exitCenterX * scale, y), 
-                             new Vector2((float)exitCenterX * scale, Math.Min(y + 10, 40.0f * scale)), centerLineColor);
+            renderer.DrawLine(new Vector2((float)exitCenterX * scale, -yc * scale),
+                             new Vector2((float)exitCenterX * scale, -Math.Max(yc - 10.0f / scale, (float)exitEndY) * scale), centerLineColor);
         }
+    }
 
-        // === APEX marker ===
-        // The apex (clipping point) is at the inner corner at (5, -5) world = (5, +5) screen
-        var apexScreenX = (float)CornerCenterX * scale;
-        var apexScreenY = -(float)CornerCenterY * scale;  // -(-5) = +5
-        renderer.DrawCircleOutline(apexScreenX, apexScreenY, 8, Colors.Amber400, 16);
-        renderer.DrawText("APEX", apexScreenX + 12, apexScreenY + 5, 2, Colors.Amber400);
+    private static (double x, double y) GetArcBoundaryPoint(int segment, int totalSegments, double nOffset)
+    {
+        var arcLength = CornerDynamics.ArcLength;
+        var entryEnd = EntryLength;
+        var arcProgress = (double)segment / totalSegments;
+        var s = entryEnd + arcProgress * arcLength;
+        return CornerDynamics.CurvilinearToCartesian(s, nOffset);
     }
 
     private static void DrawPathTrace(Radiant.Graphics2D.Renderer2D renderer, double[][] states, int currentFrame, float scale)
@@ -300,28 +302,26 @@ internal static class RadiantCornerVisualizer
         // Draw completed path
         for (var i = 0; i < currentFrame && i < states.Length - 1; i++)
         {
-            var x1 = (float)states[i][0] * scale;
-            var y1 = -(float)states[i][1] * scale;
-            var x2 = (float)states[i + 1][0] * scale;
-            var y2 = -(float)states[i + 1][1] * scale;
+            var (x1, y1) = CornerDynamics.CurvilinearToCartesian(states[i][0], states[i][1]);
+            var (x2, y2) = CornerDynamics.CurvilinearToCartesian(states[i + 1][0], states[i + 1][1]);
 
             // Color by velocity (green = slow, yellow = medium, red = fast)
             var v = states[i][3];
             var vNorm = Math.Clamp((v - 5.0) / 20.0, 0.0, 1.0);
             var color = new Vector4((float)vNorm, (float)(1.0 - vNorm * 0.5), 0.2f, 0.9f);
 
-            renderer.DrawLine(new Vector2(x1, y1), new Vector2(x2, y2), color);
+            renderer.DrawLine(new Vector2((float)x1 * scale, -(float)y1 * scale),
+                             new Vector2((float)x2 * scale, -(float)y2 * scale), color);
         }
 
         // Draw future path in gray
         for (var i = currentFrame; i < states.Length - 1; i++)
         {
-            var x1 = (float)states[i][0] * scale;
-            var y1 = -(float)states[i][1] * scale;
-            var x2 = (float)states[i + 1][0] * scale;
-            var y2 = -(float)states[i + 1][1] * scale;
+            var (x1, y1) = CornerDynamics.CurvilinearToCartesian(states[i][0], states[i][1]);
+            var (x2, y2) = CornerDynamics.CurvilinearToCartesian(states[i + 1][0], states[i + 1][1]);
 
-            renderer.DrawLine(new Vector2(x1, y1), new Vector2(x2, y2), new Vector4(0.4f, 0.4f, 0.4f, 0.5f));
+            renderer.DrawLine(new Vector2((float)x1 * scale, -(float)y1 * scale),
+                             new Vector2((float)x2 * scale, -(float)y2 * scale), new Vector4(0.4f, 0.4f, 0.4f, 0.5f));
         }
     }
 
@@ -359,20 +359,18 @@ internal static class RadiantCornerVisualizer
         if (states.Length < 2) return;
 
         // Start marker
-        var startX = (float)states[0][0] * scale;
-        var startY = -(float)states[0][1] * scale;
-        renderer.DrawCircleFilled(startX, startY, 10, Colors.Emerald500, 24);
-        renderer.DrawText("START", startX - 30, startY - 20, 2, Colors.Emerald400);
+        var (startX, startY) = CornerDynamics.CurvilinearToCartesian(states[0][0], states[0][1]);
+        renderer.DrawCircleFilled((float)startX * scale, -(float)startY * scale, 10, Colors.Emerald500, 24);
+        renderer.DrawText("START", (float)startX * scale - 30, -(float)startY * scale - 20, 2, Colors.Emerald400);
 
         // End marker
-        var endX = (float)states[^1][0] * scale;
-        var endY = -(float)states[^1][1] * scale;
-        renderer.DrawCircleFilled(endX, endY, 10, Colors.Rose500, 24);
-        renderer.DrawText("FINISH", endX - 35, endY + 15, 2, Colors.Rose400);
+        var (endX, endY) = CornerDynamics.CurvilinearToCartesian(states[^1][0], states[^1][1]);
+        renderer.DrawCircleFilled((float)endX * scale, -(float)endY * scale, 10, Colors.Rose500, 24);
+        renderer.DrawText("FINISH", (float)endX * scale - 35, -(float)endY * scale + 15, 2, Colors.Rose400);
     }
 
     private static void DrawInformation(Radiant.Graphics2D.Renderer2D renderer,
-        double x, double y, double heading, double velocity,
+        double s, double n, double x, double y, double heading, double velocity,
         double accel, double steerRate,
         int iteration, double cost, double maxViolation, double constraintTolerance,
         int frameIndex, int totalFrames)
@@ -390,12 +388,13 @@ internal static class RadiantCornerVisualizer
         var convergenceColor = isConverged ? Colors.Emerald500 : (convergenceRatio < 10.0 ? Colors.Amber500 : Colors.Rose500);
         renderer.DrawText($"VIOLATION: {maxViolation:E2}", LeftX, TopY + 40, 2, convergenceColor);
 
-        // Right column
+        // Right column - curvilinear and Cartesian coordinates
         renderer.DrawText($"FRAME: {frameIndex + 1}/{totalFrames}", RightX, TopY, 2, Colors.Amber400);
-        renderer.DrawText($"POS: ({x:F1}, {y:F1})", RightX, TopY + 20, 2, Colors.Purple400);
-        renderer.DrawText($"V: {velocity:F1} m/s", RightX, TopY + 40, 2, Colors.Cyan400);
+        renderer.DrawText($"s={s:F1} n={n:F2}", RightX, TopY + 20, 2, Colors.Purple400);
+        renderer.DrawText($"({x:F1}, {y:F1})", RightX, TopY + 40, 2, Colors.Purple300);
+        renderer.DrawText($"V: {velocity:F1} m/s", RightX, TopY + 60, 2, Colors.Cyan400);
 
         var headingDeg = heading * 180.0 / Math.PI;
-        renderer.DrawText($"HDG: {headingDeg:F0} DEG", RightX, TopY + 60, 2, Colors.Orange400);
+        renderer.DrawText($"HDG: {headingDeg:F0} DEG", RightX, TopY + 80, 2, Colors.Orange400);
     }
 }

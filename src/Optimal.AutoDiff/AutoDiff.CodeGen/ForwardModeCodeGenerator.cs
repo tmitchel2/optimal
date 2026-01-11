@@ -699,6 +699,10 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             string wrtParam,
             ITypeSymbol doubleType)
         {
+            // Pre-declare any variables that are assigned in branches but not yet declared
+            // This ensures variables are in scope after the if-else block
+            PreDeclareConditionalVariables(conditional, sb);
+            
             var (conditionPrimal, _) = GenerateExpressionCode(conditional.Condition, sb, wrtParam, doubleType);
 
             sb.AppendLine($"            if ({conditionPrimal})");
@@ -731,6 +735,50 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
                 _currentIndent = previousIndent;
 
                 sb.AppendLine("            }");
+            }
+        }
+
+        /// <summary>
+        /// Pre-declares variables that are assigned inside conditional branches.
+        /// This ensures they are in scope after the if-else block.
+        /// </summary>
+        private void PreDeclareConditionalVariables(ConditionalNode conditional, StringBuilder sb)
+        {
+            var varsInBranches = new HashSet<string>();
+            CollectAssignedVariables(conditional.TrueBranch, varsInBranches);
+            CollectAssignedVariables(conditional.FalseBranch, varsInBranches);
+
+            foreach (var varName in varsInBranches)
+            {
+                if (!_declaredVariables.Contains(varName))
+                {
+                    sb.AppendLine($"            double {varName} = default;");
+                    sb.AppendLine($"            double {varName}_tan = default;");
+                    _declaredVariables.Add(varName);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Recursively collects all variable names that are assigned in a list of statements.
+        /// </summary>
+        private static void CollectAssignedVariables(ImmutableArray<IRNode> statements, HashSet<string> variables)
+        {
+            foreach (var stmt in statements)
+            {
+                if (stmt is AssignmentNode assignment)
+                {
+                    variables.Add(assignment.TargetVariable);
+                }
+                else if (stmt is ConditionalNode nested)
+                {
+                    CollectAssignedVariables(nested.TrueBranch, variables);
+                    CollectAssignedVariables(nested.FalseBranch, variables);
+                }
+                else if (stmt is LoopNode loop)
+                {
+                    CollectAssignedVariables(loop.Body, variables);
+                }
             }
         }
 
@@ -849,6 +897,9 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             }
             else if (stmt is ConditionalNode nested)
             {
+                // Pre-declare any variables that are assigned in nested branches
+                PreDeclareConditionalVariablesWithIndent(nested, sb, _currentIndent);
+                
                 var (conditionPrimal, _) = GenerateExpressionCode(nested.Condition, sb, wrtParam, doubleType);
 
                 sb.AppendLine($"{_currentIndent}if ({conditionPrimal})");
@@ -881,6 +932,26 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
                     _currentIndent = previousIndent;
 
                     sb.AppendLine($"{_currentIndent}}}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Pre-declares variables that are assigned inside conditional branches, using specified indent.
+        /// </summary>
+        private void PreDeclareConditionalVariablesWithIndent(ConditionalNode conditional, StringBuilder sb, string indent)
+        {
+            var varsInBranches = new HashSet<string>();
+            CollectAssignedVariables(conditional.TrueBranch, varsInBranches);
+            CollectAssignedVariables(conditional.FalseBranch, varsInBranches);
+
+            foreach (var varName in varsInBranches)
+            {
+                if (!_declaredVariables.Contains(varName))
+                {
+                    sb.AppendLine($"{indent}double {varName} = default;");
+                    sb.AppendLine($"{indent}double {varName}_tan = default;");
+                    _declaredVariables.Add(varName);
                 }
             }
         }

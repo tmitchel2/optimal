@@ -330,6 +330,9 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             var previousIndent = _currentIndent;
             _currentIndent = indent;
 
+            // Pre-declare any variables that are assigned in branches but not yet declared
+            PreDeclareConditionalVariables(conditional, sb, indent);
+
             var conditionIdx = GenerateNodeCode(conditional.Condition, sb);
 
             var hasReturnInTrue = HasReturnStatement(conditional.TrueBranch);
@@ -461,6 +464,49 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             }
 
             _currentIndent = previousIndent;
+        }
+
+        /// <summary>
+        /// Pre-declares variables that are assigned inside conditional branches.
+        /// This ensures they are in scope after the if-else block.
+        /// </summary>
+        private void PreDeclareConditionalVariables(ConditionalNode conditional, StringBuilder sb, string indent)
+        {
+            var varsInBranches = new HashSet<string>();
+            CollectAssignedVariables(conditional.TrueBranch, varsInBranches);
+            CollectAssignedVariables(conditional.FalseBranch, varsInBranches);
+
+            foreach (var varName in varsInBranches)
+            {
+                if (!_declaredVariables.Contains(varName))
+                {
+                    sb.AppendLine($"{indent}double {varName} = default;");
+                    _declaredVariables.Add(varName);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Recursively collects all variable names that are assigned in a list of statements.
+        /// </summary>
+        private static void CollectAssignedVariables(ImmutableArray<IRNode> statements, HashSet<string> variables)
+        {
+            foreach (var stmt in statements)
+            {
+                if (stmt is AssignmentNode assignment)
+                {
+                    variables.Add(assignment.TargetVariable);
+                }
+                else if (stmt is ConditionalNode nested)
+                {
+                    CollectAssignedVariables(nested.TrueBranch, variables);
+                    CollectAssignedVariables(nested.FalseBranch, variables);
+                }
+                else if (stmt is LoopNode loop)
+                {
+                    CollectAssignedVariables(loop.Body, variables);
+                }
+            }
         }
 
         private void GenerateInlineBranchBackwardPass(StringBuilder sb, int branchOpsStart, int resultIdx, string indent)
