@@ -27,6 +27,7 @@ var headless = false;
 var solver = SolverType.HS;
 var variant = BrachistochroneVariant.FreeFinalTime;
 var goddardVariant = GoddardRocketVariant.FreeFinalTime;
+var debugViz = false;
 var problemName = args[0].ToLowerInvariant();
 
 for (var i = 1; i < args.Length; i++)
@@ -34,6 +35,10 @@ for (var i = 1; i < args.Length; i++)
     if (args[i] == "--headless" || args[i] == "-H")
     {
         headless = true;
+    }
+    else if (args[i] == "--debug" || args[i] == "-d")
+    {
+        debugViz = true;
     }
     else if (args[i] == "--solver" || args[i] == "-s")
     {
@@ -78,7 +83,7 @@ for (var i = 1; i < args.Length; i++)
     }
 }
 
-var options = new CommandOptions(Headless: headless, Solver: solver, Variant: variant, GoddardVariant: goddardVariant);
+var options = new CommandOptions(Headless: headless, Solver: solver, Variant: variant, GoddardVariant: goddardVariant, DebugViz: debugViz);
 
 if (headless)
 {

@@ -36,6 +36,13 @@ public sealed class CornerProblemSolver : ICommand
 
     public void Run(CommandOptions options)
     {
+        // Debug visualization mode - just show track without optimization
+        if (options.DebugViz)
+        {
+            RadiantCornerVisualizer.RunDebugVisualization();
+            return;
+        }
+
         Console.WriteLine("=== CORNER PROBLEM (CURVILINEAR COORDINATES) ===");
         Console.WriteLine("Finding optimal racing line through 90° right turn");
         Console.WriteLine("(Minimum time with free final time optimization)");

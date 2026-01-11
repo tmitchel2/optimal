@@ -70,8 +70,10 @@ public enum GoddardRocketVariant
 /// <param name="Solver">Type of collocation solver to use.</param>
 /// <param name="Variant">Brachistochrone problem variant.</param>
 /// <param name="GoddardVariant">Goddard rocket problem variant.</param>
+/// <param name="DebugViz">Debug visualization mode - shows track without optimization.</param>
 public record CommandOptions(
     bool Headless = false,
     SolverType Solver = SolverType.HS,
     BrachistochroneVariant Variant = BrachistochroneVariant.FreeFinalTime,
-    GoddardRocketVariant GoddardVariant = GoddardRocketVariant.FreeFinalTime);
+    GoddardRocketVariant GoddardVariant = GoddardRocketVariant.FreeFinalTime,
+    bool DebugViz = false);

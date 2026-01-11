@@ -225,21 +225,41 @@ namespace OptimalCli.Problems.Corner
                 var arcProgress = (s - entryEnd) / arcLength;
                 var angle = Math.PI / 2.0 * (1.0 - arcProgress);
                 
-                // Centerline position
+                // Centerline position (radius = CenterlineRadius from arc center)
                 var cx = CornerDynamics.CenterlineRadius * Math.Cos(angle);
                 var cy = -CornerDynamics.CenterlineRadius + CornerDynamics.CenterlineRadius * Math.Sin(angle);
                 
-                // n offset: perpendicular to arc, positive = outward (right of centerline)
+                // n offset: perpendicular to arc
+                // For a right turn, positive n = right of centerline = OUTWARD from arc center
+                // The outward radial direction from center (0, -5) is (cos(angle), sin(angle))
+                // So positive n should SUBTRACT from this (move toward center = inner = left? NO)
+                // Wait: positive n = right of centerline when facing forward
+                // When facing east at arc start (angle=π/2), right is DOWN (negative y)
+                // The radial direction at angle=π/2 is (0, 1) pointing UP
+                // So positive n should be in the OPPOSITE direction: -sin, -cos? No...
+                // 
+                // Actually, the perpendicular to the path (not radial):
+                // Road heading at this point is θ_road = -arcProgress * π/2
+                // Right-hand perpendicular to heading: (sin(-θ_road), -cos(-θ_road)) = (-sin(θ_road), -cos(θ_road))
+                // At arc start: θ_road = 0, perpendicular = (0, -1) → positive n goes DOWN (y negative) ✓
+                // At arc end: θ_road = -π/2, perpendicular = (sin(π/2), -cos(π/2)) = (1, 0) → positive n goes RIGHT ✓
+                //
+                // So the correct offset is: n * (sin(-θ_road), -cos(-θ_road)) = n * (-sin(θ_road), -cos(θ_road))
+                // θ_road = -arcProgress * π/2 = -(1 - angle/(π/2)) * π/2 = angle - π/2
+                // sin(θ_road) = sin(angle - π/2) = -cos(angle)
+                // cos(θ_road) = cos(angle - π/2) = sin(angle)
+                // perpendicular = (-(-cos(angle)), -sin(angle)) = (cos(angle), -sin(angle))
                 x = cx + n * Math.Cos(angle);
-                y = cy + n * Math.Sin(angle);
+                y = cy - n * Math.Sin(angle);
             }
             else
             {
-                // Exit straight: centerline is x=5, heading south
+                // Exit straight: centerline is x=5, heading south (θ = -π/2)
                 var exitProgress = s - arcEnd;
                 // Centerline: x=5, y=-5-exitProgress
-                // n positive = right of centerline = positive x direction
-                x = CornerDynamics.CenterlineRadius + n;
+                // When heading south, right of centerline = WEST = negative x direction
+                // So positive n should DECREASE x
+                x = CornerDynamics.CenterlineRadius - n;
                 y = -CornerDynamics.CenterlineRadius - exitProgress;
             }
 

@@ -92,6 +92,34 @@ internal static class RadiantCornerVisualizer
         }
     }
 
+    /// <summary>
+    /// Run visualization in debug mode - shows track and offset lines without optimization.
+    /// </summary>
+    public static void RunDebugVisualization()
+    {
+        Console.WriteLine("=== DEBUG VISUALIZATION MODE ===");
+        Console.WriteLine("Showing track layout with offset lines at n = -2.5 (cyan) and n = +2.5 (orange)");
+        Console.WriteLine("Close window to exit.");
+
+        using var app = new RadiantApplication();
+        app.Run("Corner Track Debug View", WindowWidth, WindowHeight, RenderDebugFrame, Colors.Slate900);
+    }
+
+    private static void RenderDebugFrame(Radiant.Graphics2D.Renderer2D renderer)
+    {
+        const float scale = 15.0f;
+
+        // Draw road layout
+        DrawRoadLayout(renderer, scale);
+
+        // Draw debug info
+        renderer.DrawText("DEBUG MODE - Track Layout", -400, -370, 2, Colors.Amber400);
+        renderer.DrawText("Cyan line: n = -2.5 (left of centerline)", -400, -350, 2, Colors.Cyan400);
+        renderer.DrawText("Orange line: n = +2.5 (right of centerline)", -400, -330, 2, Colors.Orange400);
+        renderer.DrawText("Red lines: Road boundaries (n = ±5)", -400, -310, 2, Colors.Red400);
+        renderer.DrawText("White dashed: Centerline (n = 0)", -400, -290, 2, Colors.White);
+    }
+
     private static void RenderFrame(Radiant.Graphics2D.Renderer2D renderer)
     {
         double[][] states;
@@ -285,6 +313,37 @@ internal static class RadiantCornerVisualizer
         {
             renderer.DrawLine(new Vector2((float)exitCenterX * scale, -yc * scale),
                              new Vector2((float)exitCenterX * scale, -Math.Max(yc - 10.0f / scale, (float)exitEndY) * scale), centerLineColor);
+        }
+
+        // === DEBUG: Draw offset lines at n = -2.5 and n = +2.5 to verify curvilinear coords ===
+        var debugLeftColor = new Vector4(0.0f, 1.0f, 1.0f, 0.5f);  // Cyan for n=-2.5
+        var debugRightColor = new Vector4(1.0f, 0.5f, 0.0f, 0.5f); // Orange for n=+2.5
+        DrawOffsetLine(renderer, -2.5, scale, debugLeftColor);
+        DrawOffsetLine(renderer, +2.5, scale, debugRightColor);
+    }
+
+    /// <summary>
+    /// Draw a line at a fixed n offset along the entire track using CurvilinearToCartesian.
+    /// This verifies the coordinate conversion is correct.
+    /// </summary>
+    private static void DrawOffsetLine(Radiant.Graphics2D.Renderer2D renderer, double nOffset, float scale, Vector4 color)
+    {
+        const int NumPoints = 100;
+        var arcLength = CornerDynamics.ArcLength;
+        var totalLength = EntryLength + arcLength + 25.0; // Entry + arc + 25m exit
+
+        for (var i = 0; i < NumPoints - 1; i++)
+        {
+            var s1 = totalLength * i / (NumPoints - 1);
+            var s2 = totalLength * (i + 1) / (NumPoints - 1);
+
+            var (x1, y1) = CornerDynamicsHelpers.CurvilinearToCartesian(s1, nOffset);
+            var (x2, y2) = CornerDynamicsHelpers.CurvilinearToCartesian(s2, nOffset);
+
+            renderer.DrawLine(
+                new Vector2((float)x1 * scale, -(float)y1 * scale),
+                new Vector2((float)x2 * scale, -(float)y2 * scale),
+                color);
         }
     }
 
