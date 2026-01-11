@@ -134,7 +134,10 @@ namespace OptimalCli.Problems.Corner
         }
 
         /// <summary>
-        /// Lateral deviation rate: ṅ = v × sin(θ - θ_road)
+        /// Lateral deviation rate: ṅ = -v × sin(θ - θ_road)
+        /// With our convention (positive n = right of centerline), the sign is negative:
+        /// - When heading more right than road (θ < θ_road), headingError < 0, ṅ > 0, moving right ✓
+        /// - When heading more left than road (θ > θ_road), headingError > 0, ṅ < 0, moving left ✓
         /// </summary>
         public static double LateralRate(double s, double n, double theta, double v)
         {
@@ -159,7 +162,7 @@ namespace OptimalCli.Problems.Corner
             }
 
             var headingError = theta - thetaRoad;
-            return v * Math.Sin(headingError);
+            return -v * Math.Sin(headingError);
         }
 
         /// <summary>
