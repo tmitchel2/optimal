@@ -219,5 +219,73 @@ namespace Optimal.Control.Collocation.Tests
             Assert.AreEqual(0.0, result.States[0][0], 0.1, "Initial state");
             Assert.AreEqual(2.0, result.States[result.States.Length - 1][0], 0.2, "Final state");
         }
+
+        [TestMethod]
+        public void ShouldTerminateReturnsTrueWhenDefectBelowThreshold()
+        {
+            var refinement = new MeshRefinement(defectThreshold: 1e-3);
+
+            var shouldTerminate = refinement.ShouldTerminate(
+                maxDefect: 1e-4,      // Below threshold
+                currentSegments: 10,
+                iteration: 1,
+                maxIterations: 5);
+
+            Assert.IsTrue(shouldTerminate);
+        }
+
+        [TestMethod]
+        public void ShouldTerminateReturnsTrueWhenAtMaxSegments()
+        {
+            var refinement = new MeshRefinement(maxSegments: 50);
+
+            var shouldTerminate = refinement.ShouldTerminate(
+                maxDefect: 1.0,       // Large defect
+                currentSegments: 50,  // At max segments
+                iteration: 1,
+                maxIterations: 10);
+
+            Assert.IsTrue(shouldTerminate);
+        }
+
+        [TestMethod]
+        public void ShouldTerminateReturnsTrueWhenAtMaxIterations()
+        {
+            var refinement = new MeshRefinement();
+
+            var shouldTerminate = refinement.ShouldTerminate(
+                maxDefect: 1.0,       // Large defect
+                currentSegments: 10,
+                iteration: 5,
+                maxIterations: 5);   // At max iterations
+
+            Assert.IsTrue(shouldTerminate);
+        }
+
+        [TestMethod]
+        public void ShouldTerminateReturnsFalseWhenNoTerminationConditionMet()
+        {
+            var refinement = new MeshRefinement(defectThreshold: 1e-3, maxSegments: 100);
+
+            var shouldTerminate = refinement.ShouldTerminate(
+                maxDefect: 0.1,       // Above threshold
+                currentSegments: 10,  // Below max
+                iteration: 2,
+                maxIterations: 10);   // Below max
+
+            Assert.IsFalse(shouldTerminate);
+        }
+
+        [TestMethod]
+        public void ShouldTerminateRespectsDefectThreshold()
+        {
+            var refinement = new MeshRefinement(defectThreshold: 0.01);
+
+            // Just below threshold
+            Assert.IsTrue(refinement.ShouldTerminate(0.009, 10, 1, 10));
+            
+            // Just above threshold
+            Assert.IsFalse(refinement.ShouldTerminate(0.011, 10, 1, 10));
+        }
     }
 }

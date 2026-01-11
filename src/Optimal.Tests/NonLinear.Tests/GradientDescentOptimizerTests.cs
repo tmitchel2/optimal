@@ -143,5 +143,40 @@ namespace Optimal.NonLinear.Tests
             Assert.AreEqual(3.0, result.OptimalPoint[1], 1e-2, "y should be near 3");
             Assert.AreEqual(0.0, result.OptimalValue, 1e-4, "f(x*) should be near 0");
         }
+
+        [TestMethod]
+        public void CanMinimizeWithLineSearch()
+        {
+            var optimizer = new GradientDescentOptimizer();
+            optimizer.WithInitialPoint(s_quadraticStart);
+            optimizer.WithLineSearch(new LineSearch.BacktrackingLineSearch());
+            optimizer.WithTolerance(1e-6);
+            optimizer.WithMaxIterations(1000);
+
+            var result = optimizer.Minimize(x =>
+                TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1])
+            );
+
+            Assert.IsTrue(result.Success, "Optimization should succeed with line search");
+            Assert.AreEqual(0.0, result.OptimalPoint[0], Tolerance, "x should be near 0");
+            Assert.AreEqual(0.0, result.OptimalPoint[1], Tolerance, "y should be near 0");
+        }
+
+        [TestMethod]
+        public void CanMinimizeWithFunctionTolerance()
+        {
+            var optimizer = new GradientDescentOptimizer();
+            optimizer.WithInitialPoint(s_quadraticStart);
+            optimizer.WithStepSize(0.1);
+            optimizer.WithFunctionTolerance(1e-8);
+            optimizer.WithMaxIterations(1000);
+
+            var result = optimizer.Minimize(x =>
+                TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1])
+            );
+
+            Assert.IsTrue(result.Success, "Optimization should succeed with function tolerance");
+            Assert.IsTrue(result.OptimalValue < 1e-4, "Function value should be small");
+        }
     }
 }

@@ -212,5 +212,39 @@ namespace Optimal.NonLinear.Unconstrained.Tests
                 Assert.IsTrue(result.OptimalValue < 1e-3, $"Should find good solution with memory size {m}");
             }
         }
+
+        [TestMethod]
+        public void WithParallelLineSearchEnablesParallelSearch()
+        {
+            var optimizer = new LBFGSOptimizer();
+            optimizer.WithInitialPoint(s_rosenbrock2DStart);
+            optimizer.WithParallelLineSearch(enable: true, batchSize: 4);
+            optimizer.WithTolerance(1e-4);
+            optimizer.WithMaxIterations(1000);
+
+            var result = optimizer.Minimize(x =>
+                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
+            );
+
+            Assert.IsTrue(result.Success, "Should succeed with parallel line search");
+            Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-3);
+            Assert.AreEqual(1.0, result.OptimalPoint[1], 1e-3);
+        }
+
+        [TestMethod]
+        public void WithParallelLineSearchFallsBackWhenDisabled()
+        {
+            var optimizer = new LBFGSOptimizer();
+            optimizer.WithInitialPoint(s_rosenbrock2DStart);
+            optimizer.WithParallelLineSearch(enable: false);
+            optimizer.WithTolerance(1e-4);
+            optimizer.WithMaxIterations(1000);
+
+            var result = optimizer.Minimize(x =>
+                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
+            );
+
+            Assert.IsTrue(result.Success, "Should succeed with parallel line search disabled");
+        }
     }
 }

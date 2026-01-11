@@ -8,12 +8,12 @@ Files needing improved code coverage for Optimal.csproj, ordered by coverage rat
 - [x] `src/Optimal/Control.Initialization/LQRInitializer.cs` - 0% (0/364 lines) - Tests added
 - [x] `src/Optimal/Control.Indirect/MultipleShootingPontryaginSolver.cs` - 0% (0/836 lines) - Tests added
 - [x] `src/Optimal/Control.Indirect/PontryaginSolver.cs` - 0% (0/464 lines) - Tests added
-- [ ] `src/Optimal/Control.Collocation/MeshRefinement.cs` - 48.28% (168/348 lines)
-- [ ] `src/Optimal/Control.Optimization/ObjectiveFunctionFactory.cs` - 56% (84/150 lines)
+- [x] `src/Optimal/Control.Collocation/MeshRefinement.cs` - 48.28% (168/348 lines) - Additional tests added
+- [ ] `src/Optimal/Control.Optimization/ObjectiveFunctionFactory.cs` - 56% (84/150 lines) - Internal class
 - [ ] `src/Optimal/Control.Collocation/ParallelHermiteSimpsonTranscription.cs` - 59.62% (310/520 lines)
-- [ ] `src/Optimal/Control.Optimization/NumericalGradients.cs` - 60.61% (40/66 lines)
-- [ ] `src/Optimal/NonLinear.Unconstrained/LBFGSOptimizer.cs` - 63.48% (226/356 lines)
-- [ ] `src/Optimal/NonLinear.Constraints/BoxConstraints.cs` - 63.89% (46/72 lines)
+- [x] `src/Optimal/Control.Optimization/NumericalGradients.cs` - 60.61% (40/66 lines) - Tests added
+- [x] `src/Optimal/NonLinear.Unconstrained/LBFGSOptimizer.cs` - 63.48% (226/356 lines) - Tests added
+- [x] `src/Optimal/NonLinear.Constraints/BoxConstraints.cs` - 63.89% (46/72 lines) - Tests added
 - [ ] `src/Optimal/Control.Solvers/HermiteSimpsonSolver.cs` - 65.32% (452/692 lines)
 - [ ] `src/Optimal/Control.Solvers/LegendreGaussLobattoSolver.cs` - 65.77% (884/1344 lines)
 - [ ] `src/Optimal/Control.Core/MultiPhaseControlProblem.cs` - 66.3% (122/184 lines)
