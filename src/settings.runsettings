@@ -18,17 +18,13 @@
                     <Exclude>[*Tests]*</Exclude>
                     <ExcludeByFile>**/*.g.cs</ExcludeByFile>
                     <Include>[Optimal]*</Include>
-                    <Functions>
-                      <Exclude>
-                        <Function>*c__DisplayClass*</Function>
-                      </Exclude>
-                    </Functions>
                     <Attributes>
                       <Exclude>
                         <Attribute>^System\.Diagnostics\.DebuggerHiddenAttribute$</Attribute>
                         <Attribute>^System\.Diagnostics\.DebuggerNonUserCodeAttribute$</Attribute>
                         <Attribute>^System\.CodeDom\.Compiler\.GeneratedCodeAttribute$</Attribute>
                         <Attribute>^System\.Diagnostics\.CodeAnalysis\.ExcludeFromCodeCoverageAttribute$</Attribute>
+                        <Attribute>^System\.Runtime\.CompilerServices\.CompilerGeneratedAttribute$</Attribute>
                       </Exclude>
                     </Attributes>
                 </Configuration>
