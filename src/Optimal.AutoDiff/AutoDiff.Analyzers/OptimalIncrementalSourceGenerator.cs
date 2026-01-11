@@ -131,7 +131,7 @@ namespace Optimal.AutoDiff.Analyzers
                         sb.AppendLine();
                     }
 
-                    if (method.DifferentiableParameters.Length > 1)
+                    if (method.DifferentiableParameters.Length >= 1)
                     {
                         try
                         {

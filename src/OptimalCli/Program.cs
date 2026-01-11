@@ -9,6 +9,7 @@
 using OptimalCli;
 using OptimalCli.Problems.Brachistochrone;
 using OptimalCli.Problems.CartPole;
+using OptimalCli.Problems.Corner;
 using OptimalCli.Problems.Dubin;
 using OptimalCli.Problems.Goddard;
 using OptimalCli.Problems.Pendulum;
@@ -95,7 +96,8 @@ var commands = new Dictionary<string, ICommand>
     { "pendulum", new PendulumSwingUpProblemSolver() },
     { "cartpole", new CartPoleProblemSolver() },
     { "dubins", new DubinsCarProblemSolver() },
-    { "goddard", new GoddardRocketProblemSolver() }
+    { "goddard", new GoddardRocketProblemSolver() },
+    { "corner", new CornerProblemSolver() }
 };
 
 // Find and run the requested command
@@ -125,6 +127,7 @@ static void ShowHelp()
     Console.WriteLine("  cartpole         - Cart-pole stabilization with full nonlinear dynamics");
     Console.WriteLine("  dubins           - Dubins car minimum path with curvature constraint");
     Console.WriteLine("  goddard          - Goddard rocket maximum altitude with drag and fuel constraints");
+    Console.WriteLine("  corner           - Optimal racing line through 90° corner with road constraints");
     Console.WriteLine();
     Console.WriteLine("Options:");
     Console.WriteLine("  --headless, -H              Run without visualization windows");

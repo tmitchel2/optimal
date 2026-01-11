@@ -165,6 +165,44 @@ namespace Optimal.AutoDiff.Tests
             Assert.AreEqual(0.0, gradients3[2], 1e-10, "∂Clamp/∂max = 0 when min <= x <= max");
         }
 
+        [TestMethod]
+        public void SquareReverseSingleParameter()
+        {
+            // Test that reverse mode works for single-parameter functions
+            var x = 3.0;
+            var (value, gradients) = SimpleTestFunctionsGradients.SquareReverse(x);
+
+            Assert.AreEqual(9.0, value, 1e-10, "Square(3) = 9");
+            Assert.AreEqual(1, gradients.Length, "Should have 1 gradient");
+            Assert.AreEqual(6.0, gradients[0], 1e-10, "∂(x²)/∂x = 2x = 6");
+
+            // Validate against finite difference
+            ValidateAgainstFiniteDifference(x, gradients[0], v => SimpleTestFunctions.Square(v));
+        }
+
+        [TestMethod]
+        public void SquareReverseMatchesForwardMode()
+        {
+            var x = 5.0;
+
+            var (valueReverse, gradientsReverse) = SimpleTestFunctionsGradients.SquareReverse(x);
+            var (valueForward, gradientForward) = SimpleTestFunctionsGradients.SquareForward_x(x);
+
+            Assert.AreEqual(valueForward, valueReverse, 1e-10, "Value should match");
+            Assert.AreEqual(gradientForward, gradientsReverse[0], 1e-10, "Gradient should match");
+        }
+
+        private static void ValidateAgainstFiniteDifference(double x, double analyticalGradient, Func<double, double> function)
+        {
+            var fX = function(x);
+            var fXPlusEps = function(x + Epsilon);
+
+            var numericalGradient = (fXPlusEps - fX) / Epsilon;
+
+            Assert.AreEqual(numericalGradient, analyticalGradient, Tolerance,
+                $"Analytical gradient should match numerical gradient (x={x})");
+        }
+
         private static void ValidateAgainstFiniteDifference(double x, double y, double[] analyticalGradients, Func<double, double, double> function)
         {
             var fXY = function(x, y);
