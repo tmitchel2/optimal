@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+echo "Optimal Utils - Available Scripts"
+echo "=================================="
+echo ""
+echo "run-build.sh                           Build all projects in the solution"
+echo "run-tests.sh                           Run all unit tests"
+echo "get-solution-coverage.sh               Get line/branch coverage percentages as JSON"
+echo "get-project-dependency-order.sh        List projects ordered by dependencies as JSON"
+echo "get-project-coverage.sh <path> [--limit N] [--debug]  Get class coverage for a project (default limit: 5)"
+echo "get-least-covered-files.sh [--limit N] Get files with most uncovered lines (default: 10)"
+echo "get-file-coverage.sh <path>            Get detailed method/line coverage for a file"
+echo "create-unit-test-issues.sh [--limit N] Create GitHub issues for least-covered files"
+echo "begin-issue.sh                         Start work on a todo issue, returns issue number"
+echo "get-crap-scores.sh [--limit N] [--json] Get worst CRAP scores (default: 10, --json for clean output)"
+echo "help.sh                                Display this help message"
