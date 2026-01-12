@@ -45,12 +45,16 @@ namespace Optimal.Control.Core
         /// <returns>This solver instance for method chaining.</returns>
         ISolver WithMaxIterations(int maxIterations);
 
+        ISolver WithOrder(int order);
+
         /// <summary>
         /// Enables or disables verbose output.
         /// </summary>
         /// <param name="verbose">True to enable verbose output.</param>
         /// <returns>This solver instance for method chaining.</returns>
         ISolver WithVerbose(bool verbose = true);
+
+        ISolver WithParallelization(bool enable = true);
 
         /// <summary>
         /// Sets the inner NLP optimizer.

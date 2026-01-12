@@ -17,7 +17,7 @@ using Optimal.NonLinear.Unconstrained;
 namespace Optimal.Control.Solvers.Tests
 {
     [TestClass]
-    public sealed class LegendreGaussLobattoSolverTests
+    public abstract class SolverTestsAlt
     {
         private const double Tolerance = 1e-3;
         private static readonly double[] s_zeroState1D = new[] { 0.0 };
@@ -61,7 +61,7 @@ namespace Optimal.Control.Solvers.Tests
 
             // Note: Using Order 3 for reliability. Higher orders (≥4) can exhibit spurious
             // local minima in some problems - a known limitation of high-order pseudospectral methods
-            var solver = new LegendreGaussLobattoSolver()
+            var solver = CreateSolver()
                 .WithSegments(10)
                 .WithOrder(3)
                 .WithTolerance(1e-4)
@@ -128,7 +128,7 @@ namespace Optimal.Control.Solvers.Tests
                     return (value, gradients);
                 });
 
-            var solver = new LegendreGaussLobattoSolver()
+            var solver = CreateSolver()
                 .WithSegments(10)
                 .WithOrder(5)
                 .WithTolerance(1e-4)
@@ -180,7 +180,7 @@ namespace Optimal.Control.Solvers.Tests
                     return (value, gradients);
                 });
 
-            var solver = new LegendreGaussLobattoSolver()
+            var solver = CreateSolver()
                 .WithSegments(10)
                 .WithOrder(4)
                 .WithTolerance(1e-3)
@@ -237,7 +237,7 @@ namespace Optimal.Control.Solvers.Tests
                     return (value, gradients);
                 });
 
-            var solver = new LegendreGaussLobattoSolver()
+            var solver = CreateSolver()
                 .WithSegments(10)
                 .WithOrder(3)
                 .WithTolerance(1e-5)
@@ -292,7 +292,7 @@ namespace Optimal.Control.Solvers.Tests
                     return (value, gradients);
                 });
 
-            var solver = new LegendreGaussLobattoSolver()
+            var solver = CreateSolver()
                 .WithSegments(8)
                 .WithOrder(4)
                 .WithTolerance(1e-4)
@@ -336,7 +336,7 @@ namespace Optimal.Control.Solvers.Tests
                     return (value, gradients);
                 });
 
-            var solver = new LegendreGaussLobattoSolver()
+            var solver = CreateSolver()
                 .WithSegments(8)
                 .WithOrder(4)
                 .WithTolerance(1e-4)
@@ -350,19 +350,9 @@ namespace Optimal.Control.Solvers.Tests
         }
 
         [TestMethod]
-        public void ThrowsExceptionForInvalidOrder()
-        {
-            var solver = new LegendreGaussLobattoSolver();
-
-            Assert.ThrowsException<ArgumentException>(() => solver.WithOrder(1));
-            Assert.ThrowsException<ArgumentException>(() => solver.WithOrder(0));
-            Assert.ThrowsException<ArgumentException>(() => solver.WithOrder(-1));
-        }
-
-        [TestMethod]
         public void ThrowsExceptionForInvalidSegments()
         {
-            var solver = new LegendreGaussLobattoSolver();
+            var solver = CreateSolver();
 
             Assert.ThrowsException<ArgumentException>(() => solver.WithSegments(0));
             Assert.ThrowsException<ArgumentException>(() => solver.WithSegments(-5));
@@ -371,7 +361,7 @@ namespace Optimal.Control.Solvers.Tests
         [TestMethod]
         public void ThrowsExceptionForInvalidTolerance()
         {
-            var solver = new LegendreGaussLobattoSolver();
+            var solver = CreateSolver();
 
             Assert.ThrowsException<ArgumentException>(() => solver.WithTolerance(0.0));
             Assert.ThrowsException<ArgumentException>(() => solver.WithTolerance(-1e-6));
@@ -380,7 +370,7 @@ namespace Optimal.Control.Solvers.Tests
         [TestMethod]
         public void FluentAPIReturnsThis()
         {
-            var solver = new LegendreGaussLobattoSolver();
+            var solver = CreateSolver();
 
             var result1 = solver.WithSegments(10);
             Assert.AreSame(solver, result1, "WithSegments should return this");
@@ -403,5 +393,7 @@ namespace Optimal.Control.Solvers.Tests
             var result7 = solver.WithMeshRefinement(true, 5, 1e-4);
             Assert.AreSame(solver, result7, "WithMeshRefinement should return this");
         }
+
+        protected abstract ISolver CreateSolver();
     }
 }

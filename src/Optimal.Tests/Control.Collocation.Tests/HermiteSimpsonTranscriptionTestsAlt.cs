@@ -12,9 +12,9 @@ using Optimal.Control.Core;
 namespace Optimal.Control.Collocation.Tests
 {
     [TestClass]
-    public sealed class LegendreGaussLobattoTranscriptionTests : TranscriptionTests
+    public sealed class HermiteSimpsonTranscriptionTestsAlt : TranscriptionTestsAlt
     {
-        protected override HermiteSimpsonTranscription CreateTranscription(ControlProblem problem, CollocationGrid grid)
+        protected override ICollocationTranscription CreateTranscription(ControlProblem problem, CollocationGrid grid, int order)
         {
             return new HermiteSimpsonTranscription(problem, grid);
         }

@@ -21,7 +21,9 @@ namespace Optimal.Control.Collocation.Tests
     {
         private static readonly double[] s_zeroState1D = new[] { 0.0 };
         private static readonly double[] s_oneState1D = new[] { 1.0 };
+#pragma warning disable IDE0052 // Remove unread private members
         private static readonly double[] s_zeroState2D = new[] { 0.0, 0.0 };
+#pragma warning restore IDE0052 // Remove unread private members
 
         [TestMethod]
         public void CanIdentifySegmentsForRefinement()

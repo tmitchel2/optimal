@@ -15,7 +15,7 @@ namespace Optimal.Control.Collocation
     /// Hermite-Simpson collocation transcription for optimal control problems.
     /// Converts a continuous-time ODE into a discrete NLP via collocation.
     /// </summary>
-    public sealed class HermiteSimpsonTranscription
+    public sealed class HermiteSimpsonTranscription : ICollocationTranscription
     {
 #pragma warning disable IDE0052 // Remove unread private members
         private readonly ControlProblem _problem;
@@ -37,6 +37,16 @@ namespace Optimal.Control.Collocation
         public int Segments => _grid.Segments;
 
         /// <summary>
+        /// Gets the total number of unique collocation points.
+        /// </summary>
+        public int TotalPoints => _grid.Segments + 1;
+
+        /// <summary>
+        /// Gets the collocation order. For Hermite-Simpson, this is fixed at 2.
+        /// </summary>
+        public int Order => 2;
+
+        /// <summary>
         /// Creates a Hermite-Simpson transcription.
         /// </summary>
         /// <param name="problem">The control problem to transcribe.</param>
@@ -54,17 +64,17 @@ namespace Optimal.Control.Collocation
         /// Extracts state vector at a given node from the decision vector.
         /// </summary>
         /// <param name="z">Decision vector.</param>
-        /// <param name="nodeIndex">Node index (0 to Segments).</param>
+        /// <param name="globalPointIndex">Node index (0 to Segments).</param>
         /// <returns>State vector at the node.</returns>
-        public double[] GetState(double[] z, int nodeIndex)
+        public double[] GetState(double[] z, int globalPointIndex)
         {
-            if (nodeIndex < 0 || nodeIndex > _grid.Segments)
+            if (globalPointIndex < 0 || globalPointIndex > _grid.Segments)
             {
-                throw new ArgumentOutOfRangeException(nameof(nodeIndex));
+                throw new ArgumentOutOfRangeException(nameof(globalPointIndex));
             }
 
             var state = new double[_stateDim];
-            var offset = nodeIndex * (_stateDim + _controlDim);
+            var offset = globalPointIndex * (_stateDim + _controlDim);
             Array.Copy(z, offset, state, 0, _stateDim);
             return state;
         }
@@ -73,17 +83,17 @@ namespace Optimal.Control.Collocation
         /// Extracts control vector at a given node from the decision vector.
         /// </summary>
         /// <param name="z">Decision vector.</param>
-        /// <param name="nodeIndex">Node index (0 to Segments).</param>
+        /// <param name="globalPointIndex">Node index (0 to Segments).</param>
         /// <returns>Control vector at the node.</returns>
-        public double[] GetControl(double[] z, int nodeIndex)
+        public double[] GetControl(double[] z, int globalPointIndex)
         {
-            if (nodeIndex < 0 || nodeIndex > _grid.Segments)
+            if (globalPointIndex < 0 || globalPointIndex > _grid.Segments)
             {
-                throw new ArgumentOutOfRangeException(nameof(nodeIndex));
+                throw new ArgumentOutOfRangeException(nameof(globalPointIndex));
             }
 
             var control = new double[_controlDim];
-            var offset = nodeIndex * (_stateDim + _controlDim) + _stateDim;
+            var offset = globalPointIndex * (_stateDim + _controlDim) + _stateDim;
             Array.Copy(z, offset, control, 0, _controlDim);
             return control;
         }
@@ -92,13 +102,13 @@ namespace Optimal.Control.Collocation
         /// Sets state vector at a given node in the decision vector.
         /// </summary>
         /// <param name="z">Decision vector.</param>
-        /// <param name="nodeIndex">Node index (0 to Segments).</param>
+        /// <param name="globalPointIndex">Node index (0 to Segments).</param>
         /// <param name="state">State vector to set.</param>
-        public void SetState(double[] z, int nodeIndex, double[] state)
+        public void SetState(double[] z, int globalPointIndex, double[] state)
         {
-            if (nodeIndex < 0 || nodeIndex > _grid.Segments)
+            if (globalPointIndex < 0 || globalPointIndex > _grid.Segments)
             {
-                throw new ArgumentOutOfRangeException(nameof(nodeIndex));
+                throw new ArgumentOutOfRangeException(nameof(globalPointIndex));
             }
 
             if (state.Length != _stateDim)
@@ -106,7 +116,7 @@ namespace Optimal.Control.Collocation
                 throw new ArgumentException($"State must have {_stateDim} elements.", nameof(state));
             }
 
-            var offset = nodeIndex * (_stateDim + _controlDim);
+            var offset = globalPointIndex * (_stateDim + _controlDim);
             Array.Copy(state, 0, z, offset, _stateDim);
         }
 
@@ -114,13 +124,13 @@ namespace Optimal.Control.Collocation
         /// Sets control vector at a given node in the decision vector.
         /// </summary>
         /// <param name="z">Decision vector.</param>
-        /// <param name="nodeIndex">Node index (0 to Segments).</param>
+        /// <param name="globalPointIndex">Node index (0 to Segments).</param>
         /// <param name="control">Control vector to set.</param>
-        public void SetControl(double[] z, int nodeIndex, double[] control)
+        public void SetControl(double[] z, int globalPointIndex, double[] control)
         {
-            if (nodeIndex < 0 || nodeIndex > _grid.Segments)
+            if (globalPointIndex < 0 || globalPointIndex > _grid.Segments)
             {
-                throw new ArgumentOutOfRangeException(nameof(nodeIndex));
+                throw new ArgumentOutOfRangeException(nameof(globalPointIndex));
             }
 
             if (control.Length != _controlDim)
@@ -128,7 +138,7 @@ namespace Optimal.Control.Collocation
                 throw new ArgumentException($"Control must have {_controlDim} elements.", nameof(control));
             }
 
-            var offset = nodeIndex * (_stateDim + _controlDim) + _stateDim;
+            var offset = globalPointIndex * (_stateDim + _controlDim) + _stateDim;
             Array.Copy(control, 0, z, offset, _controlDim);
         }
 

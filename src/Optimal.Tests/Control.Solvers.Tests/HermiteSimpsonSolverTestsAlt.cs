@@ -6,17 +6,19 @@
  *
  */
 
+#pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
+
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
 
-namespace Optimal.Control.Collocation.Tests
+namespace Optimal.Control.Solvers.Tests
 {
     [TestClass]
-    public sealed class LegendreGaussLobattoTranscriptionTests : TranscriptionTests
+    public sealed class HermiteSimpsonSolverTestsAlt : SolverTestsAlt
     {
-        protected override HermiteSimpsonTranscription CreateTranscription(ControlProblem problem, CollocationGrid grid)
+        protected override ISolver CreateSolver()
         {
-            return new HermiteSimpsonTranscription(problem, grid);
+            return new HermiteSimpsonSolver();
         }
     }
 }

@@ -45,6 +45,12 @@ namespace Optimal.Control.Solvers
         ISolver ISolver.WithMaxIterations(int maxIterations) => WithMaxIterations(maxIterations);
 
         /// <inheritdoc/>
+        ISolver ISolver.WithOrder(int order) => WithOrder(order);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithParallelization(bool enable) => WithParallelization(enable);
+
+        /// <inheritdoc/>
         ISolver ISolver.WithVerbose(bool verbose) => WithVerbose(verbose);
 
         /// <inheritdoc/>
@@ -256,7 +262,7 @@ namespace Optimal.Control.Solvers
                 segments);
 
             // Create transcription (parallel or sequential based on settings)
-            ILGLTranscription transcription = _enableParallelization
+            ICollocationTranscription transcription = _enableParallelization
                 ? new ParallelLGLTranscription(problem, grid, _order, _enableParallelization)
                 : new LegendreGaussLobattoTranscription(problem, grid, _order);
 
@@ -931,7 +937,7 @@ namespace Optimal.Control.Solvers
 
                 // Analyze defects and refine mesh
                 var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, currentSegments);
-                ILGLTranscription transcription = _enableParallelization
+                ICollocationTranscription transcription = _enableParallelization
                     ? new ParallelLGLTranscription(problem, grid, _order, _enableParallelization)
                     : new LegendreGaussLobattoTranscription(problem, grid, _order);
 
@@ -981,7 +987,7 @@ namespace Optimal.Control.Solvers
                 }
 
                 // Interpolate solution to new grid for warm start
-                ILGLTranscription newTranscription = _enableParallelization
+                ICollocationTranscription newTranscription = _enableParallelization
                     ? new ParallelLGLTranscription(problem, newGrid, _order, _enableParallelization)
                     : new LegendreGaussLobattoTranscription(problem, newGrid, _order);
 

@@ -15,7 +15,7 @@ namespace Optimal.Control.Collocation
     /// Legendre-Gauss-Lobatto (LGL) collocation transcription for optimal control problems.
     /// Converts a continuous-time ODE into a discrete NLP using high-order LGL collocation.
     /// </summary>
-    public sealed class LegendreGaussLobattoTranscription : ILGLTranscription
+    public sealed class LegendreGaussLobattoTranscription : ICollocationTranscription
     {
 #pragma warning disable IDE0052 // Remove unread private members
         private readonly ControlProblem _problem;

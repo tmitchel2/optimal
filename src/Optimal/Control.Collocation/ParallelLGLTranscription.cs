@@ -16,7 +16,7 @@ namespace Optimal.Control.Collocation
     /// Parallel version of Legendre-Gauss-Lobatto (LGL) collocation transcription.
     /// Uses TPL parallelization for constraint and cost evaluation on larger problems.
     /// </summary>
-    public sealed class ParallelLGLTranscription : ILGLTranscription
+    public sealed class ParallelLGLTranscription : ICollocationTranscription
     {
 #pragma warning disable IDE0052 // Remove unread private members
         private readonly ControlProblem _problem;

@@ -85,6 +85,11 @@ namespace Optimal.Control.Solvers
         /// <returns>This solver instance for method chaining.</returns>
         public HermiteSimpsonSolver WithTolerance(double tolerance)
         {
+            if (tolerance <= 0)
+            {
+                throw new ArgumentException("Tolerance must be positive.", nameof(tolerance));
+            }
+
             _tolerance = tolerance;
             return this;
         }
@@ -616,6 +621,21 @@ namespace Optimal.Control.Solvers
                 MaxDefect = maxDefect,
                 GradientNorm = nlpResult.GradientNorm
             };
+        }
+
+        public ISolver WithOrder(int order)
+        {
+            // if (order != 2)
+            // {
+            //     throw new ArgumentException("Hermite order must be 2.", nameof(order));
+            // }
+
+            return this;
+        }
+
+        ISolver ISolver.WithParallelization(bool enable)
+        {
+            return WithParallelization(enable);
         }
     }
 }

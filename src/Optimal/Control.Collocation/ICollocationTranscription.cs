@@ -11,10 +11,10 @@ using System;
 namespace Optimal.Control.Collocation
 {
     /// <summary>
-    /// Interface for Legendre-Gauss-Lobatto transcription implementations.
-    /// Allows both sequential and parallel transcription to be used interchangeably.
+    /// Interface for collocation transcription implementations.
+    /// Allows different transcription methods (LGL, Hermite-Simpson, etc.) to be used interchangeably.
     /// </summary>
-    public interface ILGLTranscription
+    public interface ICollocationTranscription
     {
         /// <summary>
         /// Gets the total size of the decision vector.
