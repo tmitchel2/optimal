@@ -8,7 +8,6 @@
 
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
-using Optimal.Control.Solvers;
 
 namespace OptimalCli.Problems.Goddard;
 

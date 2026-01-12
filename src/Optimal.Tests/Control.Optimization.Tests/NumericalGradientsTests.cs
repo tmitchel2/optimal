@@ -8,7 +8,6 @@
 
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Optimal.Control.Optimization;
 
 namespace Optimal.Control.Optimization.Tests
 {

@@ -9,11 +9,9 @@
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for test clarity
 
 using System;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
-using Optimal.Control.Optimization;
-using Optimal.Control.Solvers;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Optimal.Control.Optimization.Tests
 {
@@ -433,18 +431,18 @@ namespace Optimal.Control.Optimization.Tests
             {
                 var Tf = x[1];
                 var physicalRate = u[0]; // ẋ_physical = u
-                
+
                 var value_ = new[] { Tf * physicalRate, 0.0 }; // [dx/dτ, dTf/dτ]
                 var gradients_ = new double[2][];
-                
+
                 // df/dx: 2x2 matrix flattened
                 // [∂f0/∂x, ∂f0/∂Tf; ∂f1/∂x, ∂f1/∂Tf] = [0, u; 0, 0]
                 gradients_[0] = new[] { 0.0, physicalRate, 0.0, 0.0 };
-                
+
                 // df/du: 2x1 vector
                 // [∂f0/∂u; ∂f1/∂u] = [Tf; 0]
                 gradients_[1] = new[] { Tf, 0.0 };
-                
+
                 return (value_, gradients_);
             }
 
@@ -477,14 +475,14 @@ namespace Optimal.Control.Optimization.Tests
 
                 // Log for debugging
                 Console.WriteLine($"Time-scaled defect {defectIdx} (seg={segmentIndex}, pt={interiorPointIndex}, state={stateComponentIndex}):");
-                
+
                 for (var j = 0; j < z.Length; j++)
                 {
                     if (Math.Abs(numericalGrad[j]) > 1e-10 || Math.Abs(analyticalGrad[j]) > 1e-10)
                     {
                         Console.WriteLine($"  z[{j}]: num={numericalGrad[j]:F6}, ana={analyticalGrad[j]:F6}");
                     }
-                    
+
                     Assert.AreEqual(numericalGrad[j], analyticalGrad[j], GradientTolerance,
                         $"Time-scaled defect {defectIdx}, element {j}: num={numericalGrad[j]}, ana={analyticalGrad[j]}");
                 }
@@ -519,19 +517,19 @@ namespace Optimal.Control.Optimization.Tests
 
             // Compute numerical gradient of defect w.r.t. control
             var defects = transcription.ComputeAllDefects(z, Dynamics);
-            
+
             // Perturb control at first interior point
             var zPert = (double[])z.Clone();
             var controlOffset = 1 * (problem.StateDim + problem.ControlDim) + problem.StateDim;
             zPert[controlOffset] += Epsilon;
-            
+
             var defectsPert = transcription.ComputeAllDefects(zPert, Dynamics);
-            
+
             // First defect should change
             var gradWrtControl = (defectsPert[0] - defects[0]) / Epsilon;
-            
+
             Console.WriteLine($"Numerical gradient of defect[0] w.r.t. control: {gradWrtControl}");
-            
+
             // The gradient should be non-zero (approximately -T_f = -2.0)
             Assert.IsTrue(Math.Abs(gradWrtControl) > 0.1,
                 $"Control should affect defect, got gradient = {gradWrtControl}");

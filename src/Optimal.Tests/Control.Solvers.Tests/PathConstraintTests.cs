@@ -8,12 +8,8 @@
 
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
-using System;
-using Optimal.Control.Collocation;
-using Optimal.Control.Core;
-using Optimal.Control.Optimization;
-using Optimal.Control.Solvers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Optimal.Control.Core;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers.Tests
@@ -153,7 +149,7 @@ namespace Optimal.Control.Solvers.Tests
             {
                 if (result.Times[i] >= 2.5)
                 {
-                    Assert.IsTrue(result.States[i][0] >= 0.5 - 0.15, 
+                    Assert.IsTrue(result.States[i][0] >= 0.5 - 0.15,
                         $"At t={result.Times[i]:F2}, x={result.States[i][0]:F2} should be ≥ 0.5 (obstacle constraint)");
                 }
             }

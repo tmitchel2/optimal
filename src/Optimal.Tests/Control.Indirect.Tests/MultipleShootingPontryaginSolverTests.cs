@@ -11,7 +11,6 @@
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
-using Optimal.Control.Indirect;
 
 namespace Optimal.Control.Indirect.Tests
 {

@@ -388,14 +388,30 @@ namespace Optimal.Control.Collocation
 
                 for (var i = 0; i < _stateDim; i++)
                 {
-                    // Handle NaN in finalState (free/unspecified terminal condition)
-                    if (double.IsNaN(finalState[i]))
+                    var x0 = initialState[i];
+                    var xf = finalState[i];
+                    var x0IsNaN = double.IsNaN(x0);
+                    var xfIsNaN = double.IsNaN(xf);
+
+                    if (x0IsNaN && xfIsNaN)
                     {
-                        state[i] = initialState[i];
+                        // Both free - use 0 as default
+                        state[i] = 0.0;
+                    }
+                    else if (x0IsNaN)
+                    {
+                        // Initial free - use final value
+                        state[i] = xf;
+                    }
+                    else if (xfIsNaN)
+                    {
+                        // Final free - use initial value
+                        state[i] = x0;
                     }
                     else
                     {
-                        state[i] = (1.0 - alpha) * initialState[i] + alpha * finalState[i];
+                        // Linear interpolation
+                        state[i] = (1.0 - alpha) * x0 + alpha * xf;
                     }
                 }
 

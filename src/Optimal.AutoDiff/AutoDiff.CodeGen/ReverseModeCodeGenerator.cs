@@ -12,7 +12,6 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Optimal.AutoDiff.Analyzers.Differentiation;
 using Optimal.AutoDiff.Analyzers.IR;
 
 namespace Optimal.AutoDiff.Analyzers.CodeGen

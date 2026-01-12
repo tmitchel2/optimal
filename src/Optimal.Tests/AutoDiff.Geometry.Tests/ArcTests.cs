@@ -8,7 +8,6 @@
 
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Optimal.AutoDiff.Tests;
 
 namespace Optimal.AutoDiff.Geometry.Tests
 {

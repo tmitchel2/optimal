@@ -9,11 +9,8 @@
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
 using System;
-using Optimal.Control.Collocation;
-using Optimal.Control.Core;
-using Optimal.Control.Optimization;
-using Optimal.Control.Solvers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Optimal.Control.Solvers;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Core.Tests

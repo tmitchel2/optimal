@@ -7,10 +7,8 @@
  */
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Optimal.NonLinear;
 using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Tests;
-using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.NonLinear.Unconstrained.Tests
 {

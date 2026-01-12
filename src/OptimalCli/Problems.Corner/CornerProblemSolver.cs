@@ -63,7 +63,7 @@ public sealed class CornerProblemSolver : ICommand
         Console.WriteLine($"  Entry length: {EntryLength} m");
         Console.WriteLine($"  Arc length: {ArcLength:F3} m (π × {CornerDynamics.CenterlineRadius} / 2)");
         Console.WriteLine($"  Road half-width: {RoadHalfWidth} m");
-        Console.WriteLine($"  Initial state: s=0, n=0, θ=0, v={initialVelocity} m/s");
+        Console.WriteLine($"  Initial state: s=0, n=free, θ=0, v={initialVelocity} m/s");
         Console.WriteLine($"  Final state: s={sFinal:F1}, n=free, θ=-π/2, v=free");
         Console.WriteLine($"  Acceleration bounds: [{maxDecel}, {maxAccel}] m/s²");
         Console.WriteLine($"  Steering rate bounds: [-{maxSteerRate}, {maxSteerRate}] rad/s");
@@ -79,7 +79,7 @@ public sealed class CornerProblemSolver : ICommand
             .WithStateSize(5) // [s, n, θ, v, T_f]
             .WithControlSize(2) // [a, ω]
             .WithTimeHorizon(0.0, 1.0) // Normalized time τ ∈ [0, 1]
-            .WithInitialCondition(new[] { sInit, 0.0, 0.0, initialVelocity, tfGuess }) // Start on centerline, heading east
+            .WithInitialCondition(new[] { sInit, double.NaN, 0.0, initialVelocity, tfGuess }) // Start at s=0, free n, heading east
             .WithFinalCondition(new[] { sFinal, double.NaN, -Math.PI / 2.0, double.NaN, double.NaN }) // End at exit, heading south, free n, v, T_f
             .WithControlBounds(new[] { maxDecel, -maxSteerRate }, new[] { maxAccel, maxSteerRate })
             .WithStateBounds(
@@ -223,7 +223,10 @@ public sealed class CornerProblemSolver : ICommand
                             RadiantCornerVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
                         });
 
-                var result = solver.Solve(problem);
+                // Create centerline initial guess (n=0 throughout)
+                var initialGuess = CreateCenterlineInitialGuess(30, sInit, sFinal, initialVelocity, tfGuess);
+
+                var result = solver.Solve(problem, initialGuess);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return result;
             }
@@ -284,5 +287,49 @@ public sealed class CornerProblemSolver : ICommand
         Console.WriteLine($"  Objective value: {result.OptimalCost:F6}");
         Console.WriteLine($"  Iterations: {result.Iterations}");
         Console.WriteLine();
+    }
+
+    /// <summary>
+    /// Creates an initial guess along the centerline (n=0).
+    /// Decision vector layout: [x0, u0, x1, u1, ..., xN, uN]
+    /// State: [s, n, θ, v, T_f], Control: [a, ω]
+    /// </summary>
+    private static double[] CreateCenterlineInitialGuess(
+        int segments,
+        double sInit,
+        double sFinal,
+        double initialVelocity,
+        double tfGuess)
+    {
+        const int StateDim = 5;
+        const int ControlDim = 2;
+        var numNodes = segments + 1;
+        var decisionVectorSize = numNodes * (StateDim + ControlDim);
+        var z = new double[decisionVectorSize];
+
+        for (var k = 0; k < numNodes; k++)
+        {
+            var alpha = (double)k / segments;
+
+            // State: [s, n, θ, v, T_f]
+            // Interpolate s from sInit to sFinal
+            var s = (1.0 - alpha) * sInit + alpha * sFinal;
+
+            // Use actual road heading at position s
+            var theta = CornerDynamics.RoadHeading(s);
+
+            // n = 0 (centerline), v = constant, T_f = guess
+            var state = new[] { s, 0.0, theta, initialVelocity, tfGuess };
+
+            // Control: [a, ω] = [0, 0] (neutral)
+            var control = new[] { 0.0, 0.0 };
+
+            // Set in decision vector
+            var offset = k * (StateDim + ControlDim);
+            Array.Copy(state, 0, z, offset, StateDim);
+            Array.Copy(control, 0, z, offset + StateDim, ControlDim);
+        }
+
+        return z;
     }
 }

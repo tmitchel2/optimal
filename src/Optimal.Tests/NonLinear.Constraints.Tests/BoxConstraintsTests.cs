@@ -10,7 +10,6 @@
 
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Optimal.NonLinear.Constraints;
 
 namespace Optimal.NonLinear.Constraints.Tests
 {

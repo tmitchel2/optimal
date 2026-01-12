@@ -8,7 +8,6 @@
 
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
-using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
 using Optimal.NonLinear.Unconstrained;

@@ -8,9 +8,6 @@
 
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Optimal.Control.Collocation;
-using Optimal.Control.Core;
-using Optimal.Control.Solvers;
 
 namespace Optimal.Control.Collocation.Tests
 {
