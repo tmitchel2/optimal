@@ -168,6 +168,16 @@ public sealed class CornerProblemSolver : ICommand
                 var violation = n - maxN;  // violation <= 0 when n <= maxN
                 var grads = new[] { 0.0, 1.0, 0.0, 0.0, 0.0 };
                 return (violation, grads);
+            })
+            // Time must be positive: T_f >= 0.5  =>  0.5 - T_f <= 0
+            // This is needed because box constraints are only projected after inner optimization
+            .WithPathConstraint((x, u, t) =>
+            {
+                var Tf = x[4];
+                const double MinTime = 0.5;
+                var violation = MinTime - Tf;  // violation <= 0 when T_f >= 0.5
+                var grads = new[] { 0.0, 0.0, 0.0, 0.0, -1.0 };
+                return (violation, grads);
             });
 
         Console.WriteLine("Solver configuration:");
@@ -213,11 +223,12 @@ public sealed class CornerProblemSolver : ICommand
                         })
                     : new HermiteSimpsonSolver()
                         .WithSegments(30)
-                        .WithTolerance(1e-5)
+                        .WithTolerance(1e-3)  // Relaxed tolerance
                         .WithMaxIterations(200)
-                        .WithMeshRefinement(true, 5, 1e-5)
+                        .WithMeshRefinement(true, 5, 1e-3)  // Relaxed mesh refinement threshold
                         .WithVerbose(true)
                         .WithInnerOptimizer(innerOptimizer)
+                        .WithInitialPenalty(100.0) // Higher initial penalty to enforce constraints more strongly
                         .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                         {
                             var token = RadiantCornerVisualizer.CancellationToken;
