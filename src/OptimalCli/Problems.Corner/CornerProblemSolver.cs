@@ -79,12 +79,12 @@ public sealed class CornerProblemSolver : ICommand
             .WithStateSize(5) // [s, n, θ, v, T_f]
             .WithControlSize(2) // [a, ω]
             .WithTimeHorizon(0.0, 1.0) // Normalized time τ ∈ [0, 1]
-            .WithInitialCondition(new[] { sInit, double.NaN, 0.0, initialVelocity, tfGuess }) // Start at s=0, free n, heading east
+            .WithInitialCondition(new[] { sInit, 0.0, 0.0, initialVelocity, tfGuess }) // Start at s=0, n=0 (centerline), heading east
             .WithFinalCondition(new[] { sFinal, double.NaN, -Math.PI / 2.0, double.NaN, double.NaN }) // End at exit, heading south, free n, v, T_f
             .WithControlBounds(new[] { maxDecel, -maxSteerRate }, new[] { maxAccel, maxSteerRate })
             .WithStateBounds(
-                new[] { -1.0, -RoadHalfWidth, -Math.PI, 1.0, 0.5 },  // Min: s >= -1, |n| <= RoadHalfWidth, θ, v >= 1 m/s, T_f >= 0.5s
-                new[] { TotalLength + 5.0, RoadHalfWidth, Math.PI, 30.0, 10.0 })   // Max: s, |n|, θ, v <= 30 m/s, T_f <= 10s
+                new[] { -1.0, -RoadHalfWidth, -Math.PI, 1.0, 0.5 },  // Min: s >= -1, n >= -RoadHalfWidth, θ, v >= 1 m/s, T_f >= 0.5s
+                new[] { TotalLength + 5.0, RoadHalfWidth - 0.5, Math.PI, 30.0, 10.0 })   // Max: s, n <= 4.5 (0.5m from apex), θ, v <= 30 m/s, T_f <= 10s
             .WithDynamics((x, u, tau) =>
             {
                 var s = x[0];
@@ -147,7 +147,9 @@ public sealed class CornerProblemSolver : ICommand
                 gradients[4] = 1.0; // ∂Φ/∂T_f = 1
                 return (Tf, gradients);
             })
-            // Road boundary constraints: |n| <= RoadHalfWidth
+            // Road boundary constraints with safety margin to avoid singularity at apex
+            // The singularity occurs at n = CenterlineRadius = 5 where denominator 1 - n*κ = 0
+            // Use a margin of 0.5m to keep away from the singularity
             // Left boundary: n >= -RoadHalfWidth  =>  -RoadHalfWidth - n <= 0
             .WithPathConstraint((x, u, t) =>
             {
@@ -156,11 +158,14 @@ public sealed class CornerProblemSolver : ICommand
                 var grads = new[] { 0.0, -1.0, 0.0, 0.0, 0.0 };
                 return (violation, grads);
             })
-            // Right boundary: n <= RoadHalfWidth  =>  n - RoadHalfWidth <= 0
+            // Right boundary: n <= RoadHalfWidth - margin  =>  n - (RoadHalfWidth - margin) <= 0
+            // This prevents getting too close to the apex singularity
             .WithPathConstraint((x, u, t) =>
             {
                 var n = x[1];
-                var violation = n - RoadHalfWidth;  // violation <= 0 when n <= RoadHalfWidth
+                const double ApexMargin = 0.5;  // Keep 0.5m away from apex
+                var maxN = RoadHalfWidth - ApexMargin;
+                var violation = n - maxN;  // violation <= 0 when n <= maxN
                 var grads = new[] { 0.0, 1.0, 0.0, 0.0, 0.0 };
                 return (violation, grads);
             });
@@ -307,6 +312,12 @@ public sealed class CornerProblemSolver : ICommand
         var decisionVectorSize = numNodes * (StateDim + ControlDim);
         var z = new double[decisionVectorSize];
 
+        // Compute required steering rate during the arc
+        // θ̇ = ω, and road heading changes by -π/2 over the arc length
+        // Time to traverse = distance / velocity = sFinal / initialVelocity (approximately)
+        // ω during arc = (Δθ) / (arc_time) = (-π/2) / (ArcLength / v)
+        var arcSteeringRate = (-Math.PI / 2.0) * initialVelocity / CornerDynamics.ArcLength;
+
         for (var k = 0; k < numNodes; k++)
         {
             var alpha = (double)k / segments;
@@ -321,8 +332,12 @@ public sealed class CornerProblemSolver : ICommand
             // n = 0 (centerline), v = constant, T_f = guess
             var state = new[] { s, 0.0, theta, initialVelocity, tfGuess };
 
-            // Control: [a, ω] = [0, 0] (neutral)
-            var control = new[] { 0.0, 0.0 };
+            // Control: [a, ω]
+            // a = 0 (constant velocity)
+            // ω = steering rate needed to follow road heading
+            var curvature = CornerDynamics.RoadCurvature(s);
+            var omega = curvature > 0 ? arcSteeringRate : 0.0;
+            var control = new[] { 0.0, omega };
 
             // Set in decision vector
             var offset = k * (StateDim + ControlDim);
