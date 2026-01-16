@@ -30,11 +30,7 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
         private int _nodeCounter;
         private string _currentIndent = "            "; // 12 spaces = 3 levels
 
-        public ReverseModeCodeGenerator(ITypeSymbol doubleType)
-        {
-        }
-
-        public string GenerateMethod(MethodToTransform method, ITypeSymbol doubleType)
+        public string GenerateMethod(MethodToTransform method)
         {
             _nodeToIndex.Clear();
             _generatedNodes.Clear();
@@ -77,7 +73,7 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             if (forwardCode.resultIndex >= 0)
             {
                 sb.AppendLine();
-                GenerateBackwardPass(sb, differentiableParams, forwardCode.resultIndex);
+                GenerateBackwardPass(sb, forwardCode.resultIndex);
 
                 sb.AppendLine($"            return (nodes[{forwardCode.resultIndex}], new double[] {{ {string.Join(", ", differentiableParams.Select(p => $"adj[{_parameterNameToIndex[p.Name]}]"))} }});");
             }
@@ -662,7 +658,7 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             };
         }
 
-        private void GenerateBackwardPass(StringBuilder sb, List<ParameterInfo> differentiableParams, int resultIndex)
+        private void GenerateBackwardPass(StringBuilder sb, int resultIndex)
         {
             sb.AppendLine($"            var adj = new double[{_nodeCounter}];");
             sb.AppendLine($"            adj[{resultIndex}] = 1.0;");

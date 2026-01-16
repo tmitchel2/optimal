@@ -17,12 +17,12 @@ namespace Optimal.Control.Indirect.Tests
     [TestClass]
     public sealed class PontryaginSolverTests
     {
-        private static readonly double[] s_zeroState1D = new[] { 0.0 };
-        private static readonly double[] s_oneState1D = new[] { 1.0 };
-        private static readonly double[] s_zeroState2D = new[] { 0.0, 0.0 };
-        private static readonly double[] s_oneZeroState2D = new[] { 1.0, 0.0 };
-        private static readonly double[] s_initialCostates1D = new[] { 0.1 };
-        private static readonly double[] s_initialCostates2D = new[] { 0.1, 0.1 };
+        private static readonly double[] s_zeroState1D = [0.0];
+        private static readonly double[] s_oneState1D = [1.0];
+        private static readonly double[] s_zeroState2D = [0.0, 0.0];
+        private static readonly double[] s_oneZeroState2D = [1.0, 0.0];
+        private static readonly double[] s_initialCostates1D = [0.1];
+        private static readonly double[] s_initialCostates2D = [0.1, 0.1];
 
         [TestMethod]
         public void WithMaxIterationsReturnsSelf()
@@ -52,7 +52,7 @@ namespace Optimal.Control.Indirect.Tests
         public void SolveThrowsWhenProblemIsNull()
         {
             var solver = new PontryaginSolver();
-            Func<double[], double[], double[], double, double[]> optimalControl = (x, lambda, _, t) => new[] { 0.0 };
+            Func<double[], double[], double[], double, double[]> optimalControl = (_, _, _, _) => [0.0];
 
             Assert.ThrowsException<ArgumentNullException>(() =>
                 solver.Solve(null!, optimalControl, s_initialCostates1D));
@@ -73,7 +73,7 @@ namespace Optimal.Control.Indirect.Tests
         {
             var problem = CreateSimpleProblem();
             var solver = new PontryaginSolver();
-            Func<double[], double[], double[], double, double[]> optimalControl = (x, lambda, _, t) => new[] { lambda[0] };
+            Func<double[], double[], double[], double, double[]> optimalControl = (_, lambda, _, _) => [lambda[0]];
 
             Assert.ThrowsException<ArgumentNullException>(() =>
                 solver.Solve(problem, optimalControl, null!));
@@ -92,15 +92,15 @@ namespace Optimal.Control.Indirect.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0 };
-                    gradients[1] = new[] { 1.0 };
+                    gradients[0] = [0.0];
+                    gradients[1] = [1.0];
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((_, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[3];
@@ -110,10 +110,10 @@ namespace Optimal.Control.Indirect.Tests
                     return (value, gradients);
                 });
 
-            Func<double[], double[], double[], double, double[]> optimalControl = (x, lambda, _, t) =>
+            Func<double[], double[], double[], double, double[]> optimalControl = (_, lambda, _, _) =>
             {
                 // For H = u² + λ·u, ∂H/∂u = 2u + λ = 0 → u = -λ/2
-                return new[] { -lambda[0] / 2.0 };
+                return [-lambda[0] / 2.0];
             };
 
             var solver = new PontryaginSolver()
@@ -139,15 +139,15 @@ namespace Optimal.Control.Indirect.Tests
                 .WithControlSize(1)
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState1D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0 };
-                    gradients[1] = new[] { 1.0 };
+                    gradients[0] = [0.0];
+                    gradients[1] = [1.0];
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((_, u, _) =>
                 {
                     var value = 0.5 * u[0] * u[0];
                     var gradients = new double[3];
@@ -156,7 +156,7 @@ namespace Optimal.Control.Indirect.Tests
                     gradients[2] = 0.0;
                     return (value, gradients);
                 })
-                .WithTerminalCost((x, t) =>
+                .WithTerminalCost((x, _) =>
                 {
                     var value = 0.5 * (x[0] - 1.0) * (x[0] - 1.0);
                     var gradients = new double[2];
@@ -164,9 +164,9 @@ namespace Optimal.Control.Indirect.Tests
                     return (value, gradients);
                 });
 
-            Func<double[], double[], double[], double, double[]> optimalControl = (x, lambda, _, t) =>
+            Func<double[], double[], double[], double, double[]> optimalControl = (_, lambda, _, _) =>
             {
-                return new[] { -lambda[0] };
+                return [-lambda[0]];
             };
 
             var solver = new PontryaginSolver()
@@ -191,15 +191,15 @@ namespace Optimal.Control.Indirect.Tests
                 .WithTimeHorizon(0.0, 2.0)
                 .WithInitialCondition(s_zeroState2D)
                 .WithFinalCondition(s_oneZeroState2D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((x, u, _) =>
                 {
                     var value = new[] { x[1], u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new double[4] { 0.0, 1.0, 0.0, 0.0 };
-                    gradients[1] = new double[2] { 0.0, 1.0 };
+                    gradients[0] = [0.0, 1.0, 0.0, 0.0];
+                    gradients[1] = [0.0, 1.0];
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((_, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[4];
@@ -207,9 +207,9 @@ namespace Optimal.Control.Indirect.Tests
                     return (value, gradients);
                 });
 
-            Func<double[], double[], double[], double, double[]> optimalControl = (x, lambda, _, t) =>
+            Func<double[], double[], double[], double, double[]> optimalControl = (_, lambda, _, _) =>
             {
-                return new[] { -lambda[1] / 2.0 };
+                return [-lambda[1] / 2.0];
             };
 
             var solver = new PontryaginSolver()
@@ -228,9 +228,9 @@ namespace Optimal.Control.Indirect.Tests
         {
             var problem = CreateSimpleProblem();
 
-            Func<double[], double[], double[], double, double[]> optimalControl = (x, lambda, _, t) =>
+            Func<double[], double[], double[], double, double[]> optimalControl = (_, lambda, _, _) =>
             {
-                return new[] { -lambda[0] / 2.0 };
+                return [-lambda[0] / 2.0];
             };
 
             var solver = new PontryaginSolver()
@@ -249,9 +249,9 @@ namespace Optimal.Control.Indirect.Tests
         {
             var problem = CreateSimpleProblem();
 
-            Func<double[], double[], double[], double, double[]> optimalControl = (x, lambda, _, t) =>
+            Func<double[], double[], double[], double, double[]> optimalControl = (_, lambda, _, _) =>
             {
-                return new[] { -lambda[0] / 2.0 };
+                return [-lambda[0] / 2.0];
             };
 
             var solver = new PontryaginSolver()
@@ -273,9 +273,9 @@ namespace Optimal.Control.Indirect.Tests
         {
             var problem = CreateSimpleProblem();
 
-            Func<double[], double[], double[], double, double[]> optimalControl = (x, lambda, _, t) =>
+            Func<double[], double[], double[], double, double[]> optimalControl = (_, lambda, _, _) =>
             {
-                return new[] { -lambda[0] / 2.0 };
+                return [-lambda[0] / 2.0];
             };
 
             var solver = new PontryaginSolver()
@@ -296,15 +296,15 @@ namespace Optimal.Control.Indirect.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0 };
-                    gradients[1] = new[] { 1.0 };
+                    gradients[0] = [0.0];
+                    gradients[1] = [1.0];
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((_, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[3];

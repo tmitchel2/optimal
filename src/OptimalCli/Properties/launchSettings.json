@@ -2,7 +2,7 @@
   "profiles": {
     "OptimalCli": {
       "commandName": "Project",
-      "commandLineArgs": "goddard -v fixed"
+      "commandLineArgs": "corner"
     }
   }
 }

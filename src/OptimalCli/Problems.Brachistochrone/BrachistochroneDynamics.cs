@@ -25,7 +25,7 @@ namespace OptimalCli.Problems.Brachistochrone
         /// <summary>
         /// Horizontal velocity: ẋ = v·cos(θ)
         /// </summary>
-        public static double XRate(double x, double y, double v, double theta, double g)
+        public static double XRate(double v, double theta)
         {
             return v * Math.Cos(theta);
         }
@@ -34,7 +34,9 @@ namespace OptimalCli.Problems.Brachistochrone
         /// Vertical velocity: ẏ = -v·sin(θ)
         /// (negative because y decreases as bead descends - left-hand rule with y-axis up)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double YRate(double x, double y, double v, double theta, double g)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return -v * Math.Sin(theta);
         }
@@ -43,7 +45,9 @@ namespace OptimalCli.Problems.Brachistochrone
         /// Speed rate: v̇ = g·sin(θ)
         /// (acceleration due to gravity component along trajectory)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double VRate(double x, double y, double v, double theta, double g)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return g * Math.Sin(theta);
         }
@@ -52,7 +56,9 @@ namespace OptimalCli.Problems.Brachistochrone
         /// Running cost: L = 1 (minimize time)
         /// Since dt is integrated, minimizing ∫1·dt minimizes total time.
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double RunningCost(double x, double y, double v, double theta)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return 1.0;
         }
@@ -60,7 +66,9 @@ namespace OptimalCli.Problems.Brachistochrone
         /// <summary>
         /// Terminal cost: Φ = 0 (no terminal cost, only running cost)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double TerminalCost(double x, double y, double v)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return 0.0;
         }

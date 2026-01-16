@@ -27,7 +27,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var theta = Math.PI / 4.0;
 
             // Get analytical gradients for physical dynamics
-            var (xrate_physical, xrate_gradients) = BrachistochroneDynamicsGradients.XRateReverse(x, y, v, theta, g);
+            var (xrate_physical, xrate_gradients) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
             var (yrate_physical, yrate_gradients) = BrachistochroneDynamicsGradients.YRateReverse(x, y, v, theta, g);
             var (vrate_physical, vrate_gradients) = BrachistochroneDynamicsGradients.VRateReverse(x, y, v, theta, g);
 
@@ -57,11 +57,11 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var epsilon = 1e-7;
 
             // Test dx/dτ gradients
-            var (xrate_plus_x, _) = BrachistochroneDynamicsGradients.XRateReverse(x + epsilon, y, v, theta, g);
+            var (xrate_plus_x, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
             var dxrate_dx_numerical = (Tf * xrate_plus_x - xrate) / epsilon;
             Assert.AreEqual(dxrate_dx, dxrate_dx_numerical, 1e-5, "dx/dτ gradient w.r.t. x incorrect");
 
-            var (xrate_plus_v, _) = BrachistochroneDynamicsGradients.XRateReverse(x, y, v + epsilon, theta, g);
+            var (xrate_plus_v, _) = BrachistochroneDynamicsGradients.XRateReverse(v + epsilon, theta);
             var dxrate_dv_numerical = (Tf * xrate_plus_v - xrate) / epsilon;
             Assert.AreEqual(dxrate_dv, dxrate_dv_numerical, 1e-5, "dx/dτ gradient w.r.t. v incorrect");
 

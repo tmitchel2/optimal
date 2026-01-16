@@ -47,10 +47,10 @@ public sealed class DubinsCarProblemSolver : ICommand
             .WithStateSize(3) // [x, y, θ]
             .WithControlSize(1) // turning rate ω
             .WithTimeHorizon(0.0, 5.0)
-            .WithInitialCondition(new[] { 0.0, 0.0, 0.0 }) // Origin, facing east
-            .WithFinalCondition(new[] { 2.0, 2.0, Math.PI / 2 }) // Target position and heading
-            .WithControlBounds(new[] { -1.5 }, new[] { 1.5 }) // Turn rate limits
-            .WithDynamics((x, u, t) =>
+            .WithInitialCondition([0.0, 0.0, 0.0]) // Origin, facing east
+            .WithFinalCondition([2.0, 2.0, Math.PI / 2]) // Target position and heading
+            .WithControlBounds([-1.5], [1.5]) // Turn rate limits
+            .WithDynamics((x, u, _) =>
             {
                 var xPos = x[0];
                 var yPos = x[1];
@@ -66,24 +66,24 @@ public sealed class DubinsCarProblemSolver : ICommand
                 var gradients = new double[2][];
 
                 // Gradients w.r.t. state: [∂ẋ/∂x, ∂ẋ/∂y, ∂ẋ/∂θ; ∂ẏ/∂x, ∂ẏ/∂y, ∂ẏ/∂θ; ∂θ̇/∂x, ∂θ̇/∂y, ∂θ̇/∂θ]
-                gradients[0] = new[] {
+                gradients[0] = [
                     xdot_gradients[0], xdot_gradients[1], xdot_gradients[2],        // ∂ẋ/∂[x,y,θ]
                     ydot_gradients[0], ydot_gradients[1], ydot_gradients[2],        // ∂ẏ/∂[x,y,θ]
                     thetadot_gradients[0], thetadot_gradients[1], thetadot_gradients[2]  // ∂θ̇/∂[x,y,θ]
-                };
+                ];
 
                 // Gradients w.r.t. control: [∂ẋ/∂ω, ∂ẏ/∂ω, ∂θ̇/∂ω]
                 // Note: xdot and ydot don't depend on ω directly, so those gradients are 0
                 // Only thetadot depends on ω
-                gradients[1] = new[] {
+                gradients[1] = [
                     0.0,                      // ∂ẋ/∂ω = 0 (xdot doesn't depend on ω)
                     0.0,                      // ∂ẏ/∂ω = 0 (ydot doesn't depend on ω)
                     thetadot_gradients[3]     // ∂θ̇/∂ω
-                };
+                ];
 
                 return (value, gradients);
             })
-            .WithRunningCost((x, u, t) =>
+            .WithRunningCost((x, u, _) =>
             {
                 var xPos = x[0];
                 var yPos = x[1];

@@ -6,6 +6,8 @@
  *
  */
 
+#pragma warning disable RCS1163 // Unused parameter
+
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
@@ -16,15 +18,15 @@ namespace Optimal.Control.Optimization.Tests
     public sealed class ObjectiveFunctionTests
     {
         private const double Tolerance = 1e-10;
-        private static readonly double[] s_zeroControl = new[] { 0.0 };
-        private static readonly double[] s_unitControl = new[] { 1.0 };
-        private static readonly double[] s_zeroState = new[] { 0.0 };
-        private static readonly double[] s_unitState = new[] { 1.0 };
-        private static readonly double[] s_halfControl = new[] { 0.5 };
-        private static readonly double[] s_twoControl = new[] { 2.0 };
-        private static readonly double[] s_threeState = new[] { 3.0 };
-        private static readonly double[] s_twoState = new[] { 2.0 };
-        private static readonly double[] s_sevenState = new[] { 7.0 };
+        private static readonly double[] s_zeroControl = [0.0];
+        private static readonly double[] s_unitControl = [1.0];
+        private static readonly double[] s_zeroState = [0.0];
+        private static readonly double[] s_unitState = [1.0];
+        private static readonly double[] s_halfControl = [0.5];
+        private static readonly double[] s_twoControl = [2.0];
+        private static readonly double[] s_threeState = [3.0];
+        private static readonly double[] s_twoState = [2.0];
+        private static readonly double[] s_sevenState = [7.0];
 
         [TestMethod]
         public void CanComputeRunningCostWithConstantControl()
@@ -72,7 +74,7 @@ namespace Optimal.Control.Optimization.Tests
             {
                 var t = grid.TimePoints[k];
                 transcription.SetState(z, k, s_zeroState);
-                transcription.SetControl(z, k, new[] { t });
+                transcription.SetControl(z, k, [t]);
             }
 
             double RunningCost(double[] x, double[] u, double t) => 0.5 * u[0] * u[0];
@@ -207,8 +209,8 @@ namespace Optimal.Control.Optimization.Tests
             for (var k = 0; k <= grid.Segments; k++)
             {
                 var t = grid.TimePoints[k];
-                transcription.SetState(z, k, new[] { t / T });
-                transcription.SetControl(z, k, new[] { 1.0 / T });
+                transcription.SetState(z, k, [t / T]);
+                transcription.SetControl(z, k, [1.0 / T]);
             }
 
             double RunningCost(double[] x, double[] u, double t) => u[0] * u[0];

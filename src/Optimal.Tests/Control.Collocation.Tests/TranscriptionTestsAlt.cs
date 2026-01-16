@@ -6,6 +6,8 @@
  *
  */
 
+#pragma warning disable RCS1163 // Unused parameter
+
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
@@ -16,16 +18,16 @@ namespace Optimal.Control.Collocation.Tests
     public abstract class TranscriptionTestsAlt
     {
         private const double Tolerance = 1e-10;
-        private static readonly double[] s_testState = new[] { 1.5, 2.5 };
-        private static readonly double[] s_testControl = new[] { 3.5 };
-        private static readonly double[] s_initialState = new[] { 0.0, 1.0 };
-        private static readonly double[] s_finalState = new[] { 10.0, 5.0 };
-        private static readonly double[] s_zeroControl = new[] { 0.0 };
-        private static readonly double[] s_unitControl = new[] { 1.0 };
-        private static readonly double[] s_doubleControl = new[] { 2.0 };
-        private static readonly double[] s_initialState1D = new[] { 0.0 };
-        private static readonly double[] s_finalState1D = new[] { 1.0 };
-        private static readonly double[] s_constantState5 = new[] { 5.0 };
+        private static readonly double[] s_testState = [1.5, 2.5];
+        private static readonly double[] s_testControl = [3.5];
+        private static readonly double[] s_initialState = [0.0, 1.0];
+        private static readonly double[] s_finalState = [10.0, 5.0];
+        private static readonly double[] s_zeroControl = [0.0];
+        private static readonly double[] s_unitControl = [1.0];
+        private static readonly double[] s_doubleControl = [2.0];
+        private static readonly double[] s_initialState1D = [0.0];
+        private static readonly double[] s_finalState1D = [1.0];
+        private static readonly double[] s_constantState5 = [5.0];
 
         [TestMethod]
         public void CanCreateTranscription()
@@ -158,14 +160,14 @@ namespace Optimal.Control.Collocation.Tests
                 var h = grid.GetTimeStep(segmentIndex);
                 var t = tk + (tau + 1.0) * h / 2.0;
 
-                transcription.SetState(z, i, new[] { t });
+                transcription.SetState(z, i, [t]);
                 transcription.SetControl(z, i, s_unitControl);
             }
 
             // Dynamics: ẋ = u
             double[] DynamicsEvaluator(double[] x, double[] u, double t)
             {
-                return new[] { u[0] };
+                return [u[0]];
             }
 
             var defects = transcription.ComputeAllDefects(z, DynamicsEvaluator);
@@ -202,14 +204,14 @@ namespace Optimal.Control.Collocation.Tests
                 var h = grid.GetTimeStep(segmentIndex);
                 var t = tk + (tau + 1.0) * h / 2.0;
 
-                transcription.SetState(z, i, new[] { 0.5 * t * t, t });
+                transcription.SetState(z, i, [0.5 * t * t, t]);
                 transcription.SetControl(z, i, s_unitControl);
             }
 
             // Dynamics: [dx/dt, dv/dt] = [v, u]
             double[] DynamicsEvaluator(double[] x, double[] u, double t)
             {
-                return new[] { x[1], u[0] };
+                return [x[1], u[0]];
             }
 
             var defects = transcription.ComputeAllDefects(z, DynamicsEvaluator);
@@ -235,7 +237,7 @@ namespace Optimal.Control.Collocation.Tests
             // Dynamics: ẋ = -x
             double[] DynamicsEvaluator(double[] x, double[] u, double t)
             {
-                return new[] { -x[0] };
+                return [-x[0]];
             }
 
             var maxDefectOrder3 = TestExponentialDecay(problem, grid, order: 3, DynamicsEvaluator);
@@ -271,7 +273,7 @@ namespace Optimal.Control.Collocation.Tests
                 var h = grid.GetTimeStep(segmentIndex);
                 var t = tk + (tau + 1.0) * h / 2.0;
 
-                transcription.SetState(z, i, new[] { Math.Exp(-t) });
+                transcription.SetState(z, i, [Math.Exp(-t)]);
                 transcription.SetControl(z, i, s_zeroControl);
             }
 
@@ -481,11 +483,11 @@ namespace Optimal.Control.Collocation.Tests
             var z = transcription.CreateInitialGuess(s_initialState1D, s_finalState1D, s_unitControl);
 
             // Null running cost evaluator
-            var cost1 = transcription.ComputeTotalCost(z, null, (x, t) => 10.0);
+            var cost1 = transcription.ComputeTotalCost(z, null, (_, _) => 10.0);
             Assert.AreEqual(10.0, cost1, Tolerance);
 
             // Null terminal cost evaluator
-            var cost2 = transcription.ComputeTotalCost(z, (x, u, t) => 5.0, null);
+            var cost2 = transcription.ComputeTotalCost(z, (_, _, _) => 5.0, null);
             Assert.IsTrue(cost2 > 0); // Should have some running cost
 
             // Both null

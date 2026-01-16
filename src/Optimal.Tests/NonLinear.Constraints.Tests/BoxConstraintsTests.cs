@@ -44,7 +44,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void LowerPropertyReturnsClonedArray()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 1.0 }, new[] { 2.0, 3.0 });
+            var constraints = new BoxConstraints([0.0, 1.0], [2.0, 3.0]);
             var lower = constraints.Lower;
 
             lower[0] = 999.0;
@@ -55,7 +55,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void UpperPropertyReturnsClonedArray()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 1.0 }, new[] { 2.0, 3.0 });
+            var constraints = new BoxConstraints([0.0, 1.0], [2.0, 3.0]);
             var upper = constraints.Upper;
 
             upper[0] = 999.0;
@@ -66,7 +66,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void ProjectClampsToLowerBound()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 0.0 }, new[] { 1.0, 1.0 });
+            var constraints = new BoxConstraints([0.0, 0.0], [1.0, 1.0]);
             var x = new[] { -1.0, -2.0 };
 
             var projected = constraints.Project(x);
@@ -78,7 +78,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void ProjectClampsToUpperBound()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 0.0 }, new[] { 1.0, 1.0 });
+            var constraints = new BoxConstraints([0.0, 0.0], [1.0, 1.0]);
             var x = new[] { 2.0, 3.0 };
 
             var projected = constraints.Project(x);
@@ -90,7 +90,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void ProjectLeavesPointWithinBoundsUnchanged()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 0.0 }, new[] { 1.0, 1.0 });
+            var constraints = new BoxConstraints([0.0, 0.0], [1.0, 1.0]);
             var x = new[] { 0.5, 0.5 };
 
             var projected = constraints.Project(x);
@@ -102,7 +102,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void ProjectHandlesMixedViolations()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, -1.0 }, new[] { 1.0, 2.0 });
+            var constraints = new BoxConstraints([0.0, -1.0], [1.0, 2.0]);
             var x = new[] { -0.5, 5.0 };
 
             var projected = constraints.Project(x);
@@ -114,7 +114,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void IsFeasibleReturnsTrueForPointWithinBounds()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 0.0 }, new[] { 1.0, 1.0 });
+            var constraints = new BoxConstraints([0.0, 0.0], [1.0, 1.0]);
             var x = new[] { 0.5, 0.5 };
 
             Assert.IsTrue(constraints.IsFeasible(x));
@@ -123,7 +123,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void IsFeasibleReturnsFalseForPointBelowLowerBound()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 0.0 }, new[] { 1.0, 1.0 });
+            var constraints = new BoxConstraints([0.0, 0.0], [1.0, 1.0]);
             var x = new[] { -0.1, 0.5 };
 
             Assert.IsFalse(constraints.IsFeasible(x));
@@ -132,7 +132,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void IsFeasibleReturnsFalseForPointAboveUpperBound()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 0.0 }, new[] { 1.0, 1.0 });
+            var constraints = new BoxConstraints([0.0, 0.0], [1.0, 1.0]);
             var x = new[] { 0.5, 1.1 };
 
             Assert.IsFalse(constraints.IsFeasible(x));
@@ -141,7 +141,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void IsFeasibleReturnsTrueForPointOnBoundary()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 0.0 }, new[] { 1.0, 1.0 });
+            var constraints = new BoxConstraints([0.0, 0.0], [1.0, 1.0]);
             var x = new[] { 0.0, 1.0 };
 
             Assert.IsTrue(constraints.IsFeasible(x));
@@ -150,7 +150,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void IsFeasibleUsesTolerance()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 0.0 }, new[] { 1.0, 1.0 });
+            var constraints = new BoxConstraints([0.0, 0.0], [1.0, 1.0]);
             var x = new[] { -1e-12, 1.0 + 1e-12 };
 
             Assert.IsTrue(constraints.IsFeasible(x, tolerance: 1e-10));
@@ -159,7 +159,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void MaxViolationReturnsZeroForFeasiblePoint()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 0.0 }, new[] { 1.0, 1.0 });
+            var constraints = new BoxConstraints([0.0, 0.0], [1.0, 1.0]);
             var x = new[] { 0.5, 0.5 };
 
             Assert.AreEqual(0.0, constraints.MaxViolation(x));
@@ -168,7 +168,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void MaxViolationReturnsCorrectValueForLowerViolation()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 0.0 }, new[] { 1.0, 1.0 });
+            var constraints = new BoxConstraints([0.0, 0.0], [1.0, 1.0]);
             var x = new[] { -0.3, 0.5 };
 
             Assert.AreEqual(0.3, constraints.MaxViolation(x), 1e-10);
@@ -177,7 +177,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void MaxViolationReturnsCorrectValueForUpperViolation()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 0.0 }, new[] { 1.0, 1.0 });
+            var constraints = new BoxConstraints([0.0, 0.0], [1.0, 1.0]);
             var x = new[] { 0.5, 1.4 };
 
             Assert.AreEqual(0.4, constraints.MaxViolation(x), 1e-10);
@@ -186,7 +186,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void MaxViolationReturnsLargestViolation()
         {
-            var constraints = new BoxConstraints(new[] { 0.0, 0.0 }, new[] { 1.0, 1.0 });
+            var constraints = new BoxConstraints([0.0, 0.0], [1.0, 1.0]);
             var x = new[] { -0.2, 1.5 }; // Lower violation 0.2, upper violation 0.5
 
             Assert.AreEqual(0.5, constraints.MaxViolation(x), 1e-10);
@@ -195,7 +195,7 @@ namespace Optimal.NonLinear.Constraints.Tests
         [TestMethod]
         public void ProjectReturnsNewArray()
         {
-            var constraints = new BoxConstraints(new[] { 0.0 }, new[] { 1.0 });
+            var constraints = new BoxConstraints([0.0], [1.0]);
             var x = new[] { 0.5 };
 
             var projected = constraints.Project(x);
@@ -207,8 +207,8 @@ namespace Optimal.NonLinear.Constraints.Tests
         public void WorksWithInfinityBounds()
         {
             var constraints = new BoxConstraints(
-                new[] { double.NegativeInfinity, 0.0 },
-                new[] { double.PositiveInfinity, 1.0 });
+                [double.NegativeInfinity, 0.0],
+                [double.PositiveInfinity, 1.0]);
             var x = new[] { -1000.0, 0.5 };
 
             Assert.IsTrue(constraints.IsFeasible(x));

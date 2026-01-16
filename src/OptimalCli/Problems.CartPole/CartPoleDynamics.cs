@@ -24,7 +24,9 @@ namespace OptimalCli.Problems.CartPole
         /// <summary>
         /// Cart position rate: ẋ (trivial - just the velocity state)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double XRate(double x, double xdot, double theta, double thetadot, double F, double M, double m, double L, double g)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return xdot;
         }
@@ -35,7 +37,9 @@ namespace OptimalCli.Problems.CartPole
         /// NOTE: Expressions are inlined (no intermediate variables) to ensure proper AutoDiff gradient propagation.
         ///       Using intermediate variables breaks the gradient chain in the code generator.
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double XddotRate(double x, double xdot, double theta, double thetadot, double F, double M, double m, double L, double g)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return (F + m * L * thetadot * thetadot * Math.Sin(theta) - m * g * Math.Sin(theta) * Math.Cos(theta)) / (M + m * Math.Sin(theta) * Math.Sin(theta));
         }
@@ -43,7 +47,9 @@ namespace OptimalCli.Problems.CartPole
         /// <summary>
         /// Pole angular rate: θ̇ (trivial - just the angular velocity state)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double ThetaRate(double x, double xdot, double theta, double thetadot, double F, double M, double m, double L, double g)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return thetadot;
         }
@@ -54,7 +60,9 @@ namespace OptimalCli.Problems.CartPole
         /// NOTE: Expressions are inlined (no intermediate variables) to ensure proper AutoDiff gradient propagation.
         ///       Using intermediate variables breaks the gradient chain in the code generator.
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double ThetaddotRate(double x, double xdot, double theta, double thetadot, double F, double M, double m, double L, double g)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return (g * Math.Sin(theta) - Math.Cos(theta) * (F + m * L * thetadot * thetadot * Math.Sin(theta)) / (M + m)) / (L * (4.0 / 3.0 - m * Math.Cos(theta) * Math.Cos(theta) / (M + m)));
         }

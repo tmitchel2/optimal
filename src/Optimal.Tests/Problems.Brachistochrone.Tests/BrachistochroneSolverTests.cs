@@ -290,13 +290,13 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithStateSize(3) // [x, y, v]
                 .WithControlSize(1) // theta
                 .WithTimeHorizon(0.0, tf)
-                .WithInitialCondition(new[] { X0, Y0, V0 })
-                .WithFinalCondition(new[] { Xf, Yf, double.NaN }) // Free final velocity
-                .WithControlBounds(new[] { 0.0 }, new[] { Math.PI / 2.0 })
+                .WithInitialCondition([X0, Y0, V0])
+                .WithFinalCondition([Xf, Yf, double.NaN]) // Free final velocity
+                .WithControlBounds([0.0], [Math.PI / 2.0])
                 .WithStateBounds(
-                    new[] { 0.0, 0.0, 1e-6 },
-                    new[] { 15.0, 15.0, 20.0 })
-                .WithDynamics((x, u, t) =>
+                    [0.0, 0.0, 1e-6],
+                    [15.0, 15.0, 20.0])
+                .WithDynamics((x, u, _) =>
                 {
                     var v = x[2];
                     var theta = u[0];
@@ -310,23 +310,23 @@ namespace Optimal.Problems.Brachistochrone.Tests
                     // Gradients
                     var gradients = new double[2][];
                     // df/dx: 3x3 matrix flattened
-                    gradients[0] = new[]
-                    {
+                    gradients[0] =
+                    [
                         0.0, 0.0, Math.Cos(theta),      // dxrate/d[x,y,v]
                         0.0, 0.0, -Math.Sin(theta),     // dyrate/d[x,y,v]
                         0.0, 0.0, 0.0                    // dvrate/d[x,y,v]
-                    };
+                    ];
                     // df/du: 3x1 vector
-                    gradients[1] = new[]
-                    {
+                    gradients[1] =
+                    [
                         -v * Math.Sin(theta),   // dxrate/dtheta
                         -v * Math.Cos(theta),   // dyrate/dtheta
                         Gravity * Math.Cos(theta) // dvrate/dtheta
-                    };
+                    ];
 
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((_, _, _) =>
                 {
                     // L = 1 to minimize time
                     var value = 1.0;
@@ -343,13 +343,13 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithStateSize(4) // [x, y, v, T_f]
                 .WithControlSize(1) // theta
                 .WithTimeHorizon(0.0, 1.0) // Normalized time
-                .WithInitialCondition(new[] { X0, Y0, V0, tfGuess })
-                .WithFinalCondition(new[] { Xf, Yf, double.NaN, double.NaN }) // Free v and T_f
-                .WithControlBounds(new[] { 0.0 }, new[] { Math.PI / 2.0 })
+                .WithInitialCondition([X0, Y0, V0, tfGuess])
+                .WithFinalCondition([Xf, Yf, double.NaN, double.NaN]) // Free v and T_f
+                .WithControlBounds([0.0], [Math.PI / 2.0])
                 .WithStateBounds(
-                    new[] { 0.0, 0.0, 1e-6, 0.1 },
-                    new[] { 15.0, 15.0, 20.0, 5.0 })
-                .WithDynamics((x, u, tau) =>
+                    [0.0, 0.0, 1e-6, 0.1],
+                    [15.0, 15.0, 20.0, 5.0])
+                .WithDynamics((x, u, _) =>
                 {
                     var v = x[2];
                     var Tf = x[3];
@@ -370,25 +370,25 @@ namespace Optimal.Problems.Brachistochrone.Tests
                     // Gradients
                     var gradients = new double[2][];
                     // df/dx: 4x4 matrix flattened
-                    gradients[0] = new[]
-                    {
+                    gradients[0] =
+                    [
                         0.0, 0.0, Tf * Math.Cos(theta), xratePhys,      // dxrate/d[x,y,v,Tf]
                         0.0, 0.0, -Tf * Math.Sin(theta), yratePhys,     // dyrate/d[x,y,v,Tf]
                         0.0, 0.0, 0.0, vratePhys,                        // dvrate/d[x,y,v,Tf]
                         0.0, 0.0, 0.0, 0.0                               // dTfrate/d[x,y,v,Tf]
-                    };
+                    ];
                     // df/du: 4x1 vector
-                    gradients[1] = new[]
-                    {
+                    gradients[1] =
+                    [
                         -Tf * v * Math.Sin(theta),      // dxrate/dtheta
                         -Tf * v * Math.Cos(theta),      // dyrate/dtheta
                         Tf * Gravity * Math.Cos(theta), // dvrate/dtheta
                         0.0                              // dTfrate/dtheta
-                    };
+                    ];
 
                     return (value, gradients);
                 })
-                .WithTerminalCost((x, tau) =>
+                .WithTerminalCost((x, _) =>
                 {
                     var Tf = x[3];
                     var gradients = new double[5]; // [x, y, v, T_f, tau]

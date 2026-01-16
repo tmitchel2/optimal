@@ -15,8 +15,8 @@ namespace Optimal.NonLinear.Unconstrained.Tests
     [TestClass]
     public sealed class LBFGSOptimizerTests
     {
-        private static readonly double[] s_rosenbrock2DStart = new[] { -1.2, 1.0 };
-        private static readonly double[] s_boothStart = new[] { 0.0, 0.0 };
+        private static readonly double[] s_rosenbrock2DStart = [-1.2, 1.0];
+        private static readonly double[] s_boothStart = [0.0, 0.0];
 
         [TestMethod]
         public void CanMinimizeRosenbrock2D()

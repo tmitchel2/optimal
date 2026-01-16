@@ -171,7 +171,7 @@ namespace Optimal.Control.Indirect
                     {
                         var (phi, phiGrad) = problem.TerminalCost(xFinal, times[times.Length - 1]);
                         var lambdaFinal = costates[costates.Length - 1];
-                        
+
                         for (var i = 0; i < nStates; i++)
                         {
                             var diff = lambdaFinal[i] - phiGrad[i];
@@ -206,9 +206,7 @@ namespace Optimal.Control.Indirect
                 {
                     AdjustCostates(
                         problem,
-                        optimalControl,
                         lambda0,
-                        error,
                         iter);
                 }
             }
@@ -227,9 +225,7 @@ namespace Optimal.Control.Indirect
         /// </summary>
         private static void AdjustCostates(
             ControlProblem problem,
-            Func<double[], double[], double[], double, double[]> optimalControl,
             double[] lambda0,
-            double currentError,
             int iteration)
         {
             var nStates = problem.StateDim;
@@ -277,7 +273,7 @@ namespace Optimal.Control.Indirect
 
                 // Runge-Kutta 4th order
                 var (k1x, k1lambda) = ComputeDerivatives(problem, x, lambda, u, t);
-                
+
                 var x2 = Add(x, Scale(k1x, dt / 2));
                 var lambda2 = Add(lambda, Scale(k1lambda, dt / 2));
                 var u2 = optimalControl(x2, lambda2, Array.Empty<double>(), t + dt / 2);

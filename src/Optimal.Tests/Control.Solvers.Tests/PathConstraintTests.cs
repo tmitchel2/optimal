@@ -17,11 +17,11 @@ namespace Optimal.Control.Solvers.Tests
     [TestClass]
     public sealed class PathConstraintTests
     {
-        private static readonly double[] s_zeroState1D = new[] { 0.0 };
-        private static readonly double[] s_oneState1D = new[] { 1.0 };
-        private static readonly double[] s_zeroState2D = new[] { 0.0, 0.0 };
-        private static readonly double[] s_controlBoundsLower = new[] { -2.0 };
-        private static readonly double[] s_controlBoundsUpper = new[] { 2.0 };
+        private static readonly double[] s_zeroState1D = [0.0];
+        private static readonly double[] s_oneState1D = [1.0];
+        private static readonly double[] s_zeroState2D = [0.0, 0.0];
+        // private static readonly double[] s_controlBoundsLower = [-2.0];
+        // private static readonly double[] s_controlBoundsUpper = [2.0];
 
         [TestMethod]
         [Ignore("Challenging convergence - requires tighter tolerance or better initial guess")]
@@ -38,15 +38,15 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTimeHorizon(0.0, 3.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0 };
-                    gradients[1] = new[] { 1.0 };
+                    gradients[0] = [0.0];
+                    gradients[1] = [1.0];
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((_, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[3];
@@ -55,7 +55,7 @@ namespace Optimal.Control.Solvers.Tests
                     gradients[2] = 0.0;
                     return (value, gradients);
                 })
-                .WithPathConstraint((x, u, t) =>
+                .WithPathConstraint((x, _, _) =>
                 {
                     // x ≤ 0.6  =>  x - 0.6 ≤ 0
                     var value = x[0] - 0.6;
@@ -103,16 +103,16 @@ namespace Optimal.Control.Solvers.Tests
                 .WithControlSize(1)
                 .WithTimeHorizon(0.0, 5.0)
                 .WithInitialCondition(s_zeroState1D)
-                .WithFinalCondition(new[] { 2.0 })
-                .WithDynamics((x, u, t) =>
+                .WithFinalCondition([2.0])
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0 };
-                    gradients[1] = new[] { 1.0 };
+                    gradients[0] = [0.0];
+                    gradients[1] = [1.0];
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((_, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[3];
@@ -121,7 +121,7 @@ namespace Optimal.Control.Solvers.Tests
                     gradients[2] = 0.0;
                     return (value, gradients);
                 })
-                .WithPathConstraint((x, u, t) =>
+                .WithPathConstraint((x, _, t) =>
                 {
                     // For t ≥ 2.5: x ≥ 0.5  =>  0.5 - x ≤ 0
                     // For t < 2.5: no constraint (always satisfied)
@@ -172,22 +172,22 @@ namespace Optimal.Control.Solvers.Tests
                 .WithControlSize(1)
                 .WithTimeHorizon(0.0, 3.0)
                 .WithInitialCondition(s_zeroState2D)
-                .WithFinalCondition(s_oneState1D.Length == 2 ? s_oneState1D : new[] { 1.0, 0.0 })
-                .WithDynamics((x, u, t) =>
+                .WithFinalCondition(s_oneState1D.Length == 2 ? s_oneState1D : [1.0, 0.0])
+                .WithDynamics((x, u, _) =>
                 {
                     var value = new[] { x[1], u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0, 1.0 };
-                    gradients[1] = new[] { 0.0, 0.0 };
+                    gradients[0] = [0.0, 1.0];
+                    gradients[1] = [0.0, 0.0];
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((_, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[4];
                     return (value, gradients);
                 })
-                .WithPathConstraint((x, u, t) =>
+                .WithPathConstraint((x, _, _) =>
                 {
                     // v ≤ 0.8  =>  v - 0.8 ≤ 0
                     var value = x[1] - 0.8;
@@ -196,7 +196,7 @@ namespace Optimal.Control.Solvers.Tests
                     gradients[1] = 1.0;
                     return (value, gradients);
                 })
-                .WithPathConstraint((x, u, t) =>
+                .WithPathConstraint((x, _, _) =>
                 {
                     // v ≥ -0.8  =>  -0.8 - v ≤ 0
                     var value = -0.8 - x[1];
@@ -244,25 +244,25 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTimeHorizon(0.0, 2.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((_, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[3];
                     return (value, gradients);
                 })
-                .WithPathConstraint((x, u, t) =>
+                .WithPathConstraint((x, _, _) =>
                 {
                     var value = x[0] - 0.7; // x ≤ 0.7
                     var gradients = new double[3];
                     return (value, gradients);
                 })
-                .WithPathConstraint((x, u, t) =>
+                .WithPathConstraint((x, _, _) =>
                 {
                     var value = -0.1 - x[0]; // x ≥ -0.1
                     var gradients = new double[3];

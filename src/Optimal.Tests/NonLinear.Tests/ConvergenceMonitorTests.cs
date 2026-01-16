@@ -13,10 +13,10 @@ namespace Optimal.NonLinear.Tests
     [TestClass]
     public sealed class ConvergenceMonitorTests
     {
-        private static readonly double[] s_testPoint1 = new[] { 1.0, 2.0 };
-        private static readonly double[] s_testPoint2 = new[] { 1.001, 2.001 };
-        private static readonly double[] s_smallGradient = new[] { 1e-7, 1e-7 };
-        private static readonly double[] s_largeGradient = new[] { 1.0, 1.0 };
+        private static readonly double[] s_testPoint1 = [1.0, 2.0];
+        private static readonly double[] s_testPoint2 = [1.001, 2.001];
+        private static readonly double[] s_smallGradient = [1e-7, 1e-7];
+        private static readonly double[] s_largeGradient = [1.0, 1.0];
 
         [TestMethod]
         public void DetectsGradientTolerance()
@@ -189,9 +189,9 @@ namespace Optimal.NonLinear.Tests
                 monitor.CheckConvergence(
                     iteration: i,
                     functionEvaluations: i + 1,
-                    x: new[] { (double)i, (double)i },
+                    x: [(double)i, (double)i],
                     fValue: 10.0 - i,
-                    gradient: new[] { 1.0 / (i + 1), 1.0 / (i + 1) });
+                    gradient: [1.0 / (i + 1), 1.0 / (i + 1)]);
             }
 
             var history = monitor.GetHistory();

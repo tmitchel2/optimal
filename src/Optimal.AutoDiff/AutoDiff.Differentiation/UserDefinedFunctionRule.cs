@@ -23,7 +23,6 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
 
         public UserDefinedFunctionRule(
             ForwardModeDifferentiator differentiator,
-            ITypeSymbol doubleType,
             OptimalTransform transform)
         {
             _differentiator = differentiator;

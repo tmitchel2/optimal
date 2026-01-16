@@ -45,10 +45,10 @@ public sealed class VanDerPolProblemSolver : ICommand
             .WithStateSize(2)
             .WithControlSize(1)
             .WithTimeHorizon(0.0, 10.0)
-            .WithInitialCondition(new[] { 2.0, 0.0 }) // Start away from origin
-            .WithFinalCondition(new[] { 0.0, 0.0 }) // Stabilize to origin
-            .WithControlBounds(new[] { -5.0 }, new[] { 5.0 })
-            .WithDynamics((x, u, t) =>
+            .WithInitialCondition([2.0, 0.0]) // Start away from origin
+            .WithFinalCondition([0.0, 0.0]) // Stabilize to origin
+            .WithControlBounds([-5.0], [5.0])
+            .WithDynamics((x, u, _) =>
             {
                 var x1 = x[0];
                 var x2 = x[1];
@@ -60,7 +60,7 @@ public sealed class VanDerPolProblemSolver : ICommand
                 var gradients = new double[2][];
                 return (value, gradients);
             })
-            .WithRunningCost((x, u, t) =>
+            .WithRunningCost((x, u, _) =>
             {
                 // Minimize control effort and state deviation
                 var value = 0.1 * (x[0] * x[0] + x[1] * x[1]) + u[0] * u[0];

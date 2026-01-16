@@ -14,10 +14,10 @@ namespace Optimal.NonLinear.Tests
     public sealed class GradientDescentOptimizerTests
     {
         private const double Tolerance = 1e-4;
-        private static readonly double[] s_quadraticStart = new[] { 5.0, 5.0 };
-        private static readonly double[] s_rosenbrockStart = new[] { -1.2, 1.0 };
-        private static readonly double[] s_boothStart = new[] { 0.0, 0.0 };
-        private static readonly double[] s_numericalTestPoint = new[] { 2.0, 3.0 };
+        private static readonly double[] s_quadraticStart = [5.0, 5.0];
+        private static readonly double[] s_rosenbrockStart = [-1.2, 1.0];
+        private static readonly double[] s_boothStart = [0.0, 0.0];
+        private static readonly double[] s_numericalTestPoint = [2.0, 3.0];
 
         [TestMethod]
         public void CanMinimizeQuadraticFunction()

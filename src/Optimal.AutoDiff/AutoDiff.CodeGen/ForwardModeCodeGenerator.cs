@@ -101,7 +101,7 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
                 return false;
             }
 
-            return double.TryParse(expression, System.Globalization.NumberStyles.Float, 
+            return double.TryParse(expression, System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out _);
         }
 
@@ -365,7 +365,7 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             else if (isUserFunction)
             {
                 // For user-defined functions, we need to inline them
-                primalCode = GenerateUserFunctionInline(methodCall, argumentPrimals, sb, wrtParam, doubleType);
+                primalCode = GenerateUserFunctionInline(methodCall, argumentPrimals);
             }
             else
             {
@@ -375,12 +375,11 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             string tangentCode;
             if (isUserFunction)
             {
-                tangentCode = GenerateUserFunctionTangent(methodCall, argumentPrimals, argumentTangents, sb, wrtParam, doubleType);
+                tangentCode = GenerateUserFunctionTangent(methodCall, argumentPrimals, argumentTangents);
             }
             else
             {
                 tangentCode = GenerateMethodCallTangent(
-                    methodCall,
                     methodName,
                     argumentPrimals,
                     argumentTangents);
@@ -390,7 +389,6 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
         }
 
         private string GenerateMethodCallTangent(
-            MethodCallNode methodCall,
             string methodName,
             List<string> argumentPrimals,
             List<string> argumentTangents)
@@ -453,10 +451,7 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
 
         private string GenerateUserFunctionInline(
             MethodCallNode methodCall,
-            List<string> argumentPrimals,
-            StringBuilder sb,
-            string wrtParam,
-            ITypeSymbol doubleType)
+            List<string> argumentPrimals)
         {
             // Find the method definition
             var method = _transform!.Methods.FirstOrDefault(m => m.MethodName == methodCall.MethodName);
@@ -489,10 +484,7 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
         private string GenerateUserFunctionTangent(
             MethodCallNode methodCall,
             List<string> argumentPrimals,
-            List<string> argumentTangents,
-            StringBuilder sb,
-            string wrtParam,
-            ITypeSymbol doubleType)
+            List<string> argumentTangents)
         {
             // Find the method definition
             var method = _transform!.Methods.FirstOrDefault(m => m.MethodName == methodCall.MethodName);
@@ -702,7 +694,7 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             // Pre-declare any variables that are assigned in branches but not yet declared
             // This ensures variables are in scope after the if-else block
             PreDeclareConditionalVariables(conditional, sb);
-            
+
             var (conditionPrimal, _) = GenerateExpressionCode(conditional.Condition, sb, wrtParam, doubleType);
 
             sb.AppendLine($"            if ({conditionPrimal})");
@@ -899,7 +891,7 @@ namespace Optimal.AutoDiff.Analyzers.CodeGen
             {
                 // Pre-declare any variables that are assigned in nested branches
                 PreDeclareConditionalVariablesWithIndent(nested, sb, _currentIndent);
-                
+
                 var (conditionPrimal, _) = GenerateExpressionCode(nested.Condition, sb, wrtParam, doubleType);
 
                 sb.AppendLine($"{_currentIndent}if ({conditionPrimal})");

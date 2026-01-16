@@ -17,8 +17,8 @@ namespace Optimal.Control.Indirect.Tests
     [TestClass]
     public sealed class MultipleShootingPontryaginSolverTests
     {
-        private static readonly double[] s_zeroState1D = new[] { 0.0 };
-        private static readonly double[] s_initialCostates1D = new[] { 0.1 };
+        private static readonly double[] s_zeroState1D = [0.0];
+        private static readonly double[] s_initialCostates1D = [0.1];
 
         [TestMethod]
         public void WithMaxIterationsReturnsSelf()
@@ -56,7 +56,7 @@ namespace Optimal.Control.Indirect.Tests
         public void SolveThrowsWhenProblemIsNull()
         {
             var solver = new MultipleShootingPontryaginSolver();
-            Func<double[], double[], double[], double, double[]> optimalControl = (x, lambda, _, t) => new[] { 0.0 };
+            Func<double[], double[], double[], double, double[]> optimalControl = (_, _, _, _) => [0.0];
 
             Assert.ThrowsException<ArgumentNullException>(() =>
                 solver.Solve(null!, optimalControl, s_initialCostates1D));
@@ -91,12 +91,12 @@ namespace Optimal.Control.Indirect.Tests
                 .WithControlSize(1)
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState1D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0 };
-                    gradients[1] = new[] { 1.0 };
+                    gradients[0] = [0.0];
+                    gradients[1] = [1.0];
                     return (value, gradients);
                 });
         }

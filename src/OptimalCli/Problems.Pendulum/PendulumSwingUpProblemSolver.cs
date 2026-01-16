@@ -52,10 +52,10 @@ public sealed class PendulumSwingUpProblemSolver : ICommand
             .WithStateSize(2) // [angle, angular_velocity]
             .WithControlSize(1) // torque
             .WithTimeHorizon(0.0, 5.0) // Longer time for full swing
-            .WithInitialCondition(new[] { 0.0, 0.0 }) // Hanging down at rest
-            .WithFinalCondition(new[] { targetAngle, 0.0 }) // Fully inverted at rest
-            .WithControlBounds(new[] { -10.0 }, new[] { 10.0 }) // Higher torque limits for full swing
-            .WithDynamics((x, u, t) =>
+            .WithInitialCondition([0.0, 0.0]) // Hanging down at rest
+            .WithFinalCondition([targetAngle, 0.0]) // Fully inverted at rest
+            .WithControlBounds([-10.0], [10.0]) // Higher torque limits for full swing
+            .WithDynamics((x, u, _) =>
             {
                 var theta = x[0];
                 var thetadot = x[1];
@@ -68,11 +68,11 @@ public sealed class PendulumSwingUpProblemSolver : ICommand
 
                 var value = new[] { angleRate, angVelRate };
                 var gradients = new double[2][];
-                gradients[0] = new[] { angleRateGrad[0], angleRateGrad[1] };  // ∂θ̇/∂[θ, θ̇]
-                gradients[1] = new[] { angVelRateGrad[0], angVelRateGrad[1] };  // ∂θ̈/∂[θ, θ̇]
+                gradients[0] = [angleRateGrad[0], angleRateGrad[1]];  // ∂θ̇/∂[θ, θ̇]
+                gradients[1] = [angVelRateGrad[0], angVelRateGrad[1]];  // ∂θ̈/∂[θ, θ̇]
                 return (value, gradients);
             })
-            .WithRunningCost((x, u, t) =>
+            .WithRunningCost((x, u, _) =>
             {
                 var theta = x[0];
                 var thetadot = x[1];

@@ -105,12 +105,10 @@ public static class GoddardInitialGuess
     /// Generates an initial guess by simulating the rocket with a heuristic control policy.
     /// The policy uses maximum thrust until fuel is depleted, then coasts.
     /// </summary>
-    /// <param name="problem">The control problem.</param>
     /// <param name="grid">The collocation grid.</param>
     /// <param name="parameters">Goddard rocket parameters.</param>
     /// <returns>States and controls at each grid point.</returns>
     public static (double[][] states, double[][] controls) GenerateSimulatedTrajectory(
-        ControlProblem problem,
         CollocationGrid grid,
         GoddardParameters parameters)
     {
@@ -123,7 +121,9 @@ public static class GoddardInitialGuess
     /// discontinuities that create large collocation defects.
     /// </summary>
     private static double ComputeHeuristicThrust(
+#pragma warning disable RCS1163 // Unused parameter
         double h, double v, double m, double t, GoddardParameters p, double tf)
+#pragma warning restore RCS1163 // Unused parameter
     {
         var fuelRemaining = m - p.Mf;
         var Fm = p.Fm;
@@ -233,7 +233,7 @@ public static class GoddardInitialGuess
         CollocationGrid grid,
         GoddardParameters parameters)
     {
-        var (states, controls) = GenerateSimulatedTrajectory(problem, grid, parameters);
+        var (states, controls) = GenerateSimulatedTrajectory(grid, parameters);
         return CreateDecisionVector(states, controls, problem.StateDim, problem.ControlDim);
     }
 

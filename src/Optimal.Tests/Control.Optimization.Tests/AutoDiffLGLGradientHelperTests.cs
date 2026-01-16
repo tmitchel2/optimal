@@ -6,7 +6,7 @@
  *
  */
 
-#pragma warning disable CA1861 // Prefer static readonly fields - not applicable for test clarity
+#pragma warning disable RCS1163 // Unused parameter
 
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -42,22 +42,22 @@ namespace Optimal.Control.Optimization.Tests
 
             // Create a test decision vector with non-trivial values
             var z = transcription.CreateInitialGuess(
-                new[] { 0.0 },
-                new[] { 1.0 },
-                new[] { 0.5 });
+                [0.0],
+                [1.0],
+                [0.5]);
 
             // Dynamics with gradients: ẋ = u
             (double[] value, double[][] gradients) DynamicsWithGradients(double[] x, double[] u, double t)
             {
                 var value_ = new[] { u[0] };
                 var gradients_ = new double[2][];
-                gradients_[0] = new[] { 0.0 }; // df/dx = 0
-                gradients_[1] = new[] { 1.0 }; // df/du = 1
+                gradients_[0] = [0.0]; // df/dx = 0
+                gradients_[1] = [1.0]; // df/du = 1
                 return (value_, gradients_);
             }
 
             // Dynamics for defect computation
-            double[] Dynamics(double[] x, double[] u, double t) => new[] { u[0] };
+            double[] Dynamics(double[] x, double[] u, double t) => [u[0]];
 
             // Get differentiation matrix
             var diffMatrix = LegendreGaussLobatto.GetDifferentiationMatrix(order);
@@ -108,22 +108,22 @@ namespace Optimal.Control.Optimization.Tests
             var transcription = new LegendreGaussLobattoTranscription(problem, grid, order);
 
             var z = transcription.CreateInitialGuess(
-                new[] { 0.0, 0.0 },
-                new[] { 1.0, 0.0 },
-                new[] { 0.5 });
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [0.5]);
 
             (double[] value, double[][] gradients) DynamicsWithGradients(double[] x, double[] u, double t)
             {
                 var value_ = new[] { x[1], u[0] };
                 var gradients_ = new double[2][];
                 // df/dx: [df0/dx0, df0/dx1; df1/dx0, df1/dx1] = [0, 1; 0, 0] flattened row-major
-                gradients_[0] = new[] { 0.0, 1.0, 0.0, 0.0 };
+                gradients_[0] = [0.0, 1.0, 0.0, 0.0];
                 // df/du: [df0/du0; df1/du0] = [0; 1]
-                gradients_[1] = new[] { 0.0, 1.0 };
+                gradients_[1] = [0.0, 1.0];
                 return (value_, gradients_);
             }
 
-            double[] Dynamics(double[] x, double[] u, double t) => new[] { x[1], u[0] };
+            double[] Dynamics(double[] x, double[] u, double t) => [x[1], u[0]];
 
             var diffMatrix = LegendreGaussLobatto.GetDifferentiationMatrix(order);
             var numInteriorPerSegment = order - 2;
@@ -167,20 +167,20 @@ namespace Optimal.Control.Optimization.Tests
             var transcription = new LegendreGaussLobattoTranscription(problem, grid, order);
 
             var z = transcription.CreateInitialGuess(
-                new[] { 0.1 },
-                new[] { 0.5 },
-                new[] { 0.3 });
+                [0.1],
+                [0.5],
+                [0.3]);
 
             (double[] value, double[][] gradients) DynamicsWithGradients(double[] x, double[] u, double t)
             {
                 var value_ = new[] { Math.Sin(u[0]) + x[0] * x[0] };
                 var gradients_ = new double[2][];
-                gradients_[0] = new[] { 2.0 * x[0] }; // df/dx = 2x
-                gradients_[1] = new[] { Math.Cos(u[0]) }; // df/du = cos(u)
+                gradients_[0] = [2.0 * x[0]]; // df/dx = 2x
+                gradients_[1] = [Math.Cos(u[0])]; // df/du = cos(u)
                 return (value_, gradients_);
             }
 
-            double[] Dynamics(double[] x, double[] u, double t) => new[] { Math.Sin(u[0]) + x[0] * x[0] };
+            double[] Dynamics(double[] x, double[] u, double t) => [Math.Sin(u[0]) + x[0] * x[0]];
 
             var diffMatrix = LegendreGaussLobatto.GetDifferentiationMatrix(order);
             var numInteriorPerSegment = order - 2;
@@ -228,9 +228,9 @@ namespace Optimal.Control.Optimization.Tests
             var transcription = new LegendreGaussLobattoTranscription(problem, grid, order);
 
             var z = transcription.CreateInitialGuess(
-                new[] { 0.0 },
-                new[] { 1.0 },
-                new[] { 0.5 });
+                [0.0],
+                [1.0],
+                [0.5]);
 
             (double value, double[] gradients) RunningCostWithGradients(double[] x, double[] u, double t)
             {
@@ -271,9 +271,9 @@ namespace Optimal.Control.Optimization.Tests
             var transcription = new LegendreGaussLobattoTranscription(problem, grid, order);
 
             var z = transcription.CreateInitialGuess(
-                new[] { 1.0 },
-                new[] { 2.0 },
-                new[] { 0.3 });
+                [1.0],
+                [2.0],
+                [0.3]);
 
             (double value, double[] gradients) RunningCostWithGradients(double[] x, double[] u, double t)
             {
@@ -318,9 +318,9 @@ namespace Optimal.Control.Optimization.Tests
             var transcription = new LegendreGaussLobattoTranscription(problem, grid, order);
 
             var z = transcription.CreateInitialGuess(
-                new[] { 0.0 },
-                new[] { 2.0 },
-                new[] { 0.5 });
+                [0.0],
+                [2.0],
+                [0.5]);
 
             (double value, double[] gradients) TerminalCostWithGradients(double[] x, double t)
             {
@@ -338,7 +338,7 @@ namespace Optimal.Control.Optimization.Tests
                 transcription.GetState,
                 TerminalCostWithGradients);
 
-            var numericalGrad = ComputeNumericalTerminalCostGradient(z, transcription, grid.FinalTime, TerminalCost);
+            var numericalGrad = ComputeNumericalTerminalCostGradient(z, transcription, TerminalCost);
 
             for (var j = 0; j < z.Length; j++)
             {
@@ -359,9 +359,9 @@ namespace Optimal.Control.Optimization.Tests
             var transcription = new LegendreGaussLobattoTranscription(problem, grid, order);
 
             var z = transcription.CreateInitialGuess(
-                new[] { 0.0, 0.0 },
-                new[] { 1.0, 1.0 },
-                new[] { 0.5 });
+                [0.0, 0.0],
+                [1.0, 1.0],
+                [0.5]);
 
             (double value, double[] gradients) TerminalCostWithGradients(double[] x, double t)
             {
@@ -422,8 +422,8 @@ namespace Optimal.Control.Optimization.Tests
             for (var i = 0; i < transcription.TotalPoints; i++)
             {
                 var alpha = (double)i / (transcription.TotalPoints - 1);
-                transcription.SetState(z, i, new[] { alpha, 2.0 });
-                transcription.SetControl(z, i, new[] { 0.5 });
+                transcription.SetState(z, i, [alpha, 2.0]);
+                transcription.SetControl(z, i, [0.5]);
             }
 
             // Time-scaled dynamics with gradients
@@ -437,11 +437,11 @@ namespace Optimal.Control.Optimization.Tests
 
                 // df/dx: 2x2 matrix flattened
                 // [∂f0/∂x, ∂f0/∂Tf; ∂f1/∂x, ∂f1/∂Tf] = [0, u; 0, 0]
-                gradients_[0] = new[] { 0.0, physicalRate, 0.0, 0.0 };
+                gradients_[0] = [0.0, physicalRate, 0.0, 0.0];
 
                 // df/du: 2x1 vector
                 // [∂f0/∂u; ∂f1/∂u] = [Tf; 0]
-                gradients_[1] = new[] { Tf, 0.0 };
+                gradients_[1] = [Tf, 0.0];
 
                 return (value_, gradients_);
             }
@@ -449,7 +449,7 @@ namespace Optimal.Control.Optimization.Tests
             double[] Dynamics(double[] x, double[] u, double t)
             {
                 var Tf = x[1];
-                return new[] { Tf * u[0], 0.0 };
+                return [Tf * u[0], 0.0];
             }
 
             var diffMatrix = LegendreGaussLobatto.GetDifferentiationMatrix(order);
@@ -504,15 +504,15 @@ namespace Optimal.Control.Optimization.Tests
             var z = new double[transcription.DecisionVectorSize];
             for (var i = 0; i < transcription.TotalPoints; i++)
             {
-                transcription.SetState(z, i, new[] { 0.5, 2.0 }); // x=0.5, T_f=2.0
-                transcription.SetControl(z, i, new[] { 1.0 }); // u=1.0
+                transcription.SetState(z, i, [0.5, 2.0]); // x=0.5, T_f=2.0
+                transcription.SetControl(z, i, [1.0]); // u=1.0
             }
 
             // Dynamics: [T_f * u, 0]
             double[] Dynamics(double[] x, double[] u, double t)
             {
                 var Tf = x[1];
-                return new[] { Tf * u[0], 0.0 };
+                return [Tf * u[0], 0.0];
             }
 
             // Compute numerical gradient of defect w.r.t. control
@@ -582,7 +582,6 @@ namespace Optimal.Control.Optimization.Tests
         private static double[] ComputeNumericalTerminalCostGradient(
             double[] z,
             LegendreGaussLobattoTranscription transcription,
-            double finalTime,
             Func<double[], double, double> terminalCost)
         {
             var gradient = new double[z.Length];

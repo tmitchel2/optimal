@@ -211,8 +211,7 @@ internal static class RadiantCornerVisualizer
         DrawMarkers(renderer, states, Scale);
 
         // Draw information overlay
-        var control = controls[frameIndex];
-        DrawInformation(renderer, s, n, x, y, theta, v, control[0], control[1],
+        DrawInformation(renderer, s, n, x, y, theta, v,
             iteration, cost, maxViolation, constraintTolerance, frameIndex, states.Length);
     }
 
@@ -246,7 +245,7 @@ internal static class RadiantCornerVisualizer
         // Inner edge: radius = CenterlineRadius - RoadHalfWidth = 0 (point!)
         // Outer edge: radius = CenterlineRadius + RoadHalfWidth = 10
         const int ArcSegments = 30;
-        
+
         // Inner of curve (at n = +RoadHalfWidth, right of centerline = toward arc center)
         // This collapses to a point at the apex when CenterlineRadius == RoadHalfWidth
         if (Math.Abs(CenterlineRadius - RoadHalfWidth) > 0.1)
@@ -431,7 +430,6 @@ internal static class RadiantCornerVisualizer
 
     private static void DrawInformation(Radiant.Graphics2D.Renderer2D renderer,
         double s, double n, double x, double y, double heading, double velocity,
-        double accel, double steerRate,
         int iteration, double cost, double maxViolation, double constraintTolerance,
         int frameIndex, int totalFrames)
     {

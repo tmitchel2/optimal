@@ -19,13 +19,13 @@ namespace Optimal.Control.Solvers.Tests
     public abstract class SolverTests
     {
         private const double Tolerance = 1e-3;
-        private static readonly double[] s_zeroState1D = new[] { 0.0 };
-        private static readonly double[] s_oneState1D = new[] { 1.0 };
-        private static readonly double[] s_threeState1D = new[] { 3.0 };
-        private static readonly double[] s_zeroState2D = new[] { 0.0, 0.0 };
-        private static readonly double[] s_oneZeroState2D = new[] { 1.0, 0.0 };
-        private static readonly double[] s_controlBoundsLower = new[] { -1.0 };
-        private static readonly double[] s_controlBoundsUpper = new[] { 1.0 };
+        private static readonly double[] s_zeroState1D = [0.0];
+        private static readonly double[] s_oneState1D = [1.0];
+        private static readonly double[] s_threeState1D = [3.0];
+        private static readonly double[] s_zeroState2D = [0.0, 0.0];
+        private static readonly double[] s_oneZeroState2D = [1.0, 0.0];
+        private static readonly double[] s_controlBoundsLower = [-1.0];
+        private static readonly double[] s_controlBoundsUpper = [1.0];
 
         [TestMethod]
         [TestCategory("Integration")]
@@ -42,15 +42,15 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTimeHorizon(0.0, 5.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0 }; // df/dx
-                    gradients[1] = new[] { 1.0 }; // df/du
+                    gradients[0] = [0.0]; // df/dx
+                    gradients[1] = [1.0]; // df/du
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((_, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[3];
@@ -115,16 +115,16 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTimeHorizon(0.0, 2.0)
                 .WithInitialCondition(s_zeroState2D)
                 .WithFinalCondition(s_oneZeroState2D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((x, u, _) =>
                 {
                     var value = new[] { x[1], u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0, 1.0 }; // [df0/dx0, df0/dx1]
-                    gradients[1] = new[] { 0.0, 0.0 }; // [df1/dx0, df1/dx1]
+                    gradients[0] = [0.0, 1.0]; // [df0/dx0, df0/dx1]
+                    gradients[1] = [0.0, 0.0]; // [df1/dx0, df1/dx1]
                     // Note: df/du would be [[0, 0], [0, 1]] but simplified
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((_, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[4];
@@ -168,15 +168,15 @@ namespace Optimal.Control.Solvers.Tests
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_threeState1D)
                 .WithControlBounds(s_controlBoundsLower, s_controlBoundsUpper)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0 };
-                    gradients[1] = new[] { 1.0 };
+                    gradients[0] = [0.0];
+                    gradients[1] = [1.0];
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((_, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[3];
@@ -219,15 +219,15 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTimeHorizon(0.0, 2.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0 };
-                    gradients[1] = new[] { 1.0 };
+                    gradients[0] = [0.0];
+                    gradients[1] = [1.0];
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((_, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[3];

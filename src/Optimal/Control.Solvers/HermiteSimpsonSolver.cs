@@ -344,8 +344,8 @@ namespace Optimal.Control.Solvers
             var hasAnalyticalGradients = CheckAnalyticalGradientCapability(problem);
             var iterationCount = new int[1];
 
-            var nlpObjective = CreateObjectiveFunction(problem, grid, transcription, segments, hasAnalyticalGradients, iterationCount);
-            var constrainedOptimizer = ConfigureOptimizer(problem, grid, transcription, segments, z0, hasAnalyticalGradients, nlpObjective);
+            var nlpObjective = CreateObjectiveFunction(problem, grid, transcription, segments, iterationCount);
+            var constrainedOptimizer = ConfigureOptimizer(problem, grid, transcription, segments, z0, hasAnalyticalGradients);
 
             if (_verbose)
             {
@@ -454,7 +454,6 @@ namespace Optimal.Control.Solvers
             CollocationGrid grid,
             ParallelHermiteSimpsonTranscription transcription,
             int segments,
-            bool hasAnalyticalGradients,
             int[] iterationCount)
         {
             double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(x, u, t).value;
@@ -469,7 +468,7 @@ namespace Optimal.Control.Solvers
                     LogObjectiveWarnings(cost, gradient);
                 }
 
-                InvokeProgressCallback(problem, grid, transcription, segments, z, cost, DynamicsValue, iterationCount);
+                InvokeProgressCallback(grid, transcription, segments, z, cost, DynamicsValue, iterationCount);
 
                 return (cost, gradient);
             };
@@ -488,7 +487,6 @@ namespace Optimal.Control.Solvers
         }
 
         private void InvokeProgressCallback(
-            ControlProblem problem,
             CollocationGrid grid,
             ParallelHermiteSimpsonTranscription transcription,
             int segments,
@@ -527,8 +525,7 @@ namespace Optimal.Control.Solvers
             ParallelHermiteSimpsonTranscription transcription,
             int segments,
             double[] z0,
-            bool hasAnalyticalGradients,
-            Func<double[], (double value, double[] gradient)> nlpObjective)
+            bool hasAnalyticalGradients)
         {
             var constrainedOptimizer = new AugmentedLagrangianOptimizer()
                 .WithUnconstrainedOptimizer(_innerOptimizer ?? new LBFGSOptimizer())

@@ -14,10 +14,10 @@ namespace Optimal.NonLinear.Tests
     [TestClass]
     public sealed class ConjugateGradientOptimizerTests
     {
-        private static readonly double[] s_rosenbrock2DStart = new[] { -1.2, 1.0 };
-        private static readonly double[] s_rosenbrock4DStart = new[] { -1.2, 1.0, -1.2, 1.0 };
-        private static readonly double[] s_rosenbrock10DStart = new[] { -1.2, 1.0, -1.2, 1.0, -1.2, 1.0, -1.2, 1.0, -1.2, 1.0 };
-        private static readonly double[] s_bealeStart = new[] { 0.0, 0.0 };
+        private static readonly double[] s_rosenbrock2DStart = [-1.2, 1.0];
+        private static readonly double[] s_rosenbrock4DStart = [-1.2, 1.0, -1.2, 1.0];
+        private static readonly double[] s_rosenbrock10DStart = [-1.2, 1.0, -1.2, 1.0, -1.2, 1.0, -1.2, 1.0, -1.2, 1.0];
+        private static readonly double[] s_bealeStart = [0.0, 0.0];
 
         [TestMethod]
         public void CanMinimizeRosenbrock2DWithFletcherReeves()

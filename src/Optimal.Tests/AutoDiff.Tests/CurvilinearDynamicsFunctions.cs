@@ -6,6 +6,8 @@
  *
  */
 
+#pragma warning disable RCS1163 // Unused parameter
+
 using System;
 
 namespace Optimal.AutoDiff.Tests

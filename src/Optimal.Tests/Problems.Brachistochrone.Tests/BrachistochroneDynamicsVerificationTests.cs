@@ -36,7 +36,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var theta = Math.PI / 4.0; // 45 degrees
             var expected = v * Math.Cos(theta); // 5 * 0.707... = 3.535...
 
-            var (actual, _) = BrachistochroneDynamicsGradients.XRateReverse(0, 0, v, theta, Gravity);
+            var (actual, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
 
             Assert.AreEqual(expected, actual, 1e-10, "XRate should be v·cos(θ)");
         }
@@ -93,18 +93,16 @@ namespace Optimal.Problems.Brachistochrone.Tests
         [TestMethod]
         public void XRateGradientMatchesNumericalDerivative()
         {
-            var x = 5.0;
-            var y = 7.5;
             var v = 3.0;
             var theta = Math.PI / 4.0;
 
-            var (value, gradients) = BrachistochroneDynamicsGradients.XRateReverse(x, y, v, theta, Gravity);
+            var (value, gradients) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
 
             // Numerical gradients
-            var (valuePlusX, _) = BrachistochroneDynamicsGradients.XRateReverse(x + Epsilon, y, v, theta, Gravity);
-            var (valuePlusY, _) = BrachistochroneDynamicsGradients.XRateReverse(x, y + Epsilon, v, theta, Gravity);
-            var (valuePlusV, _) = BrachistochroneDynamicsGradients.XRateReverse(x, y, v + Epsilon, theta, Gravity);
-            var (valuePlusTheta, _) = BrachistochroneDynamicsGradients.XRateReverse(x, y, v, theta + Epsilon, Gravity);
+            var (valuePlusX, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
+            var (valuePlusY, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
+            var (valuePlusV, _) = BrachistochroneDynamicsGradients.XRateReverse(v + Epsilon, theta);
+            var (valuePlusTheta, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta + Epsilon);
 
             var numGradX = (valuePlusX - value) / Epsilon;
             var numGradY = (valuePlusY - value) / Epsilon;
@@ -172,7 +170,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var theta = Math.PI / 4.0;
             var Tf = 2.0;
 
-            var (xratePhys, _) = BrachistochroneDynamicsGradients.XRateReverse(0, 0, v, theta, Gravity);
+            var (xratePhys, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
             var xrateScaled = Tf * xratePhys;
 
             // For τ ∈ [0, 1], we need: x(1) - x(0) = ∫₀¹ T_f · ẋ dτ = T_f · ẋ (for constant ẋ)
@@ -188,7 +186,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var theta = Math.PI / 4.0;
             var Tf = 2.0;
 
-            var (xratePhys, _) = BrachistochroneDynamicsGradients.XRateReverse(0, 0, v, theta, Gravity);
+            var (xratePhys, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
             var (yratePhys, _) = BrachistochroneDynamicsGradients.YRateReverse(0, 0, v, theta, Gravity);
             var (vratePhys, _) = BrachistochroneDynamicsGradients.VRateReverse(0, 0, v, theta, Gravity);
 
@@ -220,7 +218,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var theta = Math.PI / 4.0;
             var Tf = 2.0;
 
-            var (_, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(0, 0, v, theta, Gravity);
+            var (_, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
             var (_, yrateGrad) = BrachistochroneDynamicsGradients.YRateReverse(0, 0, v, theta, Gravity);
             var (_, vrateGrad) = BrachistochroneDynamicsGradients.VRateReverse(0, 0, v, theta, Gravity);
 
@@ -331,7 +329,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var v = x[2];
             var theta = u[0];
 
-            var (xrate, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(x[0], x[1], v, theta, Gravity);
+            var (xrate, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
             var (yrate, yrateGrad) = BrachistochroneDynamicsGradients.YRateReverse(x[0], x[1], v, theta, Gravity);
             var (vrate, vrateGrad) = BrachistochroneDynamicsGradients.VRateReverse(x[0], x[1], v, theta, Gravity);
 
@@ -377,7 +375,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var theta = control[0];
 
             // Time-scaled dynamics
-            var (xratePhys, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(state[0], state[1], v, theta, Gravity);
+            var (xratePhys, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
             var (yratePhys, yrateGrad) = BrachistochroneDynamicsGradients.YRateReverse(state[0], state[1], v, theta, Gravity);
             var (vratePhys, vrateGrad) = BrachistochroneDynamicsGradients.VRateReverse(state[0], state[1], v, theta, Gravity);
 
@@ -397,10 +395,10 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 Tf * vrateGrad[0], Tf * vrateGrad[1], Tf * vrateGrad[2], vratePhys,  // ∂v̇_scaled/∂(x,y,v,Tf)
                 0.0, 0.0, 0.0, 0.0                                                    // ∂Ṫf/∂(x,y,v,Tf)
             };
-            var controlGradients = new double[] { 
-                Tf * xrateGrad[3], 
-                Tf * yrateGrad[3], 
-                Tf * vrateGrad[3], 
+            var controlGradients = new double[] {
+                Tf * xrateGrad[3],
+                Tf * yrateGrad[3],
+                Tf * vrateGrad[3],
                 0.0 // ∂Ṫf/∂θ = 0
             };
 

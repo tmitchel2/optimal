@@ -17,11 +17,11 @@ namespace Optimal.NonLinear.Constrained.Tests
     [TestClass]
     public sealed class AugmentedLagrangianOptimizerTests
     {
-        private static readonly double[] s_boxInitial = new[] { 0.0, 0.0 };
-        private static readonly double[] s_boxLower = new[] { -0.5, -0.5 };
-        private static readonly double[] s_boxUpper = new[] { 0.5, 0.5 };
-        private static readonly double[] s_equalityInitial = new[] { 0.0, 1.0 };
-        private static readonly double[] s_inequalityInitial = new[] { 0.5, 0.5 };
+        private static readonly double[] s_boxInitial = [0.0, 0.0];
+        private static readonly double[] s_boxLower = [-0.5, -0.5];
+        private static readonly double[] s_boxUpper = [0.5, 0.5];
+        private static readonly double[] s_equalityInitial = [0.0, 1.0];
+        private static readonly double[] s_inequalityInitial = [0.5, 0.5];
 
         [TestMethod]
         public void CanMinimizeWithBoxConstraints()

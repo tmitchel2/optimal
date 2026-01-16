@@ -25,7 +25,9 @@ namespace OptimalCli.Problems.Goddard
         /// <summary>
         /// Altitude rate: ḣ = v (velocity)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double AltitudeRate(double h, double v, double m, double T, double g, double Dc, double c, double h0)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return v;
         }
@@ -36,7 +38,9 @@ namespace OptimalCli.Problems.Goddard
         /// NOTE: Drag expression is inlined (no intermediate variable) to ensure proper AutoDiff gradient propagation.
         ///       Using an intermediate variable breaks the gradient chain in the code generator.
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double VelocityRate(double h, double v, double m, double T, double g, double Dc, double c, double h0)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return (T - Dc * v * v * Math.Exp(-h / h0)) / m - g;
         }
@@ -45,7 +49,9 @@ namespace OptimalCli.Problems.Goddard
         /// Mass rate: ṁ = -T/c (fuel consumption proportional to thrust)
         /// where c is the exhaust velocity (specific impulse × g)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double MassRate(double h, double v, double m, double T, double g, double Dc, double c, double h0)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return -T / c;
         }
@@ -53,7 +59,9 @@ namespace OptimalCli.Problems.Goddard
         /// <summary>
         /// Running cost: L = 0 (we maximize final altitude via terminal cost, no running cost)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double RunningCost(double h, double v, double m, double T)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return 0.0;
         }
@@ -61,7 +69,9 @@ namespace OptimalCli.Problems.Goddard
         /// <summary>
         /// Terminal cost: Φ = -h (negative altitude to maximize it via minimization)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double TerminalCost(double h, double v, double m)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return -h;
         }

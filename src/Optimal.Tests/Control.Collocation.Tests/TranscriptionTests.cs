@@ -15,13 +15,13 @@ namespace Optimal.Control.Collocation.Tests
     public abstract class TranscriptionTests
     {
         private const double Tolerance = 1e-10;
-        private static readonly double[] s_testState = new[] { 1.5, 2.5 };
-        private static readonly double[] s_testControl = new[] { 3.5 };
-        private static readonly double[] s_initialState = new[] { 0.0, 1.0 };
-        private static readonly double[] s_finalState = new[] { 10.0, 5.0 };
-        private static readonly double[] s_zeroControl = new[] { 0.0 };
-        private static readonly double[] s_unitControl = new[] { 1.0 };
-        private static readonly double[] s_maxDefectTest = new[] { -0.5, 0.2, -0.8, 0.3 };
+        private static readonly double[] s_testState = [1.5, 2.5];
+        private static readonly double[] s_testControl = [3.5];
+        private static readonly double[] s_initialState = [0.0, 1.0];
+        private static readonly double[] s_finalState = [10.0, 5.0];
+        private static readonly double[] s_zeroControl = [0.0];
+        private static readonly double[] s_unitControl = [1.0];
+        private static readonly double[] s_maxDefectTest = [-0.5, 0.2, -0.8, 0.3];
 
         [TestMethod]
         public void CanCreateTranscription()
@@ -160,15 +160,17 @@ namespace Optimal.Control.Collocation.Tests
             for (var k = 0; k <= grid.Segments; k++)
             {
                 var t = grid.TimePoints[k];
-                transcription.SetState(z, k, new[] { t });
+                transcription.SetState(z, k, [t]);
                 transcription.SetControl(z, k, s_unitControl);
             }
 
             // Dynamics: ẋ = u
+#pragma warning disable RCS1163 // Unused parameter
             double[] DynamicsEvaluator(double[] x, double[] u, double t)
             {
-                return new[] { u[0] };
+                return [u[0]];
             }
+#pragma warning restore RCS1163 // Unused parameter
 
             var defects = transcription.ComputeAllDefects(z, DynamicsEvaluator);
             var maxDefect = HermiteSimpsonTranscription.MaxDefect(defects);
@@ -195,14 +197,14 @@ namespace Optimal.Control.Collocation.Tests
             for (var k = 0; k <= grid.Segments; k++)
             {
                 var t = grid.TimePoints[k];
-                transcription.SetState(z, k, new[] { 0.5 * t * t, t });
+                transcription.SetState(z, k, [0.5 * t * t, t]);
                 transcription.SetControl(z, k, s_unitControl);
             }
 
             // Dynamics: [dx/dt, dv/dt] = [v, u]
-            double[] DynamicsEvaluator(double[] x, double[] u, double t)
+            double[] DynamicsEvaluator(double[] x, double[] u, double _)
             {
-                return new[] { x[1], u[0] };
+                return [x[1], u[0]];
             }
 
             var defects = transcription.ComputeAllDefects(z, DynamicsEvaluator);

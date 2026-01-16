@@ -52,13 +52,13 @@ public sealed class CartPoleProblemSolver : ICommand
             .WithStateSize(4)
             .WithControlSize(1)
             .WithTimeHorizon(0.0, 5)
-            .WithInitialCondition(new[] { 0.1, 0.0, 0.1, 0.0 }) // Maximum before timeout
-            .WithFinalCondition(new[] { 0.0, 0.0, 0.0, 0.0 })
-            .WithControlBounds(new[] { -3.0 }, new[] { 3.0 })
+            .WithInitialCondition([0.1, 0.0, 0.1, 0.0]) // Maximum before timeout
+            .WithFinalCondition([0.0, 0.0, 0.0, 0.0])
+            .WithControlBounds([-3.0], [3.0])
             .WithStateBounds(
-                new[] { -1.0, -2.0, -0.3, -2.0 },
-                new[] { 1.0, 2.0, 0.3, 2.0 })
-            .WithDynamics((x, u, t) =>
+                [-1.0, -2.0, -0.3, -2.0],
+                [1.0, 2.0, 0.3, 2.0])
+            .WithDynamics((x, u, _) =>
             {
                 var xPos = x[0];
                 var xdot = x[1];
@@ -76,24 +76,24 @@ public sealed class CartPoleProblemSolver : ICommand
                 var gradients = new double[2][];
 
                 // Gradients w.r.t. state: [∂ẋ/∂x, ∂ẋ/∂ẋ, ∂ẋ/∂θ, ∂ẋ/∂θ̇; ∂ẍ/∂x, ∂ẍ/∂ẋ, ∂ẍ/∂θ, ∂ẍ/∂θ̇; ...]
-                gradients[0] = new[] {
+                gradients[0] = [
                     xrate_gradients[0], xrate_gradients[1], xrate_gradients[2], xrate_gradients[3],           // ∂ẋ/∂[x,ẋ,θ,θ̇]
                     xddot_gradients[0], xddot_gradients[1], xddot_gradients[2], xddot_gradients[3],           // ∂ẍ/∂[x,ẋ,θ,θ̇]
                     thetarate_gradients[0], thetarate_gradients[1], thetarate_gradients[2], thetarate_gradients[3],  // ∂θ̇/∂[x,ẋ,θ,θ̇]
                     thetaddot_gradients[0], thetaddot_gradients[1], thetaddot_gradients[2], thetaddot_gradients[3]   // ∂θ̈/∂[x,ẋ,θ,θ̇]
-                };
+                ];
 
                 // Gradients w.r.t. control: [∂ẋ/∂F, ∂ẍ/∂F, ∂θ̇/∂F, ∂θ̈/∂F]
-                gradients[1] = new[] {
+                gradients[1] = [
                     xrate_gradients[4],      // ∂ẋ/∂F
                     xddot_gradients[4],      // ∂ẍ/∂F
                     thetarate_gradients[4],  // ∂θ̇/∂F
                     thetaddot_gradients[4]   // ∂θ̈/∂F
-                };
+                ];
 
                 return (value, gradients);
             })
-            .WithRunningCost((x, u, t) =>
+            .WithRunningCost((x, u, _) =>
             {
                 var xPos = x[0];
                 var xdot = x[1];

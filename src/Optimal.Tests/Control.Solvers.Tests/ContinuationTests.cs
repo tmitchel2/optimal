@@ -18,9 +18,9 @@ namespace Optimal.Control.Solvers.Tests
     [TestClass]
     public sealed class ContinuationTests
     {
-        private static readonly double[] s_zeroState1D = new[] { 0.0 };
-        private static readonly double[] s_oneState1D = new[] { 1.0 };
-        private static readonly double[] s_zeroState2D = new[] { 0.0, 0.0 };
+        private static readonly double[] s_zeroState1D = [0.0];
+        private static readonly double[] s_oneState1D = [1.0];
+        private static readonly double[] s_zeroState2D = [0.0, 0.0];
 
         [TestMethod]
         public void CanSolveWithLinearContinuation()
@@ -44,16 +44,16 @@ namespace Optimal.Control.Solvers.Tests
                     .WithControlSize(1)
                     .WithTimeHorizon(0.0, 5.0)
                     .WithInitialCondition(s_zeroState1D)
-                    .WithFinalCondition(new[] { target })
-                    .WithDynamics((x, u, t) =>
+                    .WithFinalCondition([target])
+                    .WithDynamics((_, u, _) =>
                     {
                         var value = new[] { u[0] };
                         var gradients = new double[2][];
-                        gradients[0] = new[] { 0.0 };
-                        gradients[1] = new[] { 1.0 };
+                        gradients[0] = [0.0];
+                        gradients[1] = [1.0];
                         return (value, gradients);
                     })
-                    .WithRunningCost((x, u, t) =>
+                    .WithRunningCost((_, u, _) =>
                     {
                         var value = 0.5 * u[0] * u[0];
                         var gradients = new double[3];
@@ -91,15 +91,15 @@ namespace Optimal.Control.Solvers.Tests
                     .WithTimeHorizon(0.0, 4.0)
                     .WithInitialCondition(s_zeroState1D)
                     .WithFinalCondition(s_oneState1D)
-                    .WithDynamics((x, u, t) =>
+                    .WithDynamics((_, u, _) =>
                     {
                         var value = new[] { u[0] };
                         var gradients = new double[2][];
-                        gradients[0] = new[] { 0.0 };
-                        gradients[1] = new[] { 1.0 };
+                        gradients[0] = [0.0];
+                        gradients[1] = [1.0];
                         return (value, gradients);
                     })
-                    .WithRunningCost((x, u, t) =>
+                    .WithRunningCost((_, u, _) =>
                     {
                         var value = costWeight * u[0] * u[0];
                         var gradients = new double[3];
@@ -132,14 +132,14 @@ namespace Optimal.Control.Solvers.Tests
                     .WithControlSize(1)
                     .WithTimeHorizon(0.0, 5.0)
                     .WithInitialCondition(s_zeroState1D)
-                    .WithFinalCondition(new[] { lambda * 5.0 })
-                    .WithDynamics((x, u, t) =>
+                    .WithFinalCondition([lambda * 5.0])
+                    .WithDynamics((_, u, _) =>
                     {
                         var value = new[] { u[0] };
                         var gradients = new double[2][];
                         return (value, gradients);
                     })
-                    .WithRunningCost((x, u, t) =>
+                    .WithRunningCost((_, u, _) =>
                     {
                         var value = u[0] * u[0];
                         var gradients = new double[3];
@@ -173,16 +173,16 @@ namespace Optimal.Control.Solvers.Tests
                     .WithControlSize(1)
                     .WithTimeHorizon(0.0, 5.0)
                     .WithInitialCondition(s_zeroState1D)
-                    .WithFinalCondition(new[] { target })
-                    .WithDynamics((x, u, t) =>
+                    .WithFinalCondition([target])
+                    .WithDynamics((_, u, _) =>
                     {
                         var value = new[] { u[0] };
                         var gradients = new double[2][];
-                        gradients[0] = new[] { 0.0 };
-                        gradients[1] = new[] { 1.0 };
+                        gradients[0] = [0.0];
+                        gradients[1] = [1.0];
                         return (value, gradients);
                     })
-                    .WithRunningCost((x, u, t) =>
+                    .WithRunningCost((_, u, _) =>
                     {
                         var value = u[0] * u[0];
                         var gradients = new double[3];
@@ -231,8 +231,8 @@ namespace Optimal.Control.Solvers.Tests
                     .WithControlSize(1)
                     .WithTimeHorizon(0.0, 3.0)
                     .WithInitialCondition(s_zeroState2D)
-                    .WithFinalCondition(new[] { 1.0, 0.0 })
-                    .WithDynamics((x, u, t) =>
+                    .WithFinalCondition([1.0, 0.0])
+                    .WithDynamics((x, u, _) =>
                     {
                         // Van der Pol-like: ẋ₁ = x₂, ẋ₂ = -x₁ + μ(1-x₁²)x₂ + u
                         var mu = nonlinearStrength;
@@ -242,16 +242,16 @@ namespace Optimal.Control.Solvers.Tests
                             -x[0] + mu * (1.0 - x[0] * x[0]) * x[1] + u[0]
                         };
                         var gradients = new double[2][];
-                        gradients[0] = new[] { 0.0, 1.0 };
-                        gradients[1] = new[]
-                        {
+                        gradients[0] = [0.0, 1.0];
+                        gradients[1] =
+                        [
                             -1.0 - 2.0 * mu * x[0] * x[1],
                             mu * (1.0 - x[0] * x[0]),
                             1.0
-                        };
+                        ];
                         return (value, gradients);
                     })
-                    .WithRunningCost((x, u, t) =>
+                    .WithRunningCost((_, u, _) =>
                     {
                         var value = 0.5 * u[0] * u[0];
                         var gradients = new double[3];

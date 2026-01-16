@@ -85,7 +85,7 @@ public sealed class GoddardRocketProblemSolver : ICommand
         else
         {
             // Hermite-Simpson uses grid points directly
-            (initialStates, initialControls) = GoddardInitialGuess.GenerateSimulatedTrajectory(problem, grid, goddardParams);
+            (initialStates, initialControls) = GoddardInitialGuess.GenerateSimulatedTrajectory(grid, goddardParams);
             initialGuess = GoddardInitialGuess.CreateDecisionVector(initialStates, initialControls, problem.StateDim, problem.ControlDim);
         }
 
@@ -285,10 +285,10 @@ public sealed class GoddardRocketProblemSolver : ICommand
             .WithStateBounds(
                 [0.0, 0.0, mf],
                 [1e6, 1e4, m0])
-            .WithDynamics((x, u, t) => CreateYOptDynamics(x, u, D0, beta, c, g0, r0))
+            .WithDynamics((x, u, _) => CreateYOptDynamics(x, u, D0, beta, c, g0, r0))
             .WithRunningCost(CreateRunningCost)
             .WithTerminalCost(CreateTerminalCost)
-            .WithPathConstraint((x, u, t) => CreatePathConstraint(x, u, mf));
+            .WithPathConstraint((x, u, _) => CreatePathConstraint(x, u, mf));
 
         return (problem, new GoddardRocketParams(description, h0, mf));
     }
@@ -347,10 +347,10 @@ public sealed class GoddardRocketProblemSolver : ICommand
             .WithStateBounds(
                 [0.0, 0.0, mf],
                 [1e6, 1e4, m0])
-            .WithDynamics((x, u, t) => CreateYOptDynamics(x, u, D0, beta, c, g0, r0))
+            .WithDynamics((x, u, _) => CreateYOptDynamics(x, u, D0, beta, c, g0, r0))
             .WithRunningCost(CreateRunningCost)
             .WithTerminalCost(CreateTerminalCost)
-            .WithPathConstraint((x, u, t) => CreatePathConstraint(x, u, mf));
+            .WithPathConstraint((x, u, _) => CreatePathConstraint(x, u, mf));
 
         return (problem, new GoddardRocketParams(description, h0, mf));
     }
@@ -387,18 +387,18 @@ public sealed class GoddardRocketProblemSolver : ICommand
         var dFD_dv = Math.Sign(v) * D * 2 * v;  // ∂F_D/∂v (ignoring sign discontinuity)
         var dg_dh = g0 * (-2) * Math.Pow(r0, 2) / Math.Pow(r0 + h, 3);  // ∂g/∂h
 
-        gradients[0] = new[] {
+        gradients[0] = [
             0.0, 1.0, 0.0,                           // ∂ḣ/∂[h,v,m]
             (-dFD_dh / m) - dg_dh, -dFD_dv / m, -((F * c) - F_D) / (m * m),  // ∂v̇/∂[h,v,m]
             0.0, 0.0, 0.0                            // ∂ṁ/∂[h,v,m]
-        };
+        ];
 
         // Gradients w.r.t. control: [∂ḣ/∂F, ∂v̇/∂F, ∂ṁ/∂F]
-        gradients[1] = new[] {
+        gradients[1] = [
             0.0,    // ∂ḣ/∂F
             c / m,  // ∂v̇/∂F
             -1.0    // ∂ṁ/∂F
-        };
+        ];
 
         return (value, gradients);
     }

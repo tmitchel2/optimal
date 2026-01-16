@@ -86,18 +86,18 @@ public sealed class BrachistochroneProblemSolver : ICommand
             .WithStateSize(3) // [x, y, v]
             .WithControlSize(1) // theta
             .WithTimeHorizon(0.0, tf)
-            .WithInitialCondition(new[] { X0, Y0, V0 })
-            .WithFinalCondition(new[] { Xf, Yf, double.NaN }) // Free final velocity
-            .WithControlBounds(new[] { 0.0 }, new[] { Math.PI / 2.0 })
+            .WithInitialCondition([X0, Y0, V0])
+            .WithFinalCondition([Xf, Yf, double.NaN]) // Free final velocity
+            .WithControlBounds([0.0], [Math.PI / 2.0])
             .WithStateBounds(
-                new[] { 0.0, 0.0, 1e-6 },
-                new[] { 15.0, 15.0, 20.0 })
-            .WithDynamics((x, u, t) =>
+                [0.0, 0.0, 1e-6],
+                [15.0, 15.0, 20.0])
+            .WithDynamics((x, u, _) =>
             {
                 var v = x[2];
                 var theta = u[0];
 
-                var (xrate, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(x[0], x[1], v, theta, Gravity);
+                var (xrate, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
                 var (yrate, yrateGrad) = BrachistochroneDynamicsGradients.YRateReverse(x[0], x[1], v, theta, Gravity);
                 var (vrate, vrateGrad) = BrachistochroneDynamicsGradients.VRateReverse(x[0], x[1], v, theta, Gravity);
 
@@ -105,16 +105,16 @@ public sealed class BrachistochroneProblemSolver : ICommand
 
                 // Gradients: [0]=state (3x3 flattened), [1]=control (3x1)
                 var gradients = new double[2][];
-                gradients[0] = new[] {
+                gradients[0] = [
                     xrateGrad[0], xrateGrad[1], xrateGrad[2],
                     yrateGrad[0], yrateGrad[1], yrateGrad[2],
                     vrateGrad[0], vrateGrad[1], vrateGrad[2]
-                };
-                gradients[1] = new[] { xrateGrad[3], yrateGrad[3], vrateGrad[3] };
+                ];
+                gradients[1] = [xrateGrad[3], yrateGrad[3], vrateGrad[3]];
 
                 return (value, gradients);
             })
-            .WithRunningCost((x, u, t) =>
+            .WithRunningCost((_, _, _) =>
             {
                 // Running cost = 1 (integral equals time)
                 var gradients = new double[5]; // [x, y, v, theta, t]
@@ -149,20 +149,20 @@ public sealed class BrachistochroneProblemSolver : ICommand
             .WithStateSize(4) // [x, y, v, T_f]
             .WithControlSize(1) // theta
             .WithTimeHorizon(0.0, 1.0) // Normalized time
-            .WithInitialCondition(new[] { X0, Y0, V0, tfGuess })
-            .WithFinalCondition(new[] { Xf, Yf, double.NaN, double.NaN }) // Free v and T_f
-            .WithControlBounds(new[] { 0.0 }, new[] { Math.PI / 2.0 })
+            .WithInitialCondition([X0, Y0, V0, tfGuess])
+            .WithFinalCondition([Xf, Yf, double.NaN, double.NaN]) // Free v and T_f
+            .WithControlBounds([0.0], [Math.PI / 2.0])
             .WithStateBounds(
-                new[] { 0.0, 0.0, 1e-6, 0.1 },
-                new[] { 15.0, 15.0, 20.0, 5.0 })
-            .WithDynamics((x, u, tau) =>
+                [0.0, 0.0, 1e-6, 0.1],
+                [15.0, 15.0, 20.0, 5.0])
+            .WithDynamics((x, u, _) =>
             {
                 var v = x[2];
                 var Tf = x[3];
                 var theta = u[0];
 
                 // Time-scaled dynamics: dx/dτ = T_f · (dx/dt)
-                var (xratePhys, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(x[0], x[1], v, theta, Gravity);
+                var (xratePhys, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
                 var (yratePhys, yrateGrad) = BrachistochroneDynamicsGradients.YRateReverse(x[0], x[1], v, theta, Gravity);
                 var (vratePhys, vrateGrad) = BrachistochroneDynamicsGradients.VRateReverse(x[0], x[1], v, theta, Gravity);
 
@@ -175,17 +175,17 @@ public sealed class BrachistochroneProblemSolver : ICommand
 
                 // Gradients w.r.t. state: chain rule ∂(T_f·f)/∂x = T_f·(∂f/∂x), ∂(T_f·f)/∂T_f = f
                 var gradients = new double[2][];
-                gradients[0] = new[] {
+                gradients[0] = [
                     Tf * xrateGrad[0], Tf * xrateGrad[1], Tf * xrateGrad[2], xratePhys,
                     Tf * yrateGrad[0], Tf * yrateGrad[1], Tf * yrateGrad[2], yratePhys,
                     Tf * vrateGrad[0], Tf * vrateGrad[1], Tf * vrateGrad[2], vratePhys,
                     0.0, 0.0, 0.0, 0.0
-                };
-                gradients[1] = new[] { Tf * xrateGrad[3], Tf * yrateGrad[3], Tf * vrateGrad[3], 0.0 };
+                ];
+                gradients[1] = [Tf * xrateGrad[3], Tf * yrateGrad[3], Tf * vrateGrad[3], 0.0];
 
                 return (value, gradients);
             })
-            .WithTerminalCost((x, tau) =>
+            .WithTerminalCost((x, _) =>
             {
                 var Tf = x[3];
                 var gradients = new double[5]; // [x, y, v, T_f, tau]
@@ -222,20 +222,20 @@ public sealed class BrachistochroneProblemSolver : ICommand
             .WithStateSize(4) // [x, y, v, T_f]
             .WithControlSize(1) // theta
             .WithTimeHorizon(0.0, 1.0) // Normalized time
-            .WithInitialCondition(new[] { X0, Y0, V0, tfGuess })
-            .WithFinalCondition(new[] { Xf, Yf, double.NaN, double.NaN }) // Free v and T_f
-            .WithControlBounds(new[] { 0.0 }, new[] { Math.PI / 2.0 })
+            .WithInitialCondition([X0, Y0, V0, tfGuess])
+            .WithFinalCondition([Xf, Yf, double.NaN, double.NaN]) // Free v and T_f
+            .WithControlBounds([0.0], [Math.PI / 2.0])
             .WithStateBounds(
-                new[] { 0.0, 0.0, 1e-6, 0.1 },
-                new[] { 15.0, 15.0, 20.0, 5.0 })
-            .WithDynamics((x, u, tau) =>
+                [0.0, 0.0, 1e-6, 0.1],
+                [15.0, 15.0, 20.0, 5.0])
+            .WithDynamics((x, u, _) =>
             {
                 var v = x[2];
                 var Tf = x[3];
                 var theta = u[0];
 
                 // Time-scaled dynamics (same as terminal cost variant)
-                var (xratePhys, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(x[0], x[1], v, theta, Gravity);
+                var (xratePhys, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
                 var (yratePhys, yrateGrad) = BrachistochroneDynamicsGradients.YRateReverse(x[0], x[1], v, theta, Gravity);
                 var (vratePhys, vrateGrad) = BrachistochroneDynamicsGradients.VRateReverse(x[0], x[1], v, theta, Gravity);
 
@@ -247,17 +247,17 @@ public sealed class BrachistochroneProblemSolver : ICommand
                 var value = new[] { xrate, yrate, vrate, Tfrate };
 
                 var gradients = new double[2][];
-                gradients[0] = new[] {
+                gradients[0] = [
                     Tf * xrateGrad[0], Tf * xrateGrad[1], Tf * xrateGrad[2], xratePhys,
                     Tf * yrateGrad[0], Tf * yrateGrad[1], Tf * yrateGrad[2], yratePhys,
                     Tf * vrateGrad[0], Tf * vrateGrad[1], Tf * vrateGrad[2], vratePhys,
                     0.0, 0.0, 0.0, 0.0
-                };
-                gradients[1] = new[] { Tf * xrateGrad[3], Tf * yrateGrad[3], Tf * vrateGrad[3], 0.0 };
+                ];
+                gradients[1] = [Tf * xrateGrad[3], Tf * yrateGrad[3], Tf * vrateGrad[3], 0.0];
 
                 return (value, gradients);
             })
-            .WithRunningCost((x, u, tau) =>
+            .WithRunningCost((x, _, _) =>
             {
                 var Tf = x[3];
                 // Running cost = T_f, so ∫₀¹ T_f dτ = T_f (since T_f is constant)

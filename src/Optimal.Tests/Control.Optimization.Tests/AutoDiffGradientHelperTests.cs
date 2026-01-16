@@ -6,7 +6,7 @@
  *
  */
 
-#pragma warning disable CA1861 // Prefer static readonly fields - not applicable for test clarity
+#pragma warning disable RCS1163 // Unused parameter
 
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -38,9 +38,9 @@ namespace Optimal.Control.Optimization.Tests
             var transcription = new HermiteSimpsonTranscription(problem, grid);
 
             var z = transcription.CreateInitialGuess(
-                new[] { 0.0 },
-                new[] { 1.0 },
-                new[] { 0.5 });
+                [0.0],
+                [1.0],
+                [0.5]);
 
             (double value, double[] gradients) RunningCostWithGradients(double[] x, double[] u, double t)
             {
@@ -58,7 +58,7 @@ namespace Optimal.Control.Optimization.Tests
                 problem, grid, z, transcription.GetState, transcription.GetControl,
                 RunningCostWithGradients);
 
-            var numericalGrad = ComputeNumericalRunningCostGradient(z, transcription, grid, RunningCost);
+            var numericalGrad = ComputeNumericalRunningCostGradient(z, transcription, RunningCost);
 
             for (var j = 0; j < z.Length; j++)
             {
@@ -79,9 +79,9 @@ namespace Optimal.Control.Optimization.Tests
             var transcription = new HermiteSimpsonTranscription(problem, grid);
 
             var z = transcription.CreateInitialGuess(
-                new[] { 1.0 },
-                new[] { 3.0 },
-                new[] { 0.5 });
+                [1.0],
+                [3.0],
+                [0.5]);
 
             (double value, double[] gradients) RunningCostWithGradients(double[] x, double[] u, double t)
             {
@@ -99,7 +99,7 @@ namespace Optimal.Control.Optimization.Tests
                 problem, grid, z, transcription.GetState, transcription.GetControl,
                 RunningCostWithGradients);
 
-            var numericalGrad = ComputeNumericalRunningCostGradient(z, transcription, grid, RunningCost);
+            var numericalGrad = ComputeNumericalRunningCostGradient(z, transcription, RunningCost);
 
             for (var j = 0; j < z.Length; j++)
             {
@@ -124,9 +124,9 @@ namespace Optimal.Control.Optimization.Tests
             var transcription = new HermiteSimpsonTranscription(problem, grid);
 
             var z = transcription.CreateInitialGuess(
-                new[] { 0.0 },
-                new[] { 2.0 },
-                new[] { 0.5 });
+                [0.0],
+                [2.0],
+                [0.5]);
 
             (double value, double[] gradients) TerminalCostWithGradients(double[] x, double t)
             {
@@ -144,7 +144,7 @@ namespace Optimal.Control.Optimization.Tests
                 transcription.GetState,
                 TerminalCostWithGradients);
 
-            var numericalGrad = ComputeNumericalTerminalCostGradient(z, transcription, grid.FinalTime, TerminalCost);
+            var numericalGrad = ComputeNumericalTerminalCostGradient(z, transcription, TerminalCost);
 
             for (var j = 0; j < z.Length; j++)
             {
@@ -165,9 +165,9 @@ namespace Optimal.Control.Optimization.Tests
             var transcription = new HermiteSimpsonTranscription(problem, grid);
 
             var z = transcription.CreateInitialGuess(
-                new[] { 0.0 },
-                new[] { 5.0 },
-                new[] { 1.0 });
+                [0.0],
+                [5.0],
+                [1.0]);
 
             (double value, double[] gradients) TerminalCostWithGradients(double[] x, double t)
             {
@@ -217,20 +217,20 @@ namespace Optimal.Control.Optimization.Tests
             var transcription = new HermiteSimpsonTranscription(problem, grid);
 
             var z = transcription.CreateInitialGuess(
-                new[] { 0.0 },
-                new[] { 1.0 },
-                new[] { 0.5 });
+                [0.0],
+                [1.0],
+                [0.5]);
 
             (double[] value, double[][] gradients) DynamicsWithGradients(double[] x, double[] u, double t)
             {
                 var value_ = new[] { u[0] };
                 var gradients_ = new double[2][];
-                gradients_[0] = new[] { 0.0 }; // df/dx
-                gradients_[1] = new[] { 1.0 }; // df/du
+                gradients_[0] = [0.0]; // df/dx
+                gradients_[1] = [1.0]; // df/du
                 return (value_, gradients_);
             }
 
-            double[] Dynamics(double[] x, double[] u, double t) => new[] { u[0] };
+            double[] Dynamics(double[] x, double[] u, double t) => [u[0]];
 
             // Test first defect
             var analyticalGrad = AutoDiffGradientHelper.ComputeDefectGradient(
@@ -259,22 +259,22 @@ namespace Optimal.Control.Optimization.Tests
             var transcription = new HermiteSimpsonTranscription(problem, grid);
 
             var z = transcription.CreateInitialGuess(
-                new[] { 0.0, 0.0 },
-                new[] { 4.0, 2.0 },
-                new[] { 1.0 });
+                [0.0, 0.0],
+                [4.0, 2.0],
+                [1.0]);
 
             (double[] value, double[][] gradients) DynamicsWithGradients(double[] x, double[] u, double t)
             {
                 var value_ = new[] { x[1], u[0] };
                 var gradients_ = new double[2][];
                 // df/dx: 2x2 matrix flattened [df0/dx0, df0/dx1, df1/dx0, df1/dx1]
-                gradients_[0] = new[] { 0.0, 1.0, 0.0, 0.0 };
+                gradients_[0] = [0.0, 1.0, 0.0, 0.0];
                 // df/du: 2x1 vector [df0/du, df1/du]
-                gradients_[1] = new[] { 0.0, 1.0 };
+                gradients_[1] = [0.0, 1.0];
                 return (value_, gradients_);
             }
 
-            double[] Dynamics(double[] x, double[] u, double t) => new[] { x[1], u[0] };
+            double[] Dynamics(double[] x, double[] u, double t) => [x[1], u[0]];
 
             // Test all defects
             var totalDefects = grid.Segments * problem.StateDim;
@@ -304,7 +304,6 @@ namespace Optimal.Control.Optimization.Tests
         private static double[] ComputeNumericalRunningCostGradient(
             double[] z,
             HermiteSimpsonTranscription transcription,
-            CollocationGrid grid,
             Func<double[], double[], double, double> runningCost)
         {
             var gradient = new double[z.Length];
@@ -330,7 +329,6 @@ namespace Optimal.Control.Optimization.Tests
         private static double[] ComputeNumericalTerminalCostGradient(
             double[] z,
             HermiteSimpsonTranscription transcription,
-            double finalTime,
             Func<double[], double, double> terminalCost)
         {
             var gradient = new double[z.Length];

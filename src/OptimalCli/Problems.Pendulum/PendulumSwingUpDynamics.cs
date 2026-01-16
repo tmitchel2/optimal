@@ -24,7 +24,9 @@ namespace OptimalCli.Problems.Pendulum
         /// <summary>
         /// Angular position rate: θ̇ (angular velocity)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double AngleRate(double theta, double thetadot, double u, double g, double L, double m)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return thetadot;
         }
@@ -37,7 +39,9 @@ namespace OptimalCli.Problems.Pendulum
         /// - m is pendulum mass
         /// - u is applied torque
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double AngularVelocityRate(double theta, double thetadot, double u, double g, double L, double m)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return -g / L * Math.Sin(theta) + u / (m * L * L);
         }
@@ -45,7 +49,9 @@ namespace OptimalCli.Problems.Pendulum
         /// <summary>
         /// Running cost: L = 0.5·u² (minimize control effort)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double RunningCost(double theta, double thetadot, double u)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return 0.5 * u * u;
         }
@@ -53,7 +59,9 @@ namespace OptimalCli.Problems.Pendulum
         /// <summary>
         /// Terminal cost: Φ = 0 (no terminal cost, only running cost)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double TerminalCost(double theta, double thetadot)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return 0.0;
         }

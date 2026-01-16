@@ -15,8 +15,8 @@ namespace Optimal.NonLinear.LineSearch.Tests
     [TestClass]
     public sealed class ParallelBacktrackingLineSearchTests
     {
-        private static readonly double[] s_quadraticStart = new[] { 5.0, 5.0 };
-        private static readonly double[] s_rosenbrockStart = new[] { -1.2, 1.0 };
+        private static readonly double[] s_quadraticStart = [5.0, 5.0];
+        private static readonly double[] s_rosenbrockStart = [-1.2, 1.0];
 
         [TestMethod]
         public void ParallelLineSearchFindsStepSizeForQuadraticFunction()

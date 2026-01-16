@@ -29,7 +29,7 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
             // so user functions take precedence
             if (transform != null)
             {
-                _rules.Add(new UserDefinedFunctionRule(this, doubleType, transform));
+                _rules.Add(new UserDefinedFunctionRule(this, transform));
             }
 
             _rules.Add(new MathFunctionRule(this, doubleType));
@@ -54,7 +54,7 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
             return statement switch
             {
                 AssignmentNode assignment => DifferentiateAssignment(assignment, context),
-                ReturnNode returnNode => DifferentiateReturn(returnNode, context),
+                ReturnNode returnNode => DifferentiateReturn(returnNode),
                 ConditionalNode => DifferentiateUsingRules(statement, context),
                 _ => throw new NotSupportedException($"Statement type not supported for differentiation: {statement.GetType().Name}")
             };
@@ -68,7 +68,7 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
             return assignment;
         }
 
-        private IRNode DifferentiateReturn(ReturnNode returnNode, ForwardModeContext context)
+        private IRNode DifferentiateReturn(ReturnNode returnNode)
         {
             return returnNode;
         }

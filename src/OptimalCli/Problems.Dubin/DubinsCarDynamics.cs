@@ -24,7 +24,9 @@ namespace OptimalCli.Problems.Dubin
         /// <summary>
         /// Horizontal position rate: ẋ = v·cos(θ)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double XRate(double x, double y, double theta, double v)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return v * Math.Cos(theta);
         }
@@ -32,7 +34,9 @@ namespace OptimalCli.Problems.Dubin
         /// <summary>
         /// Vertical position rate: ẏ = v·sin(θ)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double YRate(double x, double y, double theta, double v)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return v * Math.Sin(theta);
         }
@@ -40,7 +44,9 @@ namespace OptimalCli.Problems.Dubin
         /// <summary>
         /// Heading rate: θ̇ = ω (turning rate)
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double ThetaRate(double x, double y, double theta, double omega)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return omega;
         }
@@ -48,7 +54,9 @@ namespace OptimalCli.Problems.Dubin
         /// <summary>
         /// Running cost: Minimize control effort L = 0.1·ω²
         /// </summary>
+#pragma warning disable RCS1163 // Unused parameter
         public static double RunningCost(double x, double y, double theta, double omega)
+#pragma warning restore RCS1163 // Unused parameter
         {
             return 0.1 * omega * omega;
         }

@@ -14,12 +14,12 @@ namespace Optimal.Control.Core.Tests
     [TestClass]
     public sealed class ControlProblemTests
     {
-        private static readonly double[] s_initialState = new[] { 0.0, 0.0 };
-        private static readonly double[] s_finalState = new[] { 1.0, 0.0 };
-        private static readonly double[] s_controlLower = new[] { -1.0 };
-        private static readonly double[] s_controlUpper = new[] { 1.0 };
-        private static readonly double[] s_stateLower = new[] { -10.0, -5.0 };
-        private static readonly double[] s_stateUpper = new[] { 10.0, 5.0 };
+        private static readonly double[] s_initialState = [0.0, 0.0];
+        private static readonly double[] s_finalState = [1.0, 0.0];
+        private static readonly double[] s_controlLower = [-1.0];
+        private static readonly double[] s_controlUpper = [1.0];
+        private static readonly double[] s_stateLower = [-10.0, -5.0];
+        private static readonly double[] s_stateUpper = [10.0, 5.0];
 
         [TestMethod]
         public void CanBuildSimpleProblem()

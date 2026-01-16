@@ -20,8 +20,8 @@ namespace Optimal.Control.Solvers.Tests
     {
         private static readonly double[][] s_emptyGradients = Array.Empty<double[]>();
         private static readonly double[] s_emptyGradient = Array.Empty<double>();
-        private static readonly double[] s_initialState = new[] { 1.0, 0.0 };
-        private static readonly double[] s_finalState = new[] { 0.0, 0.0 };
+        private static readonly double[] s_initialState = [1.0, 0.0];
+        private static readonly double[] s_finalState = [0.0, 0.0];
 
         /// <summary>
         /// Benchmarks defect constraint computation: Sequential vs Parallel.
@@ -53,7 +53,7 @@ namespace Optimal.Control.Solvers.Tests
             var problem = new ControlProblem()
                 .WithStateSize(2)
                 .WithControlSize(1)
-                .WithDynamics((x, u, t) => (new[] { x[1], u[0] }, s_emptyGradients));
+                .WithDynamics((x, u, _) => (new[] { x[1], u[0] }, s_emptyGradients));
 
             var grid = new CollocationGrid(0, 1, segments);
             var z = CreateRandomDecisionVector(segments, 2, 1);
@@ -116,8 +116,8 @@ namespace Optimal.Control.Solvers.Tests
             var problem = new ControlProblem()
                 .WithStateSize(2)
                 .WithControlSize(1)
-                .WithDynamics((x, u, t) => (new[] { x[1], u[0] }, s_emptyGradients))
-                .WithRunningCost((x, u, t) => (0.5 * (x[0] * x[0] + u[0] * u[0]), s_emptyGradient));
+                .WithDynamics((x, u, _) => (new[] { x[1], u[0] }, s_emptyGradients))
+                .WithRunningCost((x, u, _) => (0.5 * (x[0] * x[0] + u[0] * u[0]), s_emptyGradient));
 
             var grid = new CollocationGrid(0, 1, segments);
             var z = CreateRandomDecisionVector(segments, 2, 1);
@@ -185,7 +185,7 @@ namespace Optimal.Control.Solvers.Tests
             var problem = new ControlProblem()
                 .WithStateSize(2)
                 .WithControlSize(1)
-                .WithRunningCost((x, u, t) => (0.5 * (x[0] * x[0] + x[1] * x[1] + u[0] * u[0]), s_emptyGradient));
+                .WithRunningCost((x, u, _) => (0.5 * (x[0] * x[0] + x[1] * x[1] + u[0] * u[0]), s_emptyGradient));
 
             var grid = new CollocationGrid(0, 1, segments);
             var z = CreateRandomDecisionVector(segments, 2, 1);
@@ -251,8 +251,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithStateSize(2)
                 .WithControlSize(1)
                 .WithTimeHorizon(0.0, 10.0)
-                .WithDynamics((x, u, t) => (new[] { x[1], u[0] }, s_emptyGradients))
-                .WithRunningCost((x, u, t) => (0.5 * (x[0] * x[0] + u[0] * u[0]), s_emptyGradient))
+                .WithDynamics((x, u, _) => (new[] { x[1], u[0] }, s_emptyGradients))
+                .WithRunningCost((x, u, _) => (0.5 * (x[0] * x[0] + u[0] * u[0]), s_emptyGradient))
                 .WithInitialCondition(s_initialState)
                 .WithFinalCondition(s_finalState);
 

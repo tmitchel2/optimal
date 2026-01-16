@@ -18,10 +18,10 @@ namespace Optimal.Control.Core.Tests
     [TestClass]
     public sealed class MultiPhaseTests
     {
-        private static readonly double[] s_zeroState1D = new[] { 0.0 };
-        private static readonly double[] s_oneState1D = new[] { 1.0 };
-        private static readonly double[] s_twoState1D = new[] { 2.0 };
-        private static readonly double[] s_zeroState2D = new[] { 0.0, 0.0 };
+        private static readonly double[] s_zeroState1D = [0.0];
+        private static readonly double[] s_oneState1D = [1.0];
+        private static readonly double[] s_twoState1D = [2.0];
+        private static readonly double[] s_zeroState2D = [0.0, 0.0];
 
         [TestMethod]
         public void CanCreateMultiPhaseProblem()
@@ -39,8 +39,8 @@ namespace Optimal.Control.Core.Tests
                     .WithTimeHorizon(0.0, 5.0)
                     .WithInitialCondition(s_zeroState1D)
                     .WithFinalCondition(s_oneState1D)
-                    .WithDynamics((x, u, t) => (new[] { u[0] }, new double[2][]))
-                    .WithRunningCost((x, u, t) => (u[0] * u[0], new double[3]))
+                    .WithDynamics((_, u, _) => (new[] { u[0] }, new double[2][]))
+                    .WithRunningCost((_, u, _) => (u[0] * u[0], new double[3]))
             };
 
             multiPhase.AddPhase(phase1);
@@ -105,9 +105,9 @@ namespace Optimal.Control.Core.Tests
             // Three-phase problem
             var multiPhase = new MultiPhaseControlProblem();
 
-            var phase1 = CreateSimplePhase("Phase1", 0.0, 2.0, s_zeroState1D, new[] { 0.5 });
-            var phase2 = CreateSimplePhase("Phase2", 2.0, 4.0, new[] { 0.5 }, s_oneState1D);
-            var phase3 = CreateSimplePhase("Phase3", 4.0, 6.0, s_oneState1D, new[] { 1.5 });
+            var phase1 = CreateSimplePhase("Phase1", 0.0, 2.0, s_zeroState1D, [0.5]);
+            var phase2 = CreateSimplePhase("Phase2", 2.0, 4.0, [0.5], s_oneState1D);
+            var phase3 = CreateSimplePhase("Phase3", 4.0, 6.0, s_oneState1D, [1.5]);
 
             multiPhase.AddPhase(phase1)
                      .AddPhase(phase2)
@@ -177,16 +177,16 @@ namespace Optimal.Control.Core.Tests
                     .WithControlSize(1)
                     .WithTimeHorizon(0.0, 1.5)
                     .WithInitialCondition(s_zeroState2D)
-                    .WithFinalCondition(new[] { 0.5, 0.5 }) // Some position and velocity
-                    .WithDynamics((x, u, t) =>
+                    .WithFinalCondition([0.5, 0.5]) // Some position and velocity
+                    .WithDynamics((x, u, _) =>
                     {
                         var value = new[] { x[1], u[0] };
                         var gradients = new double[2][];
-                        gradients[0] = new[] { 0.0, 1.0 };
-                        gradients[1] = new[] { 1.0, 0.0 };
+                        gradients[0] = [0.0, 1.0];
+                        gradients[1] = [1.0, 0.0];
                         return (value, gradients);
                     })
-                    .WithRunningCost((x, u, t) =>
+                    .WithRunningCost((_, u, _) =>
                     {
                         var value = 0.5 * u[0] * u[0];
                         var gradients = new double[3];
@@ -206,17 +206,17 @@ namespace Optimal.Control.Core.Tests
                     .WithStateSize(2)
                     .WithControlSize(1)
                     .WithTimeHorizon(1.5, 3.0)
-                    .WithInitialCondition(new[] { 0.5, 0.5 })
-                    .WithFinalCondition(new[] { 1.0, 0.0 }) // Stop at position 1
-                    .WithDynamics((x, u, t) =>
+                    .WithInitialCondition([0.5, 0.5])
+                    .WithFinalCondition([1.0, 0.0]) // Stop at position 1
+                    .WithDynamics((x, u, _) =>
                     {
                         var value = new[] { x[1], u[0] };
                         var gradients = new double[2][];
-                        gradients[0] = new[] { 0.0, 1.0 };
-                        gradients[1] = new[] { 1.0, 0.0 };
+                        gradients[0] = [0.0, 1.0];
+                        gradients[1] = [1.0, 0.0];
                         return (value, gradients);
                     })
-                    .WithRunningCost((x, u, t) =>
+                    .WithRunningCost((_, u, _) =>
                     {
                         var value = 0.5 * u[0] * u[0];
                         var gradients = new double[3];
@@ -308,15 +308,15 @@ namespace Optimal.Control.Core.Tests
                     .WithTimeHorizon(t0, tf)
                     .WithInitialCondition(initialState)
                     .WithFinalCondition(finalState)
-                    .WithDynamics((x, u, t) =>
+                    .WithDynamics((_, u, _) =>
                     {
                         var value = new[] { u[0] };
                         var gradients = new double[2][];
-                        gradients[0] = new[] { 0.0 };
-                        gradients[1] = new[] { 1.0 };
+                        gradients[0] = [0.0];
+                        gradients[1] = [1.0];
                         return (value, gradients);
                     })
-                    .WithRunningCost((x, u, t) =>
+                    .WithRunningCost((_, u, _) =>
                     {
                         var value = 0.5 * u[0] * u[0];
                         var gradients = new double[3];

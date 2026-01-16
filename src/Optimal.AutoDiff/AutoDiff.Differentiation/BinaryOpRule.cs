@@ -40,7 +40,7 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
                 BinaryOperator.Subtract => DifferentiateSubtract(binOp, dLeft, dRight, context),
                 BinaryOperator.Multiply => DifferentiateMultiply(binOp, dLeft, dRight, context),
                 BinaryOperator.Divide => DifferentiateDivide(binOp, dLeft, dRight, context),
-                BinaryOperator.Power => DifferentiatePower(binOp, dLeft, dRight, context),
+                BinaryOperator.Power => DifferentiatePower(binOp, dLeft, context),
                 BinaryOperator.GreaterThan or
                 BinaryOperator.LessThan or
                 BinaryOperator.GreaterThanOrEqual or
@@ -79,7 +79,7 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
             return new BinaryOpNode(context.NewNodeId(), BinaryOperator.Divide, numerator, denominator, node.Type);
         }
 
-        private IRNode DifferentiatePower(BinaryOpNode node, IRNode dLeft, IRNode dRight, ForwardModeContext context)
+        private IRNode DifferentiatePower(BinaryOpNode node, IRNode dLeft, ForwardModeContext context)
         {
             if (node.Right is ConstantNode constant)
             {

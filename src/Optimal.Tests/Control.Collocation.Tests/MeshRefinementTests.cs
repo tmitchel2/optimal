@@ -19,10 +19,10 @@ namespace Optimal.Control.Collocation.Tests
     [TestClass]
     public sealed class MeshRefinementTests
     {
-        private static readonly double[] s_zeroState1D = new[] { 0.0 };
-        private static readonly double[] s_oneState1D = new[] { 1.0 };
+        private static readonly double[] s_zeroState1D = [0.0];
+        private static readonly double[] s_oneState1D = [1.0];
 #pragma warning disable IDE0052 // Remove unread private members
-        private static readonly double[] s_zeroState2D = new[] { 0.0, 0.0 };
+        private static readonly double[] s_zeroState2D = [0.0, 0.0];
 #pragma warning restore IDE0052 // Remove unread private members
 
         [TestMethod]
@@ -85,15 +85,15 @@ namespace Optimal.Control.Collocation.Tests
                 .WithTimeHorizon(0.0, 10.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((__, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0 };
-                    gradients[1] = new[] { 1.0 };
+                    gradients[0] = [0.0];
+                    gradients[1] = [1.0];
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((__, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[3];
@@ -136,13 +136,13 @@ namespace Optimal.Control.Collocation.Tests
                 .WithTimeHorizon(0.0, 5.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((__, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((__, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[3];
@@ -189,8 +189,8 @@ namespace Optimal.Control.Collocation.Tests
                 .WithControlSize(1)
                 .WithTimeHorizon(0.0, 4.0)
                 .WithInitialCondition(s_zeroState1D)
-                .WithFinalCondition(new[] { 2.0 })
-                .WithDynamics((x, u, t) =>
+                .WithFinalCondition([2.0])
+                .WithDynamics((_, u, t) =>
                 {
                     // Time-varying dynamics
                     var multiplier = 1.0 + 10.0 * Math.Sin(5.0 * t);
@@ -198,7 +198,7 @@ namespace Optimal.Control.Collocation.Tests
                     var gradients = new double[2][];
                     return (value, gradients);
                 })
-                .WithRunningCost((x, u, t) =>
+                .WithRunningCost((__, u, _) =>
                 {
                     var value = u[0] * u[0];
                     var gradients = new double[3];

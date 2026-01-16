@@ -57,8 +57,8 @@ namespace Optimal.AutoDiff.Analyzers
                     .SyntaxProvider
                     .ForAttributeWithMetadataName(
                         "Optimal.OptimalCodeAttribute",
-                        predicate: static (node, cancelToken) => HasOptimalAttribute(node),
-                        transform: static (ctx, cancelToken) => GetTransform(ctx));
+                        predicate: static (node, _) => HasOptimalAttribute(node),
+                        transform: static (ctx, _) => GetTransform(ctx));
 
                 var combined = graphNodeProvider.Combine(compilationProvider);
 
@@ -136,8 +136,8 @@ namespace Optimal.AutoDiff.Analyzers
                         try
                         {
                             GeneratorLogging.LogMessage($"    Generating reverse mode (all parameters)");
-                            var reverseGenerator = new CodeGen.ReverseModeCodeGenerator(doubleType);
-                            var reverseCode = reverseGenerator.GenerateMethod(method, doubleType);
+                            var reverseGenerator = new CodeGen.ReverseModeCodeGenerator();
+                            var reverseCode = reverseGenerator.GenerateMethod(method);
                             sb.Append(reverseCode);
                             sb.AppendLine();
                         }

@@ -18,10 +18,10 @@ namespace Optimal.Control.Optimization.Tests
     [TestClass]
     public sealed class ConstraintConfiguratorTests
     {
-        private static readonly double[] s_zeroState1D = new[] { 0.0 };
-        private static readonly double[] s_oneState1D = new[] { 1.0 };
-        private static readonly double[] s_zeroState2D = new[] { 0.0, 0.0 };
-        private static readonly double[] s_oneZeroState2D = new[] { 1.0, 0.0 };
+        private static readonly double[] s_zeroState1D = [0.0];
+        private static readonly double[] s_oneState1D = [1.0];
+        private static readonly double[] s_zeroState2D = [0.0, 0.0];
+        private static readonly double[] s_oneZeroState2D = [1.0, 0.0];
 
         [TestMethod]
         public void AddDefectConstraintsAddsCorrectNumberOfConstraints()
@@ -49,12 +49,12 @@ namespace Optimal.Control.Optimization.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState2D)
                 .WithFinalCondition(s_oneZeroState2D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((x, u, _) =>
                 {
                     var value = new[] { x[1], u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new double[4] { 0.0, 1.0, 0.0, 0.0 };
-                    gradients[1] = new double[2] { 0.0, 1.0 };
+                    gradients[0] = [0.0, 1.0, 0.0, 0.0];
+                    gradients[1] = [0.0, 1.0];
                     return (value, gradients);
                 });
 
@@ -91,7 +91,7 @@ namespace Optimal.Control.Optimization.Tests
                 .WithStateSize(1)
                 .WithControlSize(1)
                 .WithTimeHorizon(0.0, 1.0)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
@@ -133,8 +133,8 @@ namespace Optimal.Control.Optimization.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithControlBounds(new[] { -1.0 }, new[] { 1.0 })
-                .WithDynamics((x, u, t) =>
+                .WithControlBounds([-1.0], [1.0])
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
@@ -160,9 +160,9 @@ namespace Optimal.Control.Optimization.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithStateBounds(new[] { -5.0 }, new[] { 5.0 })
-                .WithControlBounds(new[] { -1.0 }, new[] { 1.0 })
-                .WithDynamics((x, u, t) =>
+                .WithStateBounds([-5.0], [5.0])
+                .WithControlBounds([-1.0], [1.0])
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
@@ -203,13 +203,13 @@ namespace Optimal.Control.Optimization.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     return (value, gradients);
                 })
-                .WithPathConstraint((x, u, t) =>
+                .WithPathConstraint((x, _, _) =>
                 {
                     // x[0] <= 2.0 expressed as x[0] - 2.0 <= 0
                     var value = x[0] - 2.0;
@@ -236,12 +236,12 @@ namespace Optimal.Control.Optimization.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0 };
-                    gradients[1] = new[] { 1.0 };
+                    gradients[0] = [0.0];
+                    gradients[1] = [1.0];
                     return (value, gradients);
                 });
 
@@ -264,12 +264,12 @@ namespace Optimal.Control.Optimization.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((x, u, t) =>
+                .WithDynamics((_, u, _) =>
                 {
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
-                    gradients[0] = new[] { 0.0 };
-                    gradients[1] = new[] { 1.0 };
+                    gradients[0] = [0.0];
+                    gradients[1] = [1.0];
                     return (value, gradients);
                 });
         }

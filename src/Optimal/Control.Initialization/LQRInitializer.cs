@@ -53,33 +53,7 @@ namespace Optimal.Control.Initialization
                 var xNominal = nominalTrajectory.states[k];
                 var uNominal = nominalTrajectory.controls[k];
 
-                // Linearize dynamics: ẋ ≈ A·(x - x̄) + B·(u - ū)
-                var (A, B) = LinearizeDynamics(problem.Dynamics!, xNominal, uNominal, t);
-
-                // Solve discrete-time LQR for this time point
-                // For simplicity, use a heuristic: u = ū - K·(x - x̄)
-                // Where K is chosen to stabilize toward target
-                var K = ComputeSimpleGain(A, B, Q, R, nStates, nControls);
-
-                // Apply feedback control
-                var xDesired = GetDesiredState(problem, k, nPoints);
-                var deltaX = new double[nStates];
-                for (var i = 0; i < nStates; i++)
-                {
-                    deltaX[i] = xDesired[i] - xNominal[i];
-                }
-
-                var control = new double[nControls];
-                for (var i = 0; i < nControls; i++)
-                {
-                    control[i] = uNominal[i];
-                    for (var j = 0; j < nStates; j++)
-                    {
-                        control[i] += K[i, j] * deltaX[j];
-                    }
-                }
-
-                // Integrate forward one step to get state
+                // Compute state at this time point first (needed for feedback)
                 double[] state;
                 if (k == 0)
                 {
@@ -90,13 +64,34 @@ namespace Optimal.Control.Initialization
                     var dt = grid.TimePoints[k] - grid.TimePoints[k - 1];
                     var xPrev = transcription.GetState(initialGuess, k - 1);
                     var uPrev = transcription.GetControl(initialGuess, k - 1);
-                    
+
                     // Simple forward Euler integration
                     var (f, _) = problem.Dynamics!(xPrev, uPrev, grid.TimePoints[k - 1]);
                     state = new double[nStates];
                     for (var i = 0; i < nStates; i++)
                     {
-                        state[i] = xPrev[i] + dt * f[i];
+                        state[i] = xPrev[i] + (dt * f[i]);
+                    }
+                }
+
+                // Linearize dynamics: ẋ ≈ A·(x - x̄) + B·(u - ū)
+                var (A, B) = LinearizeDynamics(problem.Dynamics!, xNominal, uNominal, t);
+
+                // Solve continuous-time algebraic Riccati equation for LQR gain
+                // K = R⁻¹B'P where P solves the CARE
+                var K = ComputeSimpleGain(A, B, Q, R, nStates, nControls);
+
+                // Apply LQR feedback control: u = -K * (x - xTarget)
+                // Use final state as target for regulation
+                var xTarget = problem.FinalState ?? new double[nStates];
+                var control = new double[nControls];
+                for (var i = 0; i < nControls; i++)
+                {
+                    control[i] = uNominal[i];
+                    for (var j = 0; j < nStates; j++)
+                    {
+                        // Feedback drives state toward target: u = -K * (state - target)
+                        control[i] -= K[i, j] * (state[j] - xTarget[j]);
                     }
                 }
 
@@ -144,7 +139,7 @@ namespace Optimal.Control.Initialization
                     var xPerturb = (double[])xNominal.Clone();
                     xPerturb[j] += epsilon;
                     var (fPerturb, _) = dynamics(xPerturb, uNominal, t);
-                    
+
                     for (var i = 0; i < nStates; i++)
                     {
                         A[i, j] = (fPerturb[i] - f[i]) / epsilon;
@@ -172,7 +167,7 @@ namespace Optimal.Control.Initialization
                     var uPerturb = (double[])uNominal.Clone();
                     uPerturb[j] += epsilon;
                     var (fPerturb, _) = dynamics(xNominal, uPerturb, t);
-                    
+
                     for (var i = 0; i < nStates; i++)
                     {
                         B[i, j] = (fPerturb[i] - f[i]) / epsilon;
@@ -184,8 +179,9 @@ namespace Optimal.Control.Initialization
         }
 
         /// <summary>
-        /// Computes a simple proportional gain matrix K.
-        /// For full LQR, would solve Riccati equation. Here we use a heuristic.
+        /// Computes the LQR gain matrix K by solving the continuous-time algebraic Riccati equation.
+        /// CARE: A'P + PA - PBR⁻¹B'P + Q = 0
+        /// Gain: K = R⁻¹B'P
         /// </summary>
         private static double[,] ComputeSimpleGain(
             double[,] A,
@@ -195,30 +191,22 @@ namespace Optimal.Control.Initialization
             int nStates,
             int nControls)
         {
-            var K = new double[nControls, nStates];
+            // Solve CARE and compute gain
+            var P = SolveContinuousRiccati(A, B, Q, R, nStates, nControls);
 
-            // Simple heuristic: K = -R^{-1} * B^T * Q
-            // This is not the full LQR solution but gives reasonable gains
+            // Compute K = R^{-1} * B' * P
+            var K = new double[nControls, nStates];
             for (var i = 0; i < nControls; i++)
             {
                 for (var j = 0; j < nStates; j++)
                 {
-                    var gain = 0.0;
+                    var sum = 0.0;
                     for (var k = 0; k < nStates; k++)
                     {
-                        gain += B[k, i] * Q[k];
+                        sum += B[k, i] * P[k, j];
                     }
-                    K[i, j] = -gain / (R[i] + 1e-6);
-                }
-            }
 
-            // Scale down for stability
-            var scale = 0.1;
-            for (var i = 0; i < nControls; i++)
-            {
-                for (var j = 0; j < nStates; j++)
-                {
-                    K[i, j] *= scale;
+                    K[i, j] = sum / (R[i] + 1e-10);
                 }
             }
 
@@ -226,42 +214,187 @@ namespace Optimal.Control.Initialization
         }
 
         /// <summary>
-        /// Gets the desired state at a given time point.
-        /// Interpolates between initial and final conditions.
+        /// Solves the continuous-time algebraic Riccati equation using iterative method.
+        /// For scalar systems, uses closed-form solution.
         /// </summary>
-        private static double[] GetDesiredState(ControlProblem problem, int k, int nPoints)
+        private static double[,] SolveContinuousRiccati(
+            double[,] A,
+            double[,] B,
+            double[] Q,
+            double[] R,
+            int nStates,
+            int nControls)
         {
-            var alpha = (double)k / (nPoints - 1);
-            var nStates = problem.StateDim;
-            var desired = new double[nStates];
+            var P = new double[nStates, nStates];
 
-            var x0 = problem.InitialState;
-            var xf = problem.FinalState;
+            // For scalar (1D) case, use closed-form solution
+            if (nStates == 1 && nControls == 1)
+            {
+                var a = A[0, 0];
+                var b = B[0, 0];
+                var q = Q[0];
+                var r = R[0];
 
-            if (x0 != null && xf != null)
-            {
-                for (var i = 0; i < nStates; i++)
+                // CARE for scalar: 2aP - P²b²/r + q = 0
+                // Solving: P = (ar + sqrt(a²r² + qrb²)) / b²
+                // Taking positive root for stability
+                var bSq = b * b;
+                if (Math.Abs(bSq) < 1e-10)
                 {
-                    desired[i] = (1 - alpha) * x0[i] + alpha * xf[i];
+                    // Degenerate case: no control authority
+                    P[0, 0] = q;
                 }
-            }
-            else if (x0 != null)
-            {
-                for (var i = 0; i < nStates; i++)
+                else
                 {
-                    desired[i] = x0[i];
+                    var discriminant = a * a * r * r + q * r * bSq;
+                    P[0, 0] = (a * r + Math.Sqrt(discriminant)) / bSq;
                 }
-            }
-            else
-            {
-                // Default to zeros
-                for (var i = 0; i < nStates; i++)
-                {
-                    desired[i] = 0.0;
-                }
+
+                return P;
             }
 
-            return desired;
+            // For multi-dimensional case, use iterative solver
+            // Initialize P with diagonal Q
+            for (var i = 0; i < nStates; i++)
+            {
+                P[i, i] = Q[i];
+            }
+
+            // Precompute R inverse diagonal
+            var RInv = new double[nControls];
+            for (var i = 0; i < nControls; i++)
+            {
+                RInv[i] = 1.0 / (R[i] + 1e-10);
+            }
+
+            // Iterative solution using fixed-point iteration
+            const int maxIterations = 100;
+            const double tolerance = 1e-8;
+
+            for (var iter = 0; iter < maxIterations; iter++)
+            {
+                var PNew = new double[nStates, nStates];
+
+                // Compute P_new = A'P + PA - PBR^{-1}B'P + Q
+                // This is the Riccati residual set to zero, we iterate toward the solution
+
+                // For stability, we use the Kleinman iteration:
+                // Given current P, compute K = R^{-1}B'P
+                // Then solve Lyapunov equation: (A-BK)'P_new + P_new(A-BK) + K'RK + Q = 0
+                // Simplified: we use gradient descent on P
+
+                // Compute BRinvBT
+                var BRinvBT = new double[nStates, nStates];
+                for (var i = 0; i < nStates; i++)
+                {
+                    for (var j = 0; j < nStates; j++)
+                    {
+                        for (var k = 0; k < nControls; k++)
+                        {
+                            BRinvBT[i, j] += B[i, k] * RInv[k] * B[j, k];
+                        }
+                    }
+                }
+
+                // Compute A'P
+                var ATP = new double[nStates, nStates];
+                for (var i = 0; i < nStates; i++)
+                {
+                    for (var j = 0; j < nStates; j++)
+                    {
+                        for (var k = 0; k < nStates; k++)
+                        {
+                            ATP[i, j] += A[k, i] * P[k, j];
+                        }
+                    }
+                }
+
+                // Compute PA
+                var PA = new double[nStates, nStates];
+                for (var i = 0; i < nStates; i++)
+                {
+                    for (var j = 0; j < nStates; j++)
+                    {
+                        for (var k = 0; k < nStates; k++)
+                        {
+                            PA[i, j] += P[i, k] * A[k, j];
+                        }
+                    }
+                }
+
+                // Compute PBRinvBTP
+                var PBRinvBTP = new double[nStates, nStates];
+                for (var i = 0; i < nStates; i++)
+                {
+                    for (var j = 0; j < nStates; j++)
+                    {
+                        for (var k = 0; k < nStates; k++)
+                        {
+                            PBRinvBTP[i, j] += P[i, k] * BRinvBT[k, j];
+                        }
+                    }
+                }
+
+                // Final multiplication with P on the right
+                var PBRinvBTPP = new double[nStates, nStates];
+                for (var i = 0; i < nStates; i++)
+                {
+                    for (var j = 0; j < nStates; j++)
+                    {
+                        for (var k = 0; k < nStates; k++)
+                        {
+                            PBRinvBTPP[i, j] += PBRinvBTP[i, k] * P[k, j];
+                        }
+                    }
+                }
+
+                // Newton-like update: P_new = (A'P + PA + Q + PBR^{-1}B'P) / 2 with adjustment
+                // Using a simpler fixed-point: solve for steady-state
+                // We use: P_new_ij = (A'P + PA + Q - PBR^{-1}B'P) elements scaled appropriately
+
+                // Actually, let's use direct iteration with damping
+                var maxChange = 0.0;
+                for (var i = 0; i < nStates; i++)
+                {
+                    for (var j = 0; j < nStates; j++)
+                    {
+                        // Residual of Riccati equation
+                        var residual = ATP[i, j] + PA[i, j] - PBRinvBTPP[i, j];
+                        if (i == j)
+                        {
+                            residual += Q[i];
+                        }
+
+                        // For the Riccati equation at equilibrium, residual should be zero
+                        // Update P in direction that reduces residual
+                        // Using gradient step: P_new = P + alpha * residual (simplified)
+                        var alpha = 0.5;
+                        PNew[i, j] = P[i, j] + alpha * residual;
+
+                        maxChange = Math.Max(maxChange, Math.Abs(PNew[i, j] - P[i, j]));
+                    }
+                }
+
+                // Ensure symmetry
+                for (var i = 0; i < nStates; i++)
+                {
+                    for (var j = i + 1; j < nStates; j++)
+                    {
+                        var avg = (PNew[i, j] + PNew[j, i]) / 2.0;
+                        PNew[i, j] = avg;
+                        PNew[j, i] = avg;
+                    }
+                }
+
+                P = PNew;
+
+                if (maxChange < tolerance)
+                {
+                    break;
+                }
+            }
+
+            return P;
         }
 
         /// <summary>
@@ -279,7 +412,7 @@ namespace Optimal.Control.Initialization
             for (var k = 0; k < nPoints; k++)
             {
                 var alpha = (double)k / (nPoints - 1);
-                
+
                 // Interpolate state
                 states[k] = new double[problem.StateDim];
                 if (problem.InitialState != null && problem.FinalState != null)
