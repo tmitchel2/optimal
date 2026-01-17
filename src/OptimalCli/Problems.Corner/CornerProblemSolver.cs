@@ -67,7 +67,7 @@ public sealed class CornerProblemSolver : ICommand
         Console.WriteLine($"  Arc length: {ArcLength:F3} m (π × {CornerDynamics.CenterlineRadius} / 2)");
         Console.WriteLine($"  Road half-width: {RoadHalfWidth} m");
         Console.WriteLine($"  Initial state: s=0, n=free, θ=0, v={initialVelocity} m/s");
-        Console.WriteLine($"  Final state: s={sFinal:F1}, n=free, θ=-π/2, v=free");
+        Console.WriteLine($"  Final state: s={sFinal:F1}, n=free, θ=+π/2, v=free");
         Console.WriteLine($"  Acceleration bounds: [{maxDecel}, {maxAccel}] m/s²");
         Console.WriteLine($"  Steering rate bounds: [-{maxSteerRate}, {maxSteerRate}] rad/s");
         Console.WriteLine($"  Final time T_f: free (to be optimized, guess {tfGuess} s)");
@@ -83,7 +83,7 @@ public sealed class CornerProblemSolver : ICommand
             .WithControlSize(2) // [a, ω]
             .WithTimeHorizon(0.0, 1.0) // Normalized time τ ∈ [0, 1]
             .WithInitialCondition([sInit, double.NaN, 0.0, initialVelocity, tfGuess]) // Start at s=0, n=free, heading east
-            .WithFinalCondition([sFinal, double.NaN, -Math.PI / 2.0, double.NaN, double.NaN]) // End at exit, n=free, heading south, free v, T_f
+            .WithFinalCondition([sFinal, double.NaN, Math.PI / 2.0, double.NaN, double.NaN]) // End at exit, n=free, heading south (θ=+π/2), free v, T_f
             .WithControlBounds([maxDecel, -maxSteerRate], [maxAccel, maxSteerRate])
             .WithStateBounds(
                 [-1.0, -RoadHalfWidth, -Math.PI, 1.0, 0.5],  // Min: s >= -1, n >= -RoadHalfWidth, θ, v >= 1 m/s, T_f >= 0.5s
@@ -152,10 +152,10 @@ public sealed class CornerProblemSolver : ICommand
                 gradients[4] = 1.0; // ∂Φ/∂T_f = 1
                 return (Tf, gradients);
             })
-            // Road boundary constraints with safety margin to avoid singularity at apex
+            // Road boundary constraints
             // The singularity occurs at n = CenterlineRadius = 5 where denominator 1 - n*κ = 0
-            // Use a margin of 0.5m to keep away from the singularity
-            // Left boundary: n >= -RoadHalfWidth  =>  -RoadHalfWidth - n <= 0
+            // This is on the INSIDE of the turn (positive n), so only the right boundary needs a margin
+            // Left boundary (outside of turn): n >= -RoadHalfWidth (no margin needed, no singularity)
             .WithPathConstraint((x, _, _) =>
             {
                 var n = x[1];
@@ -163,8 +163,8 @@ public sealed class CornerProblemSolver : ICommand
                 var grads = new[] { 0.0, -1.0, 0.0, 0.0, 0.0 };
                 return (violation, grads);
             })
-            // Right boundary: n <= RoadHalfWidth - margin  =>  n - (RoadHalfWidth - margin) <= 0
-            // This prevents getting too close to the apex singularity
+            // Right boundary (inside of turn): n <= RoadHalfWidth - margin
+            // Use margin of 0.5m to keep away from the apex singularity
             .WithPathConstraint((x, _, _) =>
             {
                 var n = x[1];
@@ -236,6 +236,11 @@ public sealed class CornerProblemSolver : ICommand
                         .WithInitialPenalty(50.0) // Higher initial penalty to enforce constraints more strongly
                         .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                         {
+                            if (iteration == 1857)
+                            {
+                                Console.WriteLine("Breakpoint hit at iteration 1861");
+                            }
+
                             var token = RadiantCornerVisualizer.CancellationToken;
                             if (token.IsCancellationRequested)
                             {
@@ -245,7 +250,7 @@ public sealed class CornerProblemSolver : ICommand
                         });
 
                 // Create centerline initial guess (n=0 throughout)
-                var initialGuess = CreateCenterlineInitialGuess(30, sInit, sFinal, initialVelocity, tfGuess);
+                var initialGuess = CreateCenterlineInitialGuess(30, sInit, sFinal, initialVelocity);
 
                 var result = solver.Solve(problem, initialGuess);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
@@ -320,115 +325,75 @@ public sealed class CornerProblemSolver : ICommand
         int segments,
         double sInit,
         double sFinal,
-        double initialVelocity,
-        double tfGuess)
+        double initialVelocity)
     {
+        // Simple centerline initial guess:
+        // - Follow exact centerline (n = 0)
+        // - Match road heading exactly (θ = θ_road)
+        // - Constant velocity throughout
+        // - Integrate forward to get consistent state values
+        //
+        // On the centerline with θ = θ_road:
+        // - ṡ = v (since cos(0) = 1 and denominator = 1 when n = 0)
+        // - ṅ = 0 (since sin(0) = 0)
+        // - θ̇ = ω = dθ_road/dt = (dθ_road/ds) × ṡ = (dθ_road/ds) × v
+
         var numNodes = segments + 1;
         var stateTrajectory = new double[numNodes][];
         var controlTrajectory = new double[numNodes][];
 
-        // Racing line strategy:
-        // - Entry: Move to outside of turn (n < 0 for right turn)
-        // - Apex: Cut toward inside (n > 0), but stay away from singularity
-        // - Exit: Return to outside (n < 0)
-        //
-        // With n ≠ 0, the effective curvature is κ_eff = κ / (1 - n × κ)
-        // Outside (n < 0): κ_eff < κ, larger radius, allows higher speed
-        // Inside (n > 0): κ_eff > κ, smaller radius, lower speed but shorter path
-        //
-        // The optimal racing line balances these effects for minimum time.
+        var totalDistance = sFinal - sInit;
+        var velocity = initialVelocity;
 
-        var entryEnd = CornerDynamics.EntryLength;
+        // Time to traverse at constant velocity
+        var Tf = totalDistance / velocity;
+
+        // Arc geometry for steering rate calculation
         var arcLength = CornerDynamics.ArcLength;
+        var entryEnd = CornerDynamics.EntryLength;
         var arcEnd = entryEnd + arcLength;
 
-        // Racing line lateral position profile
-        // Use road half-width with margin to avoid singularity
-        const double OutsideN = -3.5;  // Outside of turn (70% of road width)
-        const double ApexN = 3.0;      // Inside toward apex (60% of road width, safe margin from singularity)
-
-        // Maximum steering rate
-        const double MaxSteerRate = 1.0;
+        // During arc: dθ_road/ds = +π / (2 × arcLength) = +1/R (left-hand rule: right turn increases θ)
+        // So ω = dθ_road/ds × v = +v/R
+        var arcSteeringRate = velocity / CornerDynamics.CenterlineRadius;
 
         for (var k = 0; k < numNodes; k++)
         {
             var tau = (double)k / segments;
 
-            // Compute s linearly first (will adjust velocity to match)
-            var s = (1.0 - tau) * sInit + tau * sFinal;
+            // Linear interpolation of s (exact for constant velocity on centerline)
+            var s = sInit + tau * totalDistance;
 
-            // Racing line lateral position profile based on s
-            double n;
-            if (s < entryEnd * 0.5)
+            // Centerline: n = 0
+            var n = 0.0;
+
+            // Follow road heading exactly
+            var theta = CornerDynamics.RoadHeading(s);
+
+            // State: [s, n, θ, v, Tf]
+            stateTrajectory[k] = new[] { s, n, theta, velocity, Tf };
+
+            // Control: [a, ω]
+            // - Acceleration = 0 (constant velocity)
+            // - Steering rate = dθ_road/dt to follow road heading
+            double omega;
+            if (s < entryEnd)
             {
-                // Early entry: stay on centerline, transition to outside
-                var progress = s / (entryEnd * 0.5);
-                n = progress * OutsideN;
-            }
-            else if (s < entryEnd)
-            {
-                // Late entry: on outside, preparing for turn
-                n = OutsideN;
-            }
-            else if (s < entryEnd + arcLength * 0.5)
-            {
-                // First half of arc: transition from outside to apex
-                var arcProgress = (s - entryEnd) / (arcLength * 0.5);
-                n = OutsideN + arcProgress * (ApexN - OutsideN);
+                // Entry straight: no steering needed
+                omega = 0.0;
             }
             else if (s < arcEnd)
             {
-                // Second half of arc: transition from apex back to outside
-                var arcProgress = (s - entryEnd - arcLength * 0.5) / (arcLength * 0.5);
-                n = ApexN + arcProgress * (OutsideN - ApexN);
-            }
-            else if (s < arcEnd + (sFinal - arcEnd) * 0.5)
-            {
-                // Early exit: still on outside
-                n = OutsideN;
+                // Arc: steer at constant rate to follow centerline
+                omega = arcSteeringRate;
             }
             else
             {
-                // Late exit: transition back to centerline
-                var exitProgress = (s - arcEnd - (sFinal - arcEnd) * 0.5) / ((sFinal - arcEnd) * 0.5);
-                n = OutsideN * (1.0 - exitProgress);
+                // Exit straight: no steering needed
+                omega = 0.0;
             }
 
-            // Road curvature and effective curvature
-            var kappa = CornerDynamics.RoadCurvature(s);
-            var denominator = 1.0 - n * kappa;
-            var kappaEff = denominator > 0.1 ? kappa / denominator : kappa / 0.1;  // Safety clamp
-
-            // Velocity based on effective curvature to respect steering rate
-            // ω = v × κ_eff, so v_max = MaxSteerRate / κ_eff
-            var velocity = kappaEff > 0.01
-                ? Math.Min(initialVelocity, MaxSteerRate / kappaEff)
-                : initialVelocity;
-
-            // Ensure minimum velocity
-            velocity = Math.Max(velocity, 3.0);
-
-            // Use actual road heading at position s (vehicle follows road direction)
-            var theta = CornerDynamics.RoadHeading(s);
-
-            // T_f = guess
-            var state = new[] { s, n, theta, velocity, tfGuess };
-
-            // Control: [a, ω]
-            // ω = -κ_eff × v (physical steering rate for effective curvature)
-            var omega = -kappaEff * velocity;
-
-            // Clamp steering rate to bounds
-            omega = Math.Clamp(omega, -MaxSteerRate, MaxSteerRate);
-
-            // Acceleration: approximate from velocity changes
-            // For simplicity, use 0 (let optimizer figure out the accelerations)
-            var accel = 0.0;
-
-            var control = new[] { accel, omega };
-
-            stateTrajectory[k] = state;
-            controlTrajectory[k] = control;
+            controlTrajectory[k] = new[] { 0.0, omega };
         }
 
         return new InitialGuess(stateTrajectory, controlTrajectory);

@@ -33,22 +33,22 @@ namespace Optimal.Problems.Corner.Tests
         [TestMethod]
         public void RoadHeadingInArcRegionVariesLinearly()
         {
-            // At middle of arc, heading should be -π/4
+            // At middle of arc, heading should be +π/4 (left-hand rule: clockwise is positive)
             var entryEnd = CornerDynamics.EntryLength;
             var arcLength = CornerDynamics.ArcLength;
             var s = entryEnd + arcLength / 2.0;
-            
+
             var heading = CornerDynamics.RoadHeading(s);
-            Assert.AreEqual(-Math.PI / 4.0, heading, Tolerance);
+            Assert.AreEqual(Math.PI / 4.0, heading, Tolerance);
         }
 
         [TestMethod]
-        public void RoadHeadingInExitRegionIsNegativeHalfPi()
+        public void RoadHeadingInExitRegionIsPositiveHalfPi()
         {
-            // In exit region, heading should be -π/2 (south)
+            // In exit region, heading should be +π/2 (south, left-hand rule)
             var s = CornerDynamics.ArcEndS + 5.0;
             var heading = CornerDynamics.RoadHeading(s);
-            Assert.AreEqual(-Math.PI / 2.0, heading, Tolerance);
+            Assert.AreEqual(Math.PI / 2.0, heading, Tolerance);
         }
 
         [TestMethod]
@@ -103,7 +103,7 @@ namespace Optimal.Problems.Corner.Tests
             // In arc with n offset, denominator = 1 - n × κ
             var s = CornerDynamics.EntryEndS + CornerDynamics.ArcLength / 2.0;
             var n = 2.0; // 2m right of centerline
-            var theta = -Math.PI / 4.0; // Aligned with road at this point
+            var theta = Math.PI / 4.0; // Aligned with road at this point (left-hand rule)
             var v = 15.0;
 
             var curvature = 1.0 / CornerDynamics.CenterlineRadius;
@@ -134,15 +134,16 @@ namespace Optimal.Problems.Corner.Tests
         [TestMethod]
         public void LateralRatePositiveWhenTurningRight()
         {
-            // When heading right of road (θ < θ_road), headingError < 0, ṅ > 0
-            // At s=10 (entry straight), θ_road = 0, so θ < 0 means heading right
+            // Left-hand rule: positive θ = clockwise (right)
+            // When heading right of road (θ > θ_road), headingError > 0, ṅ > 0
+            // At s=10 (entry straight), θ_road = 0, so θ > 0 means heading right
             var s = 10.0;
             var n = 0.0;
-            var theta = -0.2; // Heading 0.2 rad right of road (θ < θ_road)
+            var theta = 0.2; // Heading 0.2 rad right of road (θ > θ_road)
             var v = 15.0;
 
             var lateralRate = CornerDynamics.LateralRate(s, n, theta, v);
-            // ṅ = -v × sin(θ - θ_road) = -v × sin(-0.2) = v × sin(0.2)
+            // ṅ = v × sin(θ - θ_road) = v × sin(0.2) > 0
             var expected = v * Math.Sin(0.2);
             Assert.AreEqual(expected, lateralRate, Tolerance);
             Assert.IsTrue(lateralRate > 0, "ṅ should be positive when heading right");
@@ -151,15 +152,16 @@ namespace Optimal.Problems.Corner.Tests
         [TestMethod]
         public void LateralRateNegativeWhenTurningLeft()
         {
-            // When heading left of road (θ > θ_road), headingError > 0, ṅ < 0
-            // At s=10 (entry straight), θ_road = 0, so θ > 0 means heading left
+            // Left-hand rule: negative θ = counterclockwise (left)
+            // When heading left of road (θ < θ_road), headingError < 0, ṅ < 0
+            // At s=10 (entry straight), θ_road = 0, so θ < 0 means heading left
             var s = 10.0;
             var n = 0.0;
-            var theta = 0.2; // Heading 0.2 rad left of road (θ > θ_road)
+            var theta = -0.2; // Heading 0.2 rad left of road (θ < θ_road)
             var v = 15.0;
 
             var lateralRate = CornerDynamics.LateralRate(s, n, theta, v);
-            // ṅ = -v × sin(θ - θ_road) = -v × sin(0.2) < 0
+            // ṅ = v × sin(θ - θ_road) = v × sin(-0.2) < 0
             Assert.IsTrue(lateralRate < 0, "ṅ should be negative when heading left");
         }
 
@@ -333,12 +335,13 @@ namespace Optimal.Problems.Corner.Tests
         public void DynamicsProducesNoNaNForTypicalInputs()
         {
             // Test dynamics with typical inputs that the solver would use
+            // Left-hand rule: positive θ = clockwise, +π/2 = south
             var testCases = new[]
             {
                 (s: 0.0, n: 0.0, theta: 0.0, v: 15.0),
                 (s: 10.0, n: 2.0, theta: 0.1, v: 12.0),
-                (s: 20.0, n: -1.0, theta: -0.5, v: 18.0), // In arc
-                (s: 30.0, n: 0.0, theta: -Math.PI / 2, v: 15.0), // In exit
+                (s: 20.0, n: -1.0, theta: 0.5, v: 18.0), // In arc (positive theta for right turn)
+                (s: 30.0, n: 0.0, theta: Math.PI / 2, v: 15.0), // In exit (heading south = +π/2)
             };
 
             foreach (var (s, n, theta, v) in testCases)
@@ -394,6 +397,7 @@ namespace Optimal.Problems.Corner.Tests
         public void InitialTrajectoryGuessIsValid()
         {
             // Simulate the linear interpolation initial guess
+            // Left-hand rule: positive θ = clockwise, +π/2 = south
             var s0 = 0.0;
             var n0 = 0.0;
             var theta0 = 0.0;
@@ -401,7 +405,7 @@ namespace Optimal.Problems.Corner.Tests
             var Tf0 = 3.0;
 
             var sFinal = 42.854; // TotalLength
-            var thetaFinal = -Math.PI / 2.0;
+            var thetaFinal = Math.PI / 2.0; // South = +π/2 with left-hand rule
 
             var segments = 30;
             for (var i = 0; i <= segments; i++)

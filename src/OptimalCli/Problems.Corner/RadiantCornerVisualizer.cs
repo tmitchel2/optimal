@@ -390,17 +390,20 @@ internal static class RadiantCornerVisualizer
         var vehY = -(float)y * scale;
 
         // Draw vehicle as a triangle
+        // Left-hand rule: positive θ = clockwise, so θ = +π/2 = south = negative Cartesian y = positive screen y
+        // Direction vector in Cartesian: (cos(θ), -sin(θ))
+        // In screen coords (y flipped): (cos(θ), sin(θ))
         const float VehicleSize = 12.0f;
         var frontX = vehX + (float)(VehicleSize * Math.Cos(heading));
-        var frontY = vehY - (float)(VehicleSize * Math.Sin(heading));
+        var frontY = vehY + (float)(VehicleSize * Math.Sin(heading));
 
         var angle1 = heading + 2.5 * Math.PI / 3.0;
         var angle2 = heading - 2.5 * Math.PI / 3.0;
 
         var backLeftX = vehX + (float)(VehicleSize * 0.7 * Math.Cos(angle1));
-        var backLeftY = vehY - (float)(VehicleSize * 0.7 * Math.Sin(angle1));
+        var backLeftY = vehY + (float)(VehicleSize * 0.7 * Math.Sin(angle1));
         var backRightX = vehX + (float)(VehicleSize * 0.7 * Math.Cos(angle2));
-        var backRightY = vehY - (float)(VehicleSize * 0.7 * Math.Sin(angle2));
+        var backRightY = vehY + (float)(VehicleSize * 0.7 * Math.Sin(angle2));
 
         // Color by velocity
         var vNorm = Math.Clamp((velocity - 5.0) / 20.0, 0.0, 1.0);

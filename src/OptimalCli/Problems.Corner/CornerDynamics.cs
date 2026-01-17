@@ -15,16 +15,20 @@ namespace OptimalCli.Problems.Corner
     /// State: [s (progress along centerline), n (lateral deviation), θ (heading angle), v (velocity)]
     /// Control: [a (acceleration), ω (steering rate)]
     ///
-    /// Curvilinear coordinate system:
+    /// Coordinate conventions (LEFT-HAND RULE):
     /// - s: Distance along centerline (0 at start, increases monotonically)
-    /// - n: Perpendicular distance from centerline (negative = left of centerline when facing forward)
-    /// 
-    /// Centerline path:
-    /// - Entry straight: s ∈ [0, EntryLength)
-    /// - Quarter-circle arc: s ∈ [EntryLength, EntryLength + ArcLength)
-    /// - Exit straight: s ≥ EntryLength + ArcLength
+    /// - n: Perpendicular distance from centerline (positive = right of centerline when facing forward)
+    /// - θ: Heading angle where positive = clockwise rotation
+    ///   - θ = 0: heading east
+    ///   - θ = +π/2: heading south
+    ///   - θ = -π/2: heading north
     ///
-    /// The corner problem finds the optimal racing line through a 90° turn
+    /// Centerline path (90° right turn):
+    /// - Entry straight: s ∈ [0, EntryLength), θ_road = 0
+    /// - Quarter-circle arc: s ∈ [EntryLength, EntryLength + ArcLength), θ_road increases from 0 to +π/2
+    /// - Exit straight: s ≥ EntryLength + ArcLength, θ_road = +π/2
+    ///
+    /// The corner problem finds the optimal racing line through a 90° right turn
     /// while staying within road boundaries.
     /// </summary>
     [OptimalCode]
@@ -41,10 +45,10 @@ namespace OptimalCli.Problems.Corner
         public static double ArcEndS => EntryLength + ArcLength;
 
         /// <summary>
-        /// Road heading angle at position s along centerline.
+        /// Road heading angle at position s along centerline (left-hand rule: positive = clockwise).
         /// Entry: θ_road = 0 (heading east)
-        /// Arc: θ_road = -arcProgress × π/2
-        /// Exit: θ_road = -π/2 (heading south)
+        /// Arc: θ_road = +arcProgress × π/2 (turning right/clockwise)
+        /// Exit: θ_road = +π/2 (heading south)
         /// </summary>
         public static double RoadHeading(double s)
         {
@@ -59,18 +63,18 @@ namespace OptimalCli.Problems.Corner
             else if (s < arcEnd)
             {
                 var arcProgress = (s - entryEnd) / arcLength;
-                return -arcProgress * Math.PI / 2.0;
+                return arcProgress * Math.PI / 2.0;  // Positive for clockwise (right) turn
             }
             else
             {
-                return -Math.PI / 2.0;
+                return Math.PI / 2.0;
             }
         }
 
         /// <summary>
         /// Road curvature κ at position s along centerline.
         /// Straight sections: κ = 0
-        /// Arc section: κ = 1/R (positive for right turn)
+        /// Arc section: κ = +1/R (positive for right turn with left-hand rule)
         /// </summary>
         public static double RoadCurvature(double s)
         {
@@ -112,12 +116,12 @@ namespace OptimalCli.Problems.Corner
             else if (s < arcEnd)
             {
                 var arcProgress = (s - entryEnd) / arcLength;
-                thetaRoad = -arcProgress * Math.PI / 2.0;
+                thetaRoad = arcProgress * Math.PI / 2.0;  // Positive for right turn
                 curvature = 1.0 / CenterlineRadius;
             }
             else
             {
-                thetaRoad = -Math.PI / 2.0;
+                thetaRoad = Math.PI / 2.0;
                 curvature = 0.0;
             }
 
@@ -134,13 +138,14 @@ namespace OptimalCli.Problems.Corner
         }
 
         /// <summary>
-        /// Lateral deviation rate: ṅ = -v × sin(θ - θ_road)
-        /// With our convention (positive n = right of centerline), the sign is negative:
-        /// - When heading more right than road (θ < θ_road), headingError < 0, ṅ > 0, moving right ✓
-        /// - When heading more left than road (θ > θ_road), headingError > 0, ṅ < 0, moving left ✓
+        /// Lateral deviation rate: ṅ = v × sin(θ - θ_road)
+        /// With left-hand rule (positive θ = clockwise, positive n = right of centerline):
+        /// - When heading more right than road (θ > θ_road), headingError > 0, ṅ > 0, moving right ✓
+        /// - When heading more left than road (θ &lt; θ_road), headingError &lt; 0, ṅ &lt; 0, moving left ✓
         /// </summary>
         public static double LateralRate(double s, double n, double theta, double v)
         {
+            _ = n; // Parameter required for autodiff signature but not used in formula
             var arcLength = Math.PI * CenterlineRadius / 2.0;
             var entryEnd = EntryLength;
             var arcEnd = EntryLength + arcLength;
@@ -154,15 +159,15 @@ namespace OptimalCli.Problems.Corner
             else if (s < arcEnd)
             {
                 var arcProgress = (s - entryEnd) / arcLength;
-                thetaRoad = -arcProgress * Math.PI / 2.0;
+                thetaRoad = arcProgress * Math.PI / 2.0;  // Positive for right turn
             }
             else
             {
-                thetaRoad = -Math.PI / 2.0;
+                thetaRoad = Math.PI / 2.0;
             }
 
             var headingError = theta - thetaRoad;
-            return -v * Math.Sin(headingError);
+            return v * Math.Sin(headingError);  // Positive sign for left-hand rule
         }
 
         /// <summary>
@@ -200,6 +205,11 @@ namespace OptimalCli.Problems.Corner
         /// <summary>
         /// Convert curvilinear coordinates (s, n) to Cartesian coordinates (x, y).
         /// Used for visualization.
+        ///
+        /// Cartesian coordinate system:
+        /// - x increases to the right (east)
+        /// - y increases upward (north)
+        /// - The track goes east, then turns right (south)
         /// </summary>
         public static (double x, double y) CurvilinearToCartesian(double s, double n)
         {
@@ -211,57 +221,41 @@ namespace OptimalCli.Problems.Corner
 
             if (s < entryEnd)
             {
-                // Entry straight: centerline is y=0, heading east
+                // Entry straight: centerline is y=0, heading east (θ_road = 0)
                 // x = s - EntryLength (so at s=0, x=-15; at s=EntryLength, x=0)
-                // n positive = right of centerline = negative y
+                // Positive n = right of centerline = negative y (south)
                 x = s - CornerDynamics.EntryLength;
-                y = -n;  // Flipped: positive n = right of centerline = negative y
+                y = -n;
             }
             else if (s < arcEnd)
             {
                 // Arc: centerline is quarter circle from (0,0) to (5,-5)
-                // The centerline arc starts at (0, 0) heading east, curves right 90°.
+                // The centerline arc starts at (0, 0) heading east, curves right (clockwise) 90°.
                 // Arc is centered at (0, -5) with radius 5.
-                // Start point (0, 0): angle = π/2 (from center, going up)
-                // End point (5, -5): angle = 0 (from center, going right)
-                
+                // Start point (0, 0): geometric angle = π/2 (from center, pointing up)
+                // End point (5, -5): geometric angle = 0 (from center, pointing right)
+
                 var arcProgress = (s - entryEnd) / arcLength;
-                var angle = Math.PI / 2.0 * (1.0 - arcProgress);
-                
-                // Centerline position (radius = CenterlineRadius from arc center)
+                var angle = Math.PI / 2.0 * (1.0 - arcProgress);  // Geometric angle from arc center
+
+                // Centerline position (radius = CenterlineRadius from arc center at (0, -5))
                 var cx = CornerDynamics.CenterlineRadius * Math.Cos(angle);
                 var cy = -CornerDynamics.CenterlineRadius + CornerDynamics.CenterlineRadius * Math.Sin(angle);
-                
-                // n offset: perpendicular to arc
-                // For a right turn, positive n = right of centerline = OUTWARD from arc center
-                // The outward radial direction from center (0, -5) is (cos(angle), sin(angle))
-                // So positive n should SUBTRACT from this (move toward center = inner = left? NO)
-                // Wait: positive n = right of centerline when facing forward
-                // When facing east at arc start (angle=π/2), right is DOWN (negative y)
-                // The radial direction at angle=π/2 is (0, 1) pointing UP
-                // So positive n should be in the OPPOSITE direction: -sin, -cos? No...
-                // 
-                // Actually, the perpendicular to the path (not radial):
-                // Road heading at this point is θ_road = -arcProgress * π/2
-                // Right-hand perpendicular to heading: (sin(-θ_road), -cos(-θ_road)) = (-sin(θ_road), -cos(θ_road))
-                // At arc start: θ_road = 0, perpendicular = (0, -1) → positive n goes DOWN (y negative) ✓
-                // At arc end: θ_road = -π/2, perpendicular = (sin(π/2), -cos(π/2)) = (1, 0) → positive n goes RIGHT ✓
-                //
-                // So the correct offset is: n * (sin(-θ_road), -cos(-θ_road)) = n * (-sin(θ_road), -cos(θ_road))
-                // θ_road = -arcProgress * π/2 = -(1 - angle/(π/2)) * π/2 = angle - π/2
-                // sin(θ_road) = sin(angle - π/2) = -cos(angle)
-                // cos(θ_road) = cos(angle - π/2) = sin(angle)
-                // perpendicular = (-cos(angle), -sin(angle))
+
+                // n offset: perpendicular to path, positive n = right of centerline
+                // The perpendicular direction (pointing right) is (-cos(angle), -sin(angle))
+                // At arc start (angle=π/2): perpendicular = (0, -1) → right is south ✓
+                // At arc end (angle=0): perpendicular = (-1, 0) → right is west ✓
                 x = cx - n * Math.Cos(angle);
                 y = cy - n * Math.Sin(angle);
             }
             else
             {
-                // Exit straight: centerline is x=5, heading south (θ = -π/2)
+                // Exit straight: centerline is x=5, heading south (θ_road = +π/2)
                 var exitProgress = s - arcEnd;
                 // Centerline: x=5, y=-5-exitProgress
-                // When heading south, right of centerline = WEST = negative x direction
-                // So positive n should DECREASE x
+                // When heading south, right of centerline = west = negative x direction
+                // So positive n decreases x
                 x = CornerDynamics.CenterlineRadius - n;
                 y = -CornerDynamics.CenterlineRadius - exitProgress;
             }
