@@ -93,7 +93,8 @@ public sealed class VanDerPolProblemSolver : ICommand
                 .WithMeshRefinement(true, 5, 1e-3)
                 .WithInnerOptimizer(innerOptimizer);
 
-        var result = solver.Solve(problem);
+        var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 25);
+        var result = solver.Solve(problem, initialGuess);
 
         Console.WriteLine();
         Console.WriteLine("SOLUTION SUMMARY:");

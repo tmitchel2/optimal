@@ -320,6 +320,26 @@ namespace Optimal.Control.Collocation
         }
 
         /// <summary>
+        /// Converts an InitialGuess to a decision vector.
+        /// </summary>
+        /// <param name="initialGuess">The initial guess containing state and control trajectories.</param>
+        /// <returns>A decision vector suitable for the optimizer.</returns>
+        public double[] ToDecisionVector(InitialGuess initialGuess)
+        {
+            ArgumentNullException.ThrowIfNull(initialGuess);
+
+            var z = new double[_decisionVectorSize];
+
+            for (var k = 0; k <= _grid.Segments; k++)
+            {
+                SetState(z, k, initialGuess.StateTrajectory[k]);
+                SetControl(z, k, initialGuess.ControlTrajectory[k]);
+            }
+
+            return z;
+        }
+
+        /// <summary>
         /// Computes the running cost (Lagrange term) integrated over the trajectory using Simpson's rule.
         /// J_running = ∫[t0, tf] L(x(t), u(t), t) dt
         /// Approximated as: Σ_k h/6 * (L_k + 4*L_mid + L_{k+1})

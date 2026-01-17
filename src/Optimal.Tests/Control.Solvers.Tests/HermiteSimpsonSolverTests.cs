@@ -20,5 +20,10 @@ namespace Optimal.Control.Solvers.Tests
         {
             return new HermiteSimpsonSolver();
         }
+
+        protected override InitialGuess CreateInitialGuess(ControlProblem problem, int segments)
+        {
+            return InitialGuessFactory.CreateWithControlHeuristics(problem, segments);
+        }
     }
 }

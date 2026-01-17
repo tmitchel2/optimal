@@ -70,7 +70,6 @@ public sealed class GoddardRocketProblemSolver : ICommand
         var goddardParams = GoddardInitialGuess.CreateYOptParameters();
 
         // Use appropriate initial guess format for the chosen solver
-        double[] initialGuess;
         double[][] initialStates;
         double[][] initialControls;
 
@@ -79,18 +78,18 @@ public sealed class GoddardRocketProblemSolver : ICommand
             // LGL solver needs more points (order * segments - (segments-1) = N*(order-1)+1)
             var lglTimePoints = GoddardInitialGuess.GenerateLGLTimePoints(grid, lglOrder);
             (initialStates, initialControls) = GoddardInitialGuess.GenerateSimulatedTrajectoryAtTimes(lglTimePoints, goddardParams);
-            initialGuess = GoddardInitialGuess.CreateDecisionVector(initialStates, initialControls, problem.StateDim, problem.ControlDim);
             Console.WriteLine($"  LGL collocation points: {lglTimePoints.Length}");
         }
         else
         {
             // Hermite-Simpson uses grid points directly
             (initialStates, initialControls) = GoddardInitialGuess.GenerateSimulatedTrajectory(grid, goddardParams);
-            initialGuess = GoddardInitialGuess.CreateDecisionVector(initialStates, initialControls, problem.StateDim, problem.ControlDim);
         }
 
+        var initialGuess = new InitialGuess(initialStates, initialControls);
+
         Console.WriteLine($"  Segments: {segments}");
-        Console.WriteLine($"  Initial guess created: {initialGuess.Length} decision variables");
+        Console.WriteLine($"  Initial guess created: {initialStates.Length} collocation points");
         Console.WriteLine($"  Method: Forward simulation with heuristic thrust policy");
         Console.WriteLine($"  Simulated final altitude: {initialStates[^1][0]:F1} m");
         Console.WriteLine($"  Simulated final velocity: {initialStates[^1][1]:F1} m/s");

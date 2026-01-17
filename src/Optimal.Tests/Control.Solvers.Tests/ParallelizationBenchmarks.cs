@@ -263,8 +263,9 @@ namespace Optimal.Control.Solvers.Tests
                 .WithVerbose(false)
                 .WithParallelization(false);
 
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, segments);
             var sw = Stopwatch.StartNew();
-            var seqResult = seqSolver.Solve(problem);
+            var seqResult = seqSolver.Solve(problem, initialGuess);
             sw.Stop();
             var seqTime = sw.Elapsed.TotalMilliseconds;
 
@@ -276,7 +277,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithParallelization(true);
 
             sw = Stopwatch.StartNew();
-            var parResult = parSolver.Solve(problem);
+            var parResult = parSolver.Solve(problem, initialGuess);
             sw.Stop();
             var parTime = sw.Elapsed.TotalMilliseconds;
 

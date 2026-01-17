@@ -183,7 +183,7 @@ namespace Optimal.Control.Solvers
         /// <summary>
         /// Solves a single phase.
         /// </summary>
-        private CollocationResult SolvePhase(ControlPhase phase, double[]? initialGuess)
+        private CollocationResult SolvePhase(ControlPhase phase, InitialGuess? initialGuess)
         {
             var solver = new HermiteSimpsonSolver()
                 .WithSegments(phase.Segments)
@@ -191,14 +191,8 @@ namespace Optimal.Control.Solvers
                 .WithMaxIterations(_phaseSolver.GetMaxIterations())
                 .WithInnerOptimizer(_phaseSolver.GetInnerOptimizer());
 
-            if (initialGuess != null)
-            {
-                return solver.Solve(phase.Problem!, initialGuess);
-            }
-            else
-            {
-                return solver.Solve(phase.Problem!);
-            }
+            var guess = initialGuess ?? InitialGuessFactory.CreateWithControlHeuristics(phase.Problem!, phase.Segments);
+            return solver.Solve(phase.Problem!, guess);
         }
 
         /// <summary>
@@ -214,9 +208,7 @@ namespace Optimal.Control.Solvers
                 modifiedProblem.FinalTime,
                 phase.Segments);
 
-            var transcription = new HermiteSimpsonTranscription(modifiedProblem, grid);
-
-            var warmStart = WarmStart.InterpolateFromPrevious(previousSolution, grid, transcription);
+            var warmStart = WarmStart.InterpolateFromPrevious(previousSolution, grid);
 
             var solver = new HermiteSimpsonSolver()
                 .WithSegments(phase.Segments)

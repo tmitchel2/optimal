@@ -137,7 +137,8 @@ namespace Optimal.Control.Solvers
                     .WithMaxIterations(_maxIterations)
                     .WithInnerOptimizer(_innerOptimizer ?? new LBFGSOptimizer());
 
-                var result = solver.Solve(intervalProblem);
+                var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(intervalProblem, _segments);
+                var result = solver.Solve(intervalProblem, initialGuess);
                 intervalSolutions.Add(result);
                 
                 Console.WriteLine($"  Interval {i + 1}/{_shootingIntervals}: Success={result.Success}, Cost={result.OptimalCost:E3}");
@@ -226,8 +227,9 @@ namespace Optimal.Control.Solvers
                             .WithTolerance(_tolerance)
                             .WithMaxIterations(_maxIterations)
                             .WithInnerOptimizer(_innerOptimizer ?? new LBFGSOptimizer());
-                        
-                        var refinedResult = solver.Solve(intervalProblem);
+
+                        var refinementGuess = InitialGuessFactory.CreateWithControlHeuristics(intervalProblem, _segments);
+                        var refinedResult = solver.Solve(intervalProblem, refinementGuess);
                         
                         if (refinedResult.Success)
                         {

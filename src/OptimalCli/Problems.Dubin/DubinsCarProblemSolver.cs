@@ -162,7 +162,8 @@ public sealed class DubinsCarProblemSolver : ICommand
                             RadiantDubinsCarVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
                         });
 
-                var result = solver.Solve(problem);
+                var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 20);
+                var result = solver.Solve(problem, initialGuess);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return result;
             }

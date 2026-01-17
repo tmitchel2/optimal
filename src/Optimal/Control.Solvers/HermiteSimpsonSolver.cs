@@ -25,7 +25,6 @@ namespace Optimal.Control.Solvers
     public sealed class HermiteSimpsonSolver : ISolver
     {
         private const double MinRefinementPercentage = 0.1;
-        private const double PositionTolerance = 1e-10;
         private const int MaxMeshSegments = 200;
 
         private int _segments = 20;
@@ -185,33 +184,38 @@ namespace Optimal.Control.Solvers
         /// Solves the optimal control problem.
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
-        /// <param name="initialGuess">Optional initial guess for decision variables.</param>
+        /// <param name="initialGuess">Initial guess for state and control trajectories.</param>
         /// <returns>The optimal control solution.</returns>
-        public CollocationResult Solve(ControlProblem problem, double[]? initialGuess = null)
+        public CollocationResult Solve(ControlProblem problem, InitialGuess initialGuess)
         {
             ArgumentNullException.ThrowIfNull(problem);
+            ArgumentNullException.ThrowIfNull(initialGuess);
 
             if (problem.Dynamics == null)
             {
                 throw new InvalidOperationException("Problem must have dynamics defined.");
             }
 
+            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _segments);
+            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _enableParallelization);
+            var z0 = transcription.ToDecisionVector(initialGuess);
+
             if (_enableMeshRefinement)
             {
-                return SolveWithMeshRefinement(problem, initialGuess);
+                return SolveWithMeshRefinement(problem, z0);
             }
 
-            return SolveOnFixedGrid(problem, _segments, initialGuess);
+            return SolveOnFixedGrid(problem, _segments, z0);
         }
 
         /// <summary>
         /// Solves with adaptive mesh refinement.
         /// </summary>
-        private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[]? initialGuess)
+        private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[] initialGuess)
         {
             var currentSegments = _segments;
             CollocationResult? result = null;
-            double[]? previousSolution = initialGuess;
+            var previousSolution = initialGuess;
 
             for (var iteration = 0; iteration < _maxRefinementIterations; iteration++)
             {
@@ -232,7 +236,7 @@ namespace Optimal.Control.Solvers
                     break;
                 }
 
-                var (shouldContinue, newSegments, newSolution) = TryRefineMesh(problem, result, currentSegments);
+                var (shouldContinue, newSegments, newSolution) = TryRefineMesh(problem, result, currentSegments, previousSolution);
 
                 if (!shouldContinue)
                 {
@@ -280,8 +284,8 @@ namespace Optimal.Control.Solvers
             return converged;
         }
 
-        private (bool shouldContinue, int newSegments, double[]? newSolution) TryRefineMesh(
-            ControlProblem problem, CollocationResult result, int currentSegments)
+        private (bool shouldContinue, int newSegments, double[] newSolution) TryRefineMesh(
+            ControlProblem problem, CollocationResult result, int currentSegments, double[] currentSolution)
         {
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, currentSegments);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _enableParallelization);
@@ -302,7 +306,7 @@ namespace Optimal.Control.Solvers
 
             if (refinementPct < MinRefinementPercentage)
             {
-                return (false, currentSegments, null);
+                return (false, currentSegments, currentSolution);
             }
 
             var newGrid = meshRefinement.RefineGrid(grid, shouldRefine);
@@ -310,7 +314,7 @@ namespace Optimal.Control.Solvers
 
             if (newSegments == currentSegments)
             {
-                return (false, currentSegments, null);
+                return (false, currentSegments, currentSolution);
             }
 
             var oldTranscriptionCompat = new HermiteSimpsonTranscription(problem, grid);
@@ -335,12 +339,12 @@ namespace Optimal.Control.Solvers
         /// <summary>
         /// Solves on a fixed grid (no refinement).
         /// </summary>
-        private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segments, double[]? initialGuess)
+        private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segments, double[] initialGuess)
         {
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, segments);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _enableParallelization);
 
-            var z0 = CreateInitialGuess(problem, transcription, initialGuess);
+            var z0 = initialGuess;
             var hasAnalyticalGradients = CheckAnalyticalGradientCapability(problem);
             var iterationCount = new int[1];
 
@@ -355,54 +359,6 @@ namespace Optimal.Control.Solvers
             var nlpResult = constrainedOptimizer.Minimize(nlpObjective);
             return ExtractSolution(problem, grid, transcription, segments, nlpResult);
         }
-
-        private double[] CreateInitialGuess(ControlProblem problem, ParallelHermiteSimpsonTranscription transcription, double[]? initialGuess)
-        {
-            if (initialGuess != null && initialGuess.Length == transcription.DecisionVectorSize)
-            {
-                return initialGuess;
-            }
-
-            var x0 = problem.InitialState ?? new double[problem.StateDim];
-            var xf = problem.FinalState ?? new double[problem.StateDim];
-            var u0 = ComputeInitialControlGuess(problem, x0, xf);
-            var z0 = transcription.CreateInitialGuess(x0, xf, u0);
-
-            if (_verbose)
-            {
-                var hasNaN = z0.Any(double.IsNaN);
-                Console.WriteLine($"Initial guess created: size={z0.Length}, hasNaN={hasNaN}");
-            }
-
-            return z0;
-        }
-
-        private static double[] ComputeInitialControlGuess(ControlProblem problem, double[] x0, double[] xf)
-        {
-            var u0 = new double[problem.ControlDim];
-
-            if (ShouldComputeAngleBasedGuess(problem))
-            {
-                var dx = xf[0] - x0[0];
-                var dy = xf[1] - x0[1];
-                if (HasSignificantDisplacement(dx, dy))
-                {
-                    var angle = Math.Atan2(-dy, dx);
-                    u0[0] = Math.Clamp(angle, 0.0, Math.PI / 2.0);
-                }
-            }
-
-            return u0;
-        }
-
-        private static bool ShouldComputeAngleBasedGuess(ControlProblem problem) =>
-            problem.ControlDim == 1 &&
-            problem.StateDim >= 2 &&
-            problem.InitialState != null &&
-            problem.FinalState != null;
-
-        private static bool HasSignificantDisplacement(double dx, double dy) =>
-            Math.Abs(dx) > PositionTolerance || Math.Abs(dy) > PositionTolerance;
 
         private bool CheckAnalyticalGradientCapability(ControlProblem problem)
         {

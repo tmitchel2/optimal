@@ -20,5 +20,11 @@ namespace Optimal.Control.Solvers.Tests
         {
             return new HermiteSimpsonSolver();
         }
+
+        protected override InitialGuess CreateInitialGuess(ControlProblem problem, int segments, int order)
+        {
+            // Hermite-Simpson doesn't use order - just create based on segments
+            return InitialGuessFactory.CreateWithControlHeuristics(problem, segments);
+        }
     }
 }

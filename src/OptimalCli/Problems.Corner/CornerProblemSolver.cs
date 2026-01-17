@@ -312,21 +312,18 @@ public sealed class CornerProblemSolver : ICommand
     /// Creates an initial guess using a racing line trajectory.
     /// The vehicle takes the outside line on entry, cuts toward the apex, then exits wide.
     /// This allows higher speed through the corner compared to the centerline.
-    /// Decision vector layout: [x0, u0, x1, u1, ..., xN, uN]
     /// State: [s, n, θ, v, T_f], Control: [a, ω]
     /// </summary>
-    private static double[] CreateCenterlineInitialGuess(
+    private static InitialGuess CreateCenterlineInitialGuess(
         int segments,
         double sInit,
         double sFinal,
         double initialVelocity,
         double tfGuess)
     {
-        const int StateDim = 5;
-        const int ControlDim = 2;
         var numNodes = segments + 1;
-        var decisionVectorSize = numNodes * (StateDim + ControlDim);
-        var z = new double[decisionVectorSize];
+        var stateTrajectory = new double[numNodes][];
+        var controlTrajectory = new double[numNodes][];
 
         // Racing line strategy:
         // - Entry: Move to outside of turn (n < 0 for right turn)
@@ -428,12 +425,10 @@ public sealed class CornerProblemSolver : ICommand
 
             var control = new[] { accel, omega };
 
-            // Set in decision vector
-            var offset = k * (StateDim + ControlDim);
-            Array.Copy(state, 0, z, offset, StateDim);
-            Array.Copy(control, 0, z, offset + StateDim, ControlDim);
+            stateTrajectory[k] = state;
+            controlTrajectory[k] = control;
         }
 
-        return z;
+        return new InitialGuess(stateTrajectory, controlTrajectory);
     }
 }

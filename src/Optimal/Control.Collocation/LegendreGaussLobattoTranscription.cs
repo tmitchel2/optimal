@@ -355,6 +355,27 @@ namespace Optimal.Control.Collocation
         }
 
         /// <summary>
+        /// Converts an InitialGuess to a decision vector.
+        /// The InitialGuess must have exactly TotalPoints points.
+        /// </summary>
+        /// <param name="initialGuess">The initial guess containing state and control trajectories.</param>
+        /// <returns>A decision vector suitable for the optimizer.</returns>
+        public double[] ToDecisionVector(InitialGuess initialGuess)
+        {
+            ArgumentNullException.ThrowIfNull(initialGuess);
+
+            var z = new double[_decisionVectorSize];
+
+            for (var k = 0; k < _totalPoints; k++)
+            {
+                SetState(z, k, initialGuess.StateTrajectory[k]);
+                SetControl(z, k, initialGuess.ControlTrajectory[k]);
+            }
+
+            return z;
+        }
+
+        /// <summary>
         /// Computes the running cost (Lagrange term) integrated over the trajectory using LGL quadrature.
         /// J_running = ∫[t0, tf] L(x(t), u(t), t) dt
         /// Approximated as: Σ_k (h/2) * Σ_i w_i * L(x_i^k, u_i^k, t_i^k)

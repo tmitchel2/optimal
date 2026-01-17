@@ -67,7 +67,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6))
                 .WithVerbose(true);
 
-            var result = solver.Solve(problem);
+            var initialGuess = CreateInitialGuess(problem, 10);
+            var result = solver.Solve(problem, initialGuess);
 
             // Debug output
             Console.WriteLine($"HS Solver Test Results:");
@@ -141,7 +142,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithMaxIterations(100)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
 
-            var result = solver.Solve(problem);
+            var initialGuess = CreateInitialGuess(problem, 15);
+            var result = solver.Solve(problem, initialGuess);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -192,7 +194,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithMaxIterations(100)
                 .WithInnerOptimizer(new LBFGSOptimizer());
 
-            var result = solver.Solve(problem);
+            var initialGuess = CreateInitialGuess(problem, 10);
+            var result = solver.Solve(problem, initialGuess);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -238,7 +241,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithSegments(10)
                 .WithTolerance(1e-4);
 
-            var result = solver.Solve(problem);
+            var initialGuess = CreateInitialGuess(problem, 10);
+            var result = solver.Solve(problem, initialGuess);
 
             Assert.IsTrue(result.Success, "Solver should converge");
             Assert.IsTrue(result.MaxDefect < 1e-2, "Defects should be small");
@@ -251,11 +255,24 @@ namespace Optimal.Control.Solvers.Tests
                 .WithStateSize(1)
                 .WithControlSize(1);
 
-            var solver = CreateSolver();
+            var solver = CreateSolver()
+                .WithSegments(10);
 
-            Assert.ThrowsException<InvalidOperationException>(() => solver.Solve(problem));
+            Assert.ThrowsException<InvalidOperationException>(() =>
+            {
+                var guess = CreateInitialGuess(problem, 10);
+                solver.Solve(problem, guess);
+            });
         }
 
         protected abstract ISolver CreateSolver();
+
+        /// <summary>
+        /// Creates an initial guess appropriate for this solver type.
+        /// </summary>
+        /// <param name="problem">The control problem.</param>
+        /// <param name="segments">Number of segments.</param>
+        /// <returns>An initial guess suitable for the solver.</returns>
+        protected abstract InitialGuess CreateInitialGuess(ControlProblem problem, int segments);
     }
 }

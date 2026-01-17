@@ -129,7 +129,8 @@ namespace Optimal.Control.Solvers
                 }
                 else
                 {
-                    result = _solver.Solve(problem);
+                    var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, _solver.GetSegments());
+                    result = _solver.Solve(problem, initialGuess);
                 }
 
                 if (!result.Success)
@@ -157,12 +158,11 @@ namespace Optimal.Control.Solvers
         /// </summary>
         private CollocationResult SolveWithWarmStart(ControlProblem problem, CollocationResult previousResult)
         {
-            // Create grid and transcription for new problem
+            // Create grid for new problem
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _solver.GetSegments());
-            var transcription = new HermiteSimpsonTranscription(problem, grid);
 
             // Create warm start initial guess
-            var initialGuess = WarmStart.InterpolateFromPrevious(previousResult, grid, transcription);
+            var initialGuess = WarmStart.InterpolateFromPrevious(previousResult, grid);
 
             // Solve using the warm start
             return _solver.Solve(problem, initialGuess);
@@ -202,7 +202,8 @@ namespace Optimal.Control.Solvers
                 }
                 else
                 {
-                    result = _solver.Solve(problem);
+                    var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, _solver.GetSegments());
+                    result = _solver.Solve(problem, initialGuess);
                 }
 
                 if (!result.Success && _verbose)

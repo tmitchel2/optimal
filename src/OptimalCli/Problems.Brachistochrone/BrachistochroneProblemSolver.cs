@@ -312,9 +312,15 @@ public sealed class BrachistochroneProblemSolver : ICommand
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
+        var segments = options.Solver == SolverType.LGL ? 20 : 50;
+        var order = 5;
+        var initialGuess = options.Solver == SolverType.LGL
+            ? InitialGuessFactory.CreateForLGL(problem, segments, order)
+            : InitialGuessFactory.CreateWithControlHeuristics(problem, segments);
+
         if (options.Headless)
         {
-            var headlessResult = solver.Solve(problem);
+            var headlessResult = solver.Solve(problem, initialGuess);
             PrintSolutionSummary(headlessResult, options.Variant);
             return;
         }
@@ -325,7 +331,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
             {
                 var taskResult = solver
                     .WithProgressCallback(CreateProgressCallback())
-                    .Solve(problem);
+                    .Solve(problem, initialGuess);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return taskResult;
             }

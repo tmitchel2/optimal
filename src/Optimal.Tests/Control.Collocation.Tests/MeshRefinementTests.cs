@@ -110,7 +110,8 @@ namespace Optimal.Control.Collocation.Tests
                 .WithMeshRefinement(enable: true, maxRefinementIterations: 3, defectThreshold: 1e-3)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 5);
+            var result = solver.Solve(problem, initialGuess);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Should converge with mesh refinement");
@@ -156,7 +157,8 @@ namespace Optimal.Control.Collocation.Tests
                 .WithMaxIterations(50)
                 .WithInnerOptimizer(new LBFGSOptimizer());
 
-            var resultCoarse = solverCoarse.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 5);
+            var resultCoarse = solverCoarse.Solve(problem, initialGuess);
 
             // With refinement
             var solverRefined = new HermiteSimpsonSolver()
@@ -166,7 +168,7 @@ namespace Optimal.Control.Collocation.Tests
                 .WithMeshRefinement(enable: true, maxRefinementIterations: 3)
                 .WithInnerOptimizer(new LBFGSOptimizer());
 
-            var resultRefined = solverRefined.Solve(problem);
+            var resultRefined = solverRefined.Solve(problem, initialGuess);
 
             // Both should converge
             Assert.IsTrue(resultCoarse.Success, "Coarse should converge");
@@ -212,7 +214,8 @@ namespace Optimal.Control.Collocation.Tests
                 .WithMaxIterations(60)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-4));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 8);
+            var result = solver.Solve(problem, initialGuess);
 
             // Should handle the varying dynamics
             Assert.IsTrue(result.Success, "Should converge with localized dynamics");

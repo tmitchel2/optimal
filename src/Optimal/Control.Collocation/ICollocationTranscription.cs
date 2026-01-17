@@ -7,6 +7,7 @@
  */
 
 using System;
+using Optimal.Control.Core;
 
 namespace Optimal.Control.Collocation
 {
@@ -60,6 +61,13 @@ namespace Optimal.Control.Collocation
         /// Creates an initial guess for the decision vector.
         /// </summary>
         double[] CreateInitialGuess(double[] initialState, double[] finalState, double[] constantControl);
+
+        /// <summary>
+        /// Converts an InitialGuess to a decision vector.
+        /// </summary>
+        /// <param name="initialGuess">The initial guess containing state and control trajectories.</param>
+        /// <returns>A decision vector suitable for the optimizer.</returns>
+        double[] ToDecisionVector(InitialGuess initialGuess);
 
         /// <summary>
         /// Computes all defect constraints for the entire trajectory.

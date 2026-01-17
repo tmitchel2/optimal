@@ -208,33 +208,30 @@ namespace Optimal.Control.Solvers
         /// Solves the optimal control problem.
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
+        /// <param name="initialGuess">Initial guess for state and control trajectories.</param>
         /// <returns>The collocation result containing the optimal trajectory.</returns>
-        public CollocationResult Solve(ControlProblem problem)
-        {
-            return Solve(problem, null);
-        }
-
-        /// <summary>
-        /// Solves the optimal control problem with an optional initial guess.
-        /// </summary>
-        /// <param name="problem">The control problem to solve.</param>
-        /// <param name="initialGuess">Optional initial guess for the decision vector. If null, creates a default guess.</param>
-        /// <returns>The collocation result containing the optimal trajectory.</returns>
-        public CollocationResult Solve(ControlProblem problem, double[]? initialGuess)
+        public CollocationResult Solve(ControlProblem problem, InitialGuess initialGuess)
         {
             ArgumentNullException.ThrowIfNull(problem);
+            ArgumentNullException.ThrowIfNull(initialGuess);
 
             if (problem.Dynamics == null)
             {
                 throw new InvalidOperationException("Problem must have dynamics defined.");
             }
 
+            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _segments);
+            ICollocationTranscription transcription = _enableParallelization
+                ? new ParallelLGLTranscription(problem, grid, _order, _enableParallelization)
+                : new LegendreGaussLobattoTranscription(problem, grid, _order);
+            var z0 = transcription.ToDecisionVector(initialGuess);
+
             if (_enableMeshRefinement)
             {
-                return SolveWithMeshRefinement(problem, initialGuess);
+                return SolveWithMeshRefinement(problem, z0);
             }
 
-            return SolveOnFixedGrid(problem, _segments, initialGuess);
+            return SolveOnFixedGrid(problem, _segments, z0);
         }
 
         /// <summary>
@@ -242,9 +239,9 @@ namespace Optimal.Control.Solvers
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
         /// <param name="segments">Number of segments to use.</param>
-        /// <param name="initialGuess">Optional initial guess for warm-starting.</param>
+        /// <param name="initialGuess">Initial guess decision vector.</param>
         /// <returns>The collocation result containing the optimal trajectory.</returns>
-        private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segments, double[]? initialGuess)
+        private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segments, double[] initialGuess)
         {
             if (_verbose)
             {
@@ -274,57 +271,7 @@ namespace Optimal.Control.Solvers
                 Console.WriteLine($"  Total defect constraints: {_segments * (_order - 2) * problem.StateDim}");
             }
 
-            // Create initial guess (use provided warm start if available)
-            double[] z0;
-            if (initialGuess != null && initialGuess.Length == transcription.DecisionVectorSize)
-            {
-                z0 = initialGuess;
-            }
-            else
-            {
-                var initialState = problem.InitialState ?? new double[problem.StateDim];
-                var finalState = problem.FinalState ?? Enumerable.Repeat(double.NaN, problem.StateDim).ToArray();
-
-                // For simple dynamics like ẋ = u, estimate required control from state change
-                var constantControl = new double[problem.ControlDim];
-                var duration = grid.FinalTime - grid.InitialTime;
-                for (var i = 0; i < Math.Min(problem.StateDim, problem.ControlDim); i++)
-                {
-                    if (!double.IsNaN(finalState[i]) && duration > 0)
-                    {
-                        // Estimate average control needed: (final - initial) / duration
-                        constantControl[i] = (finalState[i] - initialState[i]) / duration;
-                    }
-                }
-
-                // For Brachistochrone-like problems (1D control, 2D+ state), initialize control toward target
-                if (problem.ControlDim == 1 && problem.StateDim >= 2 &&
-                    !double.IsNaN(initialState[0]) && !double.IsNaN(initialState[1]) &&
-                    !double.IsNaN(finalState[0]) && !double.IsNaN(finalState[1]))
-                {
-                    var dx = finalState[0] - initialState[0];
-                    var dy = finalState[1] - initialState[1];
-                    if (Math.Abs(dx) > 1e-10 || Math.Abs(dy) > 1e-10)
-                    {
-                        // For Brachistochrone, angle is from horizontal, positive for descent
-                        // ẏ = -v·sin(θ), so when descending (dy < 0), we need θ > 0
-                        var angle = Math.Atan2(-dy, dx);
-                        constantControl[0] = Math.Clamp(angle, 0.0, Math.PI / 2.0);
-                    }
-                }
-
-                // Clamp control to bounds if provided
-                if (problem.ControlLowerBounds != null && problem.ControlUpperBounds != null)
-                {
-                    for (var i = 0; i < problem.ControlDim; i++)
-                    {
-                        constantControl[i] = Math.Max(problem.ControlLowerBounds[i],
-                                                       Math.Min(problem.ControlUpperBounds[i], constantControl[i]));
-                    }
-                }
-
-                z0 = transcription.CreateInitialGuess(initialState, finalState, constantControl);
-            }
+            var z0 = initialGuess;
 
             // Extract dynamics evaluator (without gradients for now)
             double[] DynamicsValue(double[] x, double[] u, double t)
@@ -893,13 +840,13 @@ namespace Optimal.Control.Solvers
         /// Solves the optimal control problem with adaptive mesh refinement.
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
-        /// <param name="initialGuess">Optional initial guess for the decision vector.</param>
+        /// <param name="initialGuess">Initial guess decision vector.</param>
         /// <returns>The collocation result containing the optimal trajectory.</returns>
-        private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[]? initialGuess)
+        private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[] initialGuess)
         {
             var currentSegments = _segments;
             CollocationResult? result = null;
-            double[]? previousSolution = initialGuess;
+            var previousSolution = initialGuess;
 
             for (var iteration = 0; iteration < _maxRefinementIterations; iteration++)
             {

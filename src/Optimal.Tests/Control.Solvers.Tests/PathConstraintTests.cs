@@ -72,7 +72,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithMaxIterations(100)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
+            var result = solver.Solve(problem, initialGuess);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -139,7 +140,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithMaxIterations(80)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
+            var result = solver.Solve(problem, initialGuess);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -212,7 +214,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithMaxIterations(80)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 12);
+            var result = solver.Solve(problem, initialGuess);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -274,7 +277,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTolerance(5e-3)
                 .WithMaxIterations(100);
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
+            var result = solver.Solve(problem, initialGuess);
 
             Assert.IsTrue(result.Success, "Should converge with multiple constraints");
 

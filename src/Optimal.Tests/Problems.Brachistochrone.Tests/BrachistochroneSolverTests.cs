@@ -49,7 +49,8 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithMaxIterations(50)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
+            var result = solver.Solve(problem, initialGuess);
 
             // Check that defects are small even if Success is false (may hit max iterations)
             Assert.IsTrue(result.MaxDefect < 1e-2, $"Defects should be small, was {result.MaxDefect:E2}");
@@ -65,7 +66,8 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithMaxIterations(50)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
+            var result = solver.Solve(problem, initialGuess);
 
             // Check that we have a reasonable solution even if not fully converged
             Assert.IsTrue(result.MaxDefect < 1e-2, $"Defects should be small, was {result.MaxDefect:E2}");
@@ -92,7 +94,8 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithMaxIterations(50)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
+            var result = solver.Solve(problem, initialGuess);
 
             Assert.IsTrue(result.MaxDefect < 1e-2, $"Defects should be small, was {result.MaxDefect:E2}");
 
@@ -119,7 +122,8 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithMaxIterations(100)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
+            var result = solver.Solve(problem, initialGuess);
 
             // Check defects are reasonable
             Assert.IsTrue(result.MaxDefect < 0.1, $"Defects should be reasonable, was {result.MaxDefect:E2}");
@@ -135,7 +139,8 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithMaxIterations(100)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
+            var result = solver.Solve(problem, initialGuess);
 
             // Check defects are reasonable
             Assert.IsTrue(result.MaxDefect < 0.1, $"Defects should be reasonable, was {result.MaxDefect:E2}");
@@ -158,7 +163,8 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithMaxIterations(100)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
+            var result = solver.Solve(problem, initialGuess);
 
             // Check defects are reasonable
             Assert.IsTrue(result.MaxDefect < 0.1, $"Defects should be reasonable, was {result.MaxDefect:E2}");
@@ -191,7 +197,8 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithMaxIterations(30)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateForLGL(problem, 8, 3);
+            var result = solver.Solve(problem, initialGuess);
 
             // Document current behavior
             Console.WriteLine($"LGL Fixed Time: MaxDefect={result.MaxDefect:E2}, Success={result.Success}");
@@ -212,7 +219,8 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithMaxIterations(30)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateForLGL(problem, 8, 3);
+            var result = solver.Solve(problem, initialGuess);
 
             // Document current behavior - LGL has convergence issues with Brachistochrone
             Console.WriteLine($"LGL Fixed Time Boundary: MaxDefect={result.MaxDefect:E2}");
@@ -239,7 +247,8 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithMaxIterations(30)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateForLGL(problem, 8, 3);
+            var result = solver.Solve(problem, initialGuess);
 
             // Document current behavior
             Console.WriteLine($"LGL Free Time: MaxDefect={result.MaxDefect:E2}, Success={result.Success}");
@@ -261,7 +270,8 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithMaxIterations(30)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateForLGL(problem, 8, 3);
+            var result = solver.Solve(problem, initialGuess);
 
             // Just verify we get controls
             Assert.IsNotNull(result.Controls, "Should return controls array");

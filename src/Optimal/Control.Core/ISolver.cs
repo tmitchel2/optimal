@@ -20,9 +20,9 @@ namespace Optimal.Control.Core
         /// Solves the optimal control problem.
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
-        /// <param name="initialGuess">Optional initial guess for decision variables.</param>
+        /// <param name="initialGuess">Initial guess for state and control trajectories.</param>
         /// <returns>The optimal control solution.</returns>
-        CollocationResult Solve(ControlProblem problem, double[]? initialGuess = null);
+        CollocationResult Solve(ControlProblem problem, InitialGuess initialGuess);
 
         /// <summary>
         /// Sets the number of collocation segments.

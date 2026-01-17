@@ -58,22 +58,22 @@ namespace Optimal.Control.Collocation.Tests
                 .WithTolerance(1e-3)
                 .WithInnerOptimizer(new LBFGSOptimizer());
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
+            var result = solver.Solve(problem, initialGuess);
             Assert.IsTrue(result.Success, "First solve should converge");
 
             // Create a new grid with different resolution
             var newGrid = new CollocationGrid(0.0, 5.0, 15);
-            var newTranscription = new HermiteSimpsonTranscription(problem, newGrid);
 
             // Interpolate to new grid
-            var initialGuess = WarmStart.InterpolateFromPrevious(result, newGrid, newTranscription);
+            var warmStartGuess = WarmStart.InterpolateFromPrevious(result, newGrid);
 
             // Verify size
-            Assert.AreEqual(newTranscription.DecisionVectorSize, initialGuess.Length);
+            Assert.AreEqual(16, warmStartGuess.Points); // 15 segments + 1
 
             // Verify interpolated values are reasonable
-            var firstState = newTranscription.GetState(initialGuess, 0);
-            var lastState = newTranscription.GetState(initialGuess, 15);
+            var firstState = warmStartGuess.StateTrajectory[0];
+            var lastState = warmStartGuess.StateTrajectory[15];
 
             Assert.AreEqual(0.0, firstState[0], 0.1, "Initial state should be near 0");
             Assert.AreEqual(1.0, lastState[0], 0.2, "Final state should be near 1");
@@ -113,7 +113,8 @@ namespace Optimal.Control.Collocation.Tests
                 .WithTolerance(1e-3)
                 .WithInnerOptimizer(new LBFGSOptimizer());
 
-            var result1 = solver1.Solve(problem);
+            var initialGuess1 = InitialGuessFactory.CreateWithControlHeuristics(problem, 8);
+            var result1 = solver1.Solve(problem, initialGuess1);
             Assert.IsTrue(result1.Success, "Coarse solution should converge");
 
             // Now solve with more segments using warm start
@@ -123,8 +124,7 @@ namespace Optimal.Control.Collocation.Tests
                 .WithInnerOptimizer(new LBFGSOptimizer());
 
             var newGrid = new CollocationGrid(0.0, 5.0, 20);
-            var newTranscription = new HermiteSimpsonTranscription(problem, newGrid);
-            var warmStart = WarmStart.InterpolateFromPrevious(result1, newGrid, newTranscription);
+            var warmStart = WarmStart.InterpolateFromPrevious(result1, newGrid);
 
             var result2 = solver2.Solve(problem, warmStart);
 
@@ -166,18 +166,18 @@ namespace Optimal.Control.Collocation.Tests
                 .WithTolerance(1e-3)
                 .WithInnerOptimizer(new LBFGSOptimizer());
 
-            var result1 = solver.Solve(problem1);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem1, 10);
+            var result1 = solver.Solve(problem1, initialGuess);
             Assert.IsTrue(result1.Success);
 
             // Scale to T = 10
             var newGrid = new CollocationGrid(0.0, 10.0, 10);
-            var newTranscription = new HermiteSimpsonTranscription(problem1, newGrid);
 
-            var scaledGuess = WarmStart.ScaleTimeHorizon(result1, 0.0, 10.0, newGrid, newTranscription);
+            var scaledGuess = WarmStart.ScaleTimeHorizon(result1, 0.0, 10.0, newGrid);
 
             // Verify boundary conditions are preserved
-            var firstState = newTranscription.GetState(scaledGuess, 0);
-            var lastState = newTranscription.GetState(scaledGuess, 10);
+            var firstState = scaledGuess.StateTrajectory[0];
+            var lastState = scaledGuess.StateTrajectory[10];
 
             Assert.AreEqual(0.0, firstState[0], 0.1, "Initial state should be preserved");
             Assert.AreEqual(1.0, lastState[0], 0.2, "Final state should be preserved");
@@ -234,20 +234,21 @@ namespace Optimal.Control.Collocation.Tests
                 .WithTolerance(1e-3)
                 .WithInnerOptimizer(new LBFGSOptimizer());
 
-            var result1 = solver.Solve(problem1);
-            var result2 = solver.Solve(problem2);
+            var initialGuess1 = InitialGuessFactory.CreateWithControlHeuristics(problem1, 10);
+            var initialGuess2 = InitialGuessFactory.CreateWithControlHeuristics(problem2, 10);
+            var result1 = solver.Solve(problem1, initialGuess1);
+            var result2 = solver.Solve(problem2, initialGuess2);
 
             Assert.IsTrue(result1.Success);
             Assert.IsTrue(result2.Success);
 
             // Blend at lambda = 0.5
             var grid = new CollocationGrid(0.0, 5.0, 10);
-            var transcription = new HermiteSimpsonTranscription(problem1, grid);
 
-            var blended = WarmStart.BlendSolutions(result1, result2, 0.5, grid, transcription);
+            var blended = WarmStart.BlendSolutions(result1, result2, 0.5, grid);
 
             // Verify blended final state is midway
-            var finalState = transcription.GetState(blended, 10);
+            var finalState = blended.StateTrajectory[10];
             var expectedFinal = 0.5 * 1.0 + 0.5 * 2.0; // 1.5
 
             Assert.AreEqual(expectedFinal, finalState[0], 0.3, "Blended state should be midway");
@@ -270,16 +271,16 @@ namespace Optimal.Control.Collocation.Tests
                 .WithTolerance(1e-3)
                 .WithInnerOptimizer(new LBFGSOptimizer());
 
-            var result = solver.Solve(problem);
+            var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 5);
+            var result = solver.Solve(problem, initialGuess);
 
             var grid = new CollocationGrid(0.0, 5.0, 5);
-            var transcription = new HermiteSimpsonTranscription(problem, grid);
 
             Assert.ThrowsException<ArgumentOutOfRangeException>(() =>
-                WarmStart.BlendSolutions(result, result, -0.1, grid, transcription));
+                WarmStart.BlendSolutions(result, result, -0.1, grid));
 
             Assert.ThrowsException<ArgumentOutOfRangeException>(() =>
-                WarmStart.BlendSolutions(result, result, 1.1, grid, transcription));
+                WarmStart.BlendSolutions(result, result, 1.1, grid));
         }
 
         [TestMethod]
@@ -318,7 +319,8 @@ namespace Optimal.Control.Collocation.Tests
                 .WithMaxIterations(50)
                 .WithInnerOptimizer(new LBFGSOptimizer());
 
-            var result1 = solver1.Solve(problem);
+            var initialGuess1 = InitialGuessFactory.CreateWithControlHeuristics(problem, 8);
+            var result1 = solver1.Solve(problem, initialGuess1);
             Assert.IsTrue(result1.Success, "Coarse solution should converge");
 
             // Refine with warm start
@@ -329,8 +331,7 @@ namespace Optimal.Control.Collocation.Tests
                 .WithInnerOptimizer(new LBFGSOptimizer());
 
             var grid2 = new CollocationGrid(0.0, 2.0, 16);
-            var transcription2 = new HermiteSimpsonTranscription(problem, grid2);
-            var warmStart = WarmStart.InterpolateFromPrevious(result1, grid2, transcription2);
+            var warmStart = WarmStart.InterpolateFromPrevious(result1, grid2);
 
             var result2 = solver2.Solve(problem, warmStart);
 

@@ -422,6 +422,26 @@ namespace Optimal.Control.Collocation
             return z;
         }
 
+        /// <summary>
+        /// Converts an InitialGuess to a decision vector.
+        /// </summary>
+        /// <param name="initialGuess">The initial guess containing state and control trajectories.</param>
+        /// <returns>A decision vector suitable for the optimizer.</returns>
+        public double[] ToDecisionVector(InitialGuess initialGuess)
+        {
+            ArgumentNullException.ThrowIfNull(initialGuess);
+
+            var z = new double[_decisionVectorSize];
+
+            for (var k = 0; k <= _grid.Segments; k++)
+            {
+                SetState(z, k, initialGuess.StateTrajectory[k]);
+                SetControl(z, k, initialGuess.ControlTrajectory[k]);
+            }
+
+            return z;
+        }
+
         // Static helper methods
         private static double[] HermiteInterpolation(double[] xk, double[] xk1, double[] fk, double[] fk1, double h)
         {

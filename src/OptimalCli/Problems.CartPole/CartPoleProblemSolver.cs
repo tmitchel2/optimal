@@ -172,7 +172,8 @@ public sealed class CartPoleProblemSolver : ICommand
                             RadiantCartPoleVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, L);
                         });
 
-                var result = solver.Solve(problem);
+                var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 20);
+                var result = solver.Solve(problem, initialGuess);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return result;
             }

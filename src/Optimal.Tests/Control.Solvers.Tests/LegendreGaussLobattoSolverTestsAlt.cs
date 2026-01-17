@@ -31,5 +31,11 @@ namespace Optimal.Control.Solvers.Tests
         {
             return new LegendreGaussLobattoSolver();
         }
+
+        protected override InitialGuess CreateInitialGuess(ControlProblem problem, int segments, int order)
+        {
+            // LGL uses the order parameter
+            return InitialGuessFactory.CreateForLGL(problem, segments, order);
+        }
     }
 }

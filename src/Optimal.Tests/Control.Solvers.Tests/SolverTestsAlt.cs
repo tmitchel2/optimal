@@ -68,7 +68,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithMaxIterations(50)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
 
-            var result = solver.Solve(problem);
+            var initialGuess = CreateInitialGuess(problem, 10, 3);
+            var result = solver.Solve(problem, initialGuess);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -135,7 +136,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithMaxIterations(100)
                 .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
 
-            var result = solver.Solve(problem);
+            var initialGuess = CreateInitialGuess(problem, 10, 5);
+            var result = solver.Solve(problem, initialGuess);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -187,7 +189,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithMaxIterations(100)
                 .WithInnerOptimizer(new LBFGSOptimizer());
 
-            var result = solver.Solve(problem);
+            var initialGuess = CreateInitialGuess(problem, 10, 4);
+            var result = solver.Solve(problem, initialGuess);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -243,7 +246,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTolerance(1e-5)
                 .WithMaxIterations(100);
 
-            var result = solver.Solve(problem);
+            var initialGuess = CreateInitialGuess(problem, 10, 3);
+            var result = solver.Solve(problem, initialGuess);
 
             // Verify convergence
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -298,7 +302,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTolerance(1e-4)
                 .WithMaxIterations(50);
 
-            var result = solver.Solve(problem);
+            var initialGuess = CreateInitialGuess(problem, 8, 4);
+            var result = solver.Solve(problem, initialGuess);
 
             Assert.IsTrue(result.Success, "Solver should converge");
             Assert.IsTrue(result.MaxDefect < 1e-3, $"Defects should be small, was {result.MaxDefect}");
@@ -342,7 +347,8 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTolerance(1e-4)
                 .WithMaxIterations(50);
 
-            var result = solver.Solve(problem);
+            var initialGuess = CreateInitialGuess(problem, 8, 4);
+            var result = solver.Solve(problem, initialGuess);
 
             Assert.IsTrue(result.Success, "Solver should converge");
             Assert.AreEqual(1.0, result.States[result.States.Length - 1][0], 0.2,
@@ -395,5 +401,14 @@ namespace Optimal.Control.Solvers.Tests
         }
 
         protected abstract ISolver CreateSolver();
+
+        /// <summary>
+        /// Creates an initial guess appropriate for this solver type.
+        /// </summary>
+        /// <param name="problem">The control problem.</param>
+        /// <param name="segments">Number of segments.</param>
+        /// <param name="order">Polynomial order (used by LGL solver).</param>
+        /// <returns>An initial guess suitable for the solver.</returns>
+        protected abstract InitialGuess CreateInitialGuess(ControlProblem problem, int segments, int order);
     }
 }
