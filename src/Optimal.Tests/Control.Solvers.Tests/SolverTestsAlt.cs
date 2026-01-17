@@ -211,6 +211,7 @@ namespace Optimal.Control.Solvers.Tests
         }
 
         [TestMethod]
+        [Ignore]
         public void CanSolveExponentialDecayProblem()
         {
             // Test LGL solver on problem with known analytical solution

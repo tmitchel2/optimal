@@ -38,19 +38,16 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var Tfrate = 0.0;
 
             // Analytical gradients w.r.t. state using chain rule
-            var dxrate_dx = Tf * xrate_gradients[0];
-            var dxrate_dy = Tf * xrate_gradients[1];
-            var dxrate_dv = Tf * xrate_gradients[2];
+            // XRateReverse returns [∂/∂v, ∂/∂theta] - xrate = v*cos(theta), no x,y dependence
+            var dxrate_dx = 0.0;  // XRate doesn't depend on x
+            var dxrate_dv = Tf * xrate_gradients[0];  // [0] = ∂/∂v
             var dxrate_dTf = xrate_physical;
 
-            var dyrate_dx = Tf * yrate_gradients[0];
-            var dyrate_dy = Tf * yrate_gradients[1];
-            var dyrate_dv = Tf * yrate_gradients[2];
+            // YRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
+            var dyrate_dv = Tf * yrate_gradients[2];  // [2] = ∂/∂v
             var dyrate_dTf = yrate_physical;
 
-            var dvrate_dx = Tf * vrate_gradients[0];
-            var dvrate_dy = Tf * vrate_gradients[1];
-            var dvrate_dv = Tf * vrate_gradients[2];
+            // VRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
             var dvrate_dTf = vrate_physical;
 
             // Numerical gradient check using finite differences

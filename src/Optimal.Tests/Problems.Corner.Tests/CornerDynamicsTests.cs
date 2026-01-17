@@ -134,13 +134,15 @@ namespace Optimal.Problems.Corner.Tests
         [TestMethod]
         public void LateralRatePositiveWhenTurningRight()
         {
-            // When heading right of road (positive θ - θ_road), ṅ > 0
+            // When heading right of road (θ < θ_road), headingError < 0, ṅ > 0
+            // At s=10 (entry straight), θ_road = 0, so θ < 0 means heading right
             var s = 10.0;
             var n = 0.0;
-            var theta = 0.2; // Heading 0.2 rad right of road
+            var theta = -0.2; // Heading 0.2 rad right of road (θ < θ_road)
             var v = 15.0;
 
             var lateralRate = CornerDynamics.LateralRate(s, n, theta, v);
+            // ṅ = -v × sin(θ - θ_road) = -v × sin(-0.2) = v × sin(0.2)
             var expected = v * Math.Sin(0.2);
             Assert.AreEqual(expected, lateralRate, Tolerance);
             Assert.IsTrue(lateralRate > 0, "ṅ should be positive when heading right");
@@ -149,12 +151,15 @@ namespace Optimal.Problems.Corner.Tests
         [TestMethod]
         public void LateralRateNegativeWhenTurningLeft()
         {
+            // When heading left of road (θ > θ_road), headingError > 0, ṅ < 0
+            // At s=10 (entry straight), θ_road = 0, so θ > 0 means heading left
             var s = 10.0;
             var n = 0.0;
-            var theta = -0.2; // Heading 0.2 rad left of road
+            var theta = 0.2; // Heading 0.2 rad left of road (θ > θ_road)
             var v = 15.0;
 
             var lateralRate = CornerDynamics.LateralRate(s, n, theta, v);
+            // ṅ = -v × sin(θ - θ_road) = -v × sin(0.2) < 0
             Assert.IsTrue(lateralRate < 0, "ṅ should be negative when heading left");
         }
 

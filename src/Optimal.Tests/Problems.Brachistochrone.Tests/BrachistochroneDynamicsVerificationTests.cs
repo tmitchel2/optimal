@@ -99,21 +99,16 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var (value, gradients) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
 
             // Numerical gradients
-            var (valuePlusX, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
-            var (valuePlusY, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
             var (valuePlusV, _) = BrachistochroneDynamicsGradients.XRateReverse(v + Epsilon, theta);
             var (valuePlusTheta, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta + Epsilon);
 
-            var numGradX = (valuePlusX - value) / Epsilon;
-            var numGradY = (valuePlusY - value) / Epsilon;
             var numGradV = (valuePlusV - value) / Epsilon;
             var numGradTheta = (valuePlusTheta - value) / Epsilon;
 
-            // gradients = [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
-            Assert.AreEqual(0.0, gradients[0], GradientTolerance, "∂XRate/∂x should be 0");
-            Assert.AreEqual(0.0, gradients[1], GradientTolerance, "∂XRate/∂y should be 0");
-            Assert.AreEqual(numGradV, gradients[2], GradientTolerance, "∂XRate/∂v mismatch");
-            Assert.AreEqual(numGradTheta, gradients[3], GradientTolerance, "∂XRate/∂theta mismatch");
+            // XRateReverse returns gradients = [∂/∂v, ∂/∂theta]
+            // Note: XRate = v·cos(θ) has no x,y dependence
+            Assert.AreEqual(numGradV, gradients[0], GradientTolerance, "∂XRate/∂v mismatch");
+            Assert.AreEqual(numGradTheta, gradients[1], GradientTolerance, "∂XRate/∂theta mismatch");
         }
 
         [TestMethod]
@@ -224,8 +219,9 @@ namespace Optimal.Problems.Brachistochrone.Tests
 
             // Time-scaled gradients should be T_f times the physical gradients
             // For example: ∂(T_f·ẋ)/∂v = T_f · ∂ẋ/∂v
-            var scaledGrad_xrate_v = Tf * xrateGrad[2];   // ∂ẋ/∂v = cos(θ)
-            var scaledGrad_xrate_theta = Tf * xrateGrad[3]; // ∂ẋ/∂θ = -v·sin(θ)
+            // XRateReverse returns [∂/∂v, ∂/∂theta]
+            var scaledGrad_xrate_v = Tf * xrateGrad[0];     // ∂ẋ/∂v = cos(θ)
+            var scaledGrad_xrate_theta = Tf * xrateGrad[1]; // ∂ẋ/∂θ = -v·sin(θ)
 
             // Verify scaling is correct
             Assert.AreEqual(Tf * Math.Cos(theta), scaledGrad_xrate_v, GradientTolerance, "Scaled ∂ẋ/∂v");
@@ -338,12 +334,15 @@ namespace Optimal.Problems.Brachistochrone.Tests
             // Build gradients as expected by solver
             // gradients[0] = df/dx (3x3 flattened row-major)
             // gradients[1] = df/du (3x1)
+            // XRateReverse returns [∂/∂v, ∂/∂theta] - no x,y dependence
+            // YRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
+            // VRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
             var stateGradients = new double[] {
-                xrateGrad[0], xrateGrad[1], xrateGrad[2],  // ∂ẋ/∂(x,y,v)
+                0.0, 0.0, xrateGrad[0],                    // ∂ẋ/∂(x,y,v) - XRate has no x,y dependence
                 yrateGrad[0], yrateGrad[1], yrateGrad[2],  // ∂ẏ/∂(x,y,v)
                 vrateGrad[0], vrateGrad[1], vrateGrad[2]   // ∂v̇/∂(x,y,v)
             };
-            var controlGradients = new double[] { xrateGrad[3], yrateGrad[3], vrateGrad[3] }; // ∂f/∂θ
+            var controlGradients = new double[] { xrateGrad[1], yrateGrad[3], vrateGrad[3] }; // ∂f/∂θ
 
             // Verify values
             Assert.AreEqual(v * Math.Cos(theta), value[0], 1e-10, "ẋ value");
@@ -389,14 +388,17 @@ namespace Optimal.Problems.Brachistochrone.Tests
             // Build gradients for 4-state system
             // gradients[0] = df/dx (4x4 flattened row-major)
             // gradients[1] = df/du (4x1)
+            // XRateReverse returns [∂/∂v, ∂/∂theta] - no x,y dependence
+            // YRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
+            // VRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
             var stateGradients = new double[] {
-                Tf * xrateGrad[0], Tf * xrateGrad[1], Tf * xrateGrad[2], xratePhys,  // ∂ẋ_scaled/∂(x,y,v,Tf)
+                0.0, 0.0, Tf * xrateGrad[0], xratePhys,                              // ∂ẋ_scaled/∂(x,y,v,Tf) - XRate has no x,y dependence
                 Tf * yrateGrad[0], Tf * yrateGrad[1], Tf * yrateGrad[2], yratePhys,  // ∂ẏ_scaled/∂(x,y,v,Tf)
                 Tf * vrateGrad[0], Tf * vrateGrad[1], Tf * vrateGrad[2], vratePhys,  // ∂v̇_scaled/∂(x,y,v,Tf)
                 0.0, 0.0, 0.0, 0.0                                                    // ∂Ṫf/∂(x,y,v,Tf)
             };
             var controlGradients = new double[] {
-                Tf * xrateGrad[3],
+                Tf * xrateGrad[1],  // ∂ẋ_scaled/∂θ
                 Tf * yrateGrad[3],
                 Tf * vrateGrad[3],
                 0.0 // ∂Ṫf/∂θ = 0
