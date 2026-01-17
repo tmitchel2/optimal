@@ -174,14 +174,17 @@ public sealed class BrachistochroneProblemSolver : ICommand
                 var value = new[] { xrate, yrate, vrate, Tfrate };
 
                 // Gradients w.r.t. state: chain rule ∂(T_f·f)/∂x = T_f·(∂f/∂x), ∂(T_f·f)/∂T_f = f
+                // XRateReverse returns [∂/∂v, ∂/∂theta]
+                // YRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
+                // VRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
                 var gradients = new double[2][];
                 gradients[0] = [
-                    Tf * xrateGrad[0], Tf * xrateGrad[1], Tf * xrateGrad[2], xratePhys,
-                    Tf * yrateGrad[0], Tf * yrateGrad[1], Tf * yrateGrad[2], yratePhys,
-                    Tf * vrateGrad[0], Tf * vrateGrad[1], Tf * vrateGrad[2], vratePhys,
-                    0.0, 0.0, 0.0, 0.0
+                    0.0, 0.0, Tf * xrateGrad[0], xratePhys,                               // xrate: no x,y dep, v=xrateGrad[0], T_f=xratePhys
+                    Tf * yrateGrad[0], Tf * yrateGrad[1], Tf * yrateGrad[2], yratePhys,   // yrate: x,y,v from yrateGrad, T_f=yratePhys
+                    Tf * vrateGrad[0], Tf * vrateGrad[1], Tf * vrateGrad[2], vratePhys,   // vrate: x,y,v from vrateGrad, T_f=vratePhys
+                    0.0, 0.0, 0.0, 0.0                                                    // T_frate = 0, all derivatives = 0
                 ];
-                gradients[1] = [Tf * xrateGrad[3], Tf * yrateGrad[3], Tf * vrateGrad[3], 0.0];
+                gradients[1] = [Tf * xrateGrad[1], Tf * yrateGrad[3], Tf * vrateGrad[3], 0.0];
 
                 return (value, gradients);
             })
@@ -246,14 +249,18 @@ public sealed class BrachistochroneProblemSolver : ICommand
 
                 var value = new[] { xrate, yrate, vrate, Tfrate };
 
+                // Gradients w.r.t. state: chain rule ∂(T_f·f)/∂x = T_f·(∂f/∂x), ∂(T_f·f)/∂T_f = f
+                // XRateReverse returns [∂/∂v, ∂/∂theta]
+                // YRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
+                // VRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
                 var gradients = new double[2][];
                 gradients[0] = [
-                    Tf * xrateGrad[0], Tf * xrateGrad[1], Tf * xrateGrad[2], xratePhys,
-                    Tf * yrateGrad[0], Tf * yrateGrad[1], Tf * yrateGrad[2], yratePhys,
-                    Tf * vrateGrad[0], Tf * vrateGrad[1], Tf * vrateGrad[2], vratePhys,
-                    0.0, 0.0, 0.0, 0.0
+                    0.0, 0.0, Tf * xrateGrad[0], xratePhys,                               // xrate: no x,y dep, v=xrateGrad[0], T_f=xratePhys
+                    Tf * yrateGrad[0], Tf * yrateGrad[1], Tf * yrateGrad[2], yratePhys,   // yrate: x,y,v from yrateGrad, T_f=yratePhys
+                    Tf * vrateGrad[0], Tf * vrateGrad[1], Tf * vrateGrad[2], vratePhys,   // vrate: x,y,v from vrateGrad, T_f=vratePhys
+                    0.0, 0.0, 0.0, 0.0                                                    // T_frate = 0, all derivatives = 0
                 ];
-                gradients[1] = [Tf * xrateGrad[3], Tf * yrateGrad[3], Tf * vrateGrad[3], 0.0];
+                gradients[1] = [Tf * xrateGrad[1], Tf * yrateGrad[3], Tf * vrateGrad[3], 0.0];
 
                 return (value, gradients);
             })
