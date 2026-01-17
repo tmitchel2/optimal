@@ -290,7 +290,7 @@ namespace Optimal.Control.Solvers
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, currentSegments);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _enableParallelization);
 
-            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(x, u, t).value;
+            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value;
 
             var z = RebuildSolutionVector(transcription, result, currentSegments);
             var defects = transcription.ComputeAllDefects(z, DynamicsValue);
@@ -379,15 +379,15 @@ namespace Optimal.Control.Solvers
         {
             var testX = new double[problem.StateDim];
             var testU = new double[problem.ControlDim];
-            var testResult = problem.Dynamics!(testX, testU, 0.0);
+            var testResult = problem.Dynamics!(new DynamicsInput(testX, testU, 0.0));
 
-            if (testResult.gradients == null || testResult.gradients.Length < 2)
+            if (testResult.Gradients == null || testResult.Gradients.Length < 2)
             {
                 return false;
             }
 
-            var gradWrtState = testResult.gradients[0];
-            var gradWrtControl = testResult.gradients[1];
+            var gradWrtState = testResult.Gradients[0];
+            var gradWrtControl = testResult.Gradients[1];
             var expectedStateGradSize = problem.StateDim * problem.StateDim;
             var expectedControlGradSize = problem.StateDim * problem.ControlDim;
 
@@ -412,7 +412,7 @@ namespace Optimal.Control.Solvers
             int segments,
             int[] iterationCount)
         {
-            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(x, u, t).value;
+            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value;
 
             return z =>
             {
@@ -509,7 +509,7 @@ namespace Optimal.Control.Solvers
             double[] z0,
             Func<double[], (double value, double[] gradient)> nlpObjective)
         {
-            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(x, u, t).value;
+            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value;
 
             var (testCost, testGrad) = nlpObjective(z0);
             Console.WriteLine($"Test objective on initial guess: cost={testCost}, grad[0]={testGrad[0]}");
@@ -549,7 +549,7 @@ namespace Optimal.Control.Solvers
 
         private static CollocationResult ExtractSolution(ControlProblem problem, CollocationGrid grid, ParallelHermiteSimpsonTranscription transcription, int segments, OptimizerResult nlpResult)
         {
-            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(x, u, t).value;
+            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value;
             var zOpt = nlpResult.OptimalPoint;
 
             var states = new double[segments + 1][];

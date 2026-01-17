@@ -15,7 +15,7 @@ namespace Optimal.Control.Core
     /// </summary>
     public sealed class ControlProblem
     {
-        private Func<double[], double[], double, (double[] value, double[][] gradients)>? _dynamics;
+        private Func<DynamicsInput, DynamicsResult>? _dynamics;
         private Func<double[], double[], double, (double value, double[] gradients)>? _runningCost;
         private Func<double[], double, (double value, double[] gradients)>? _terminalCost;
         private int _stateDim;
@@ -34,7 +34,7 @@ namespace Optimal.Control.Core
         /// Gets the dynamics function: ẋ = f(x, u, t).
         /// Returns (value: dx/dt, gradients: [df/dx, df/du])
         /// </summary>
-        public Func<double[], double[], double, (double[] value, double[][] gradients)>? Dynamics => _dynamics;
+        public Func<DynamicsInput, DynamicsResult>? Dynamics => _dynamics;
 
         /// <summary>
         /// Gets the running cost function: L(x, u, t).
@@ -104,9 +104,9 @@ namespace Optimal.Control.Core
         /// <summary>
         /// Sets the dynamics function.
         /// </summary>
-        /// <param name="dynamics">Dynamics function returning (value, gradients).</param>
+        /// <param name="dynamics">Dynamics function returning DynamicsResult.</param>
         /// <returns>This problem instance for method chaining.</returns>
-        public ControlProblem WithDynamics(Func<double[], double[], double, (double[] value, double[][] gradients)> dynamics)
+        public ControlProblem WithDynamics(Func<DynamicsInput, DynamicsResult> dynamics)
         {
             _dynamics = dynamics ?? throw new ArgumentNullException(nameof(dynamics));
             return this;

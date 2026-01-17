@@ -88,8 +88,10 @@ public sealed class CornerProblemSolver : ICommand
             .WithStateBounds(
                 [-1.0, -RoadHalfWidth, -Math.PI, 1.0, 0.5],  // Min: s >= -1, n >= -RoadHalfWidth, θ, v >= 1 m/s, T_f >= 0.5s
                 [TotalLength + 5.0, RoadHalfWidth - 0.5, Math.PI, 30.0, 10.0])   // Max: s, n <= 4.5 (0.5m from apex), θ, v <= 30 m/s, T_f <= 10s
-            .WithDynamics((x, u, _) =>
+            .WithDynamics(input =>
             {
+                var x = input.State;
+                var u = input.Control;
                 var s = x[0];
                 var n = x[1];
                 var theta = x[2];
@@ -140,7 +142,7 @@ public sealed class CornerProblemSolver : ICommand
                     0.0, 0.0   // ∂Ṫf/∂[a, ω] = 0
                 ];
 
-                return (value, gradients);
+                return new DynamicsResult(value, gradients);
             })
             .WithTerminalCost((x, _) =>
             {

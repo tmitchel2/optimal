@@ -284,7 +284,7 @@ public sealed class GoddardRocketProblemSolver : ICommand
             .WithStateBounds(
                 [0.0, 0.0, mf],
                 [1e6, 1e4, m0])
-            .WithDynamics((x, u, _) => CreateYOptDynamics(x, u, D0, beta, c, g0, r0))
+            .WithDynamics(input => CreateYOptDynamics(input.State, input.Control, D0, beta, c, g0, r0))
             .WithRunningCost(CreateRunningCost)
             .WithTerminalCost(CreateTerminalCost)
             .WithPathConstraint((x, u, _) => CreatePathConstraint(x, u, mf));
@@ -346,7 +346,7 @@ public sealed class GoddardRocketProblemSolver : ICommand
             .WithStateBounds(
                 [0.0, 0.0, mf],
                 [1e6, 1e4, m0])
-            .WithDynamics((x, u, _) => CreateYOptDynamics(x, u, D0, beta, c, g0, r0))
+            .WithDynamics(input => CreateYOptDynamics(input.State, input.Control, D0, beta, c, g0, r0))
             .WithRunningCost(CreateRunningCost)
             .WithTerminalCost(CreateTerminalCost)
             .WithPathConstraint((x, u, _) => CreatePathConstraint(x, u, mf));
@@ -358,7 +358,7 @@ public sealed class GoddardRocketProblemSolver : ICommand
     /// Creates dynamics for the YOptimization-style Goddard rocket problem.
     /// Uses the model from PROPT examples 44 and 45.
     /// </summary>
-    private static (double[] value, double[][] gradients) CreateYOptDynamics(
+    private static DynamicsResult CreateYOptDynamics(
         double[] x, double[] u, double D0, double beta, double c, double g0, double r0)
     {
         var h = x[0];  // Altitude
@@ -399,7 +399,7 @@ public sealed class GoddardRocketProblemSolver : ICommand
             -1.0    // ∂ṁ/∂F
         ];
 
-        return (value, gradients);
+        return new DynamicsResult(value, gradients);
     }
 
     /// <summary>

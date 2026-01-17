@@ -48,8 +48,10 @@ public sealed class VanDerPolProblemSolver : ICommand
             .WithInitialCondition([2.0, 0.0]) // Start away from origin
             .WithFinalCondition([0.0, 0.0]) // Stabilize to origin
             .WithControlBounds([-5.0], [5.0])
-            .WithDynamics((x, u, _) =>
+            .WithDynamics(input =>
             {
+                var x = input.State;
+                var u = input.Control;
                 var x1 = x[0];
                 var x2 = x[1];
 
@@ -58,7 +60,7 @@ public sealed class VanDerPolProblemSolver : ICommand
 
                 var value = new[] { x1dot, x2dot };
                 var gradients = new double[2][];
-                return (value, gradients);
+                return new DynamicsResult(value, gradients);
             })
             .WithRunningCost((x, u, _) =>
             {

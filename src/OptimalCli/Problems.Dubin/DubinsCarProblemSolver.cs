@@ -50,8 +50,10 @@ public sealed class DubinsCarProblemSolver : ICommand
             .WithInitialCondition([0.0, 0.0, 0.0]) // Origin, facing east
             .WithFinalCondition([2.0, 2.0, Math.PI / 2]) // Target position and heading
             .WithControlBounds([-1.5], [1.5]) // Turn rate limits
-            .WithDynamics((x, u, _) =>
+            .WithDynamics(input =>
             {
+                var x = input.State;
+                var u = input.Control;
                 var xPos = x[0];
                 var yPos = x[1];
                 var theta = x[2];
@@ -81,7 +83,7 @@ public sealed class DubinsCarProblemSolver : ICommand
                     thetadot_gradients[3]     // ∂θ̇/∂ω
                 ];
 
-                return (value, gradients);
+                return new DynamicsResult(value, gradients);
             })
             .WithRunningCost((x, u, _) =>
             {

@@ -91,13 +91,14 @@ namespace Optimal.Control.Indirect.Tests
                 .WithControlSize(1)
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState1D)
-                .WithDynamics((_, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0];
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 });
         }
     }

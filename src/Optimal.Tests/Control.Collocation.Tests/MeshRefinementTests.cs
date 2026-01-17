@@ -85,13 +85,14 @@ namespace Optimal.Control.Collocation.Tests
                 .WithTimeHorizon(0.0, 10.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((__, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0];
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 })
                 .WithRunningCost((__, u, _) =>
                 {
@@ -137,11 +138,12 @@ namespace Optimal.Control.Collocation.Tests
                 .WithTimeHorizon(0.0, 5.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((__, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 })
                 .WithRunningCost((__, u, _) =>
                 {
@@ -192,13 +194,15 @@ namespace Optimal.Control.Collocation.Tests
                 .WithTimeHorizon(0.0, 4.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition([2.0])
-                .WithDynamics((_, u, t) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
+                    var t = input.Time;
                     // Time-varying dynamics
                     var multiplier = 1.0 + 10.0 * Math.Sin(5.0 * t);
                     var value = new[] { u[0] * multiplier };
                     var gradients = new double[2][];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 })
                 .WithRunningCost((__, u, _) =>
                 {

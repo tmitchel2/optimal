@@ -45,13 +45,14 @@ namespace Optimal.Control.Solvers.Tests
                     .WithTimeHorizon(0.0, 5.0)
                     .WithInitialCondition(s_zeroState1D)
                     .WithFinalCondition([target])
-                    .WithDynamics((_, u, _) =>
+                    .WithDynamics(input =>
                     {
+                        var u = input.Control;
                         var value = new[] { u[0] };
                         var gradients = new double[2][];
                         gradients[0] = [0.0];
                         gradients[1] = [1.0];
-                        return (value, gradients);
+                        return new DynamicsResult(value, gradients);
                     })
                     .WithRunningCost((_, u, _) =>
                     {
@@ -91,13 +92,14 @@ namespace Optimal.Control.Solvers.Tests
                     .WithTimeHorizon(0.0, 4.0)
                     .WithInitialCondition(s_zeroState1D)
                     .WithFinalCondition(s_oneState1D)
-                    .WithDynamics((_, u, _) =>
+                    .WithDynamics(input =>
                     {
+                        var u = input.Control;
                         var value = new[] { u[0] };
                         var gradients = new double[2][];
                         gradients[0] = [0.0];
                         gradients[1] = [1.0];
-                        return (value, gradients);
+                        return new DynamicsResult(value, gradients);
                     })
                     .WithRunningCost((_, u, _) =>
                     {
@@ -133,11 +135,12 @@ namespace Optimal.Control.Solvers.Tests
                     .WithTimeHorizon(0.0, 5.0)
                     .WithInitialCondition(s_zeroState1D)
                     .WithFinalCondition([lambda * 5.0])
-                    .WithDynamics((_, u, _) =>
+                    .WithDynamics(input =>
                     {
+                        var u = input.Control;
                         var value = new[] { u[0] };
                         var gradients = new double[2][];
-                        return (value, gradients);
+                        return new DynamicsResult(value, gradients);
                     })
                     .WithRunningCost((_, u, _) =>
                     {
@@ -174,13 +177,14 @@ namespace Optimal.Control.Solvers.Tests
                     .WithTimeHorizon(0.0, 5.0)
                     .WithInitialCondition(s_zeroState1D)
                     .WithFinalCondition([target])
-                    .WithDynamics((_, u, _) =>
+                    .WithDynamics(input =>
                     {
+                        var u = input.Control;
                         var value = new[] { u[0] };
                         var gradients = new double[2][];
                         gradients[0] = [0.0];
                         gradients[1] = [1.0];
-                        return (value, gradients);
+                        return new DynamicsResult(value, gradients);
                     })
                     .WithRunningCost((_, u, _) =>
                     {
@@ -232,8 +236,10 @@ namespace Optimal.Control.Solvers.Tests
                     .WithTimeHorizon(0.0, 3.0)
                     .WithInitialCondition(s_zeroState2D)
                     .WithFinalCondition([1.0, 0.0])
-                    .WithDynamics((x, u, _) =>
+                    .WithDynamics(input =>
                     {
+                        var x = input.State;
+                        var u = input.Control;
                         // Van der Pol-like: ẋ₁ = x₂, ẋ₂ = -x₁ + μ(1-x₁²)x₂ + u
                         var mu = nonlinearStrength;
                         var value = new[]
@@ -249,7 +255,7 @@ namespace Optimal.Control.Solvers.Tests
                             mu * (1.0 - x[0] * x[0]),
                             1.0
                         ];
-                        return (value, gradients);
+                        return new DynamicsResult(value, gradients);
                     })
                     .WithRunningCost((_, u, _) =>
                     {

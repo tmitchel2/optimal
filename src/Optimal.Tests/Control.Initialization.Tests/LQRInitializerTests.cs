@@ -68,13 +68,15 @@ namespace Optimal.Control.Initialization.Tests
                 .WithTimeHorizon(0.0, 2.0)
                 .WithInitialCondition(s_zeroState2D)
                 .WithFinalCondition(s_oneZeroState2D)
-                .WithDynamics((x, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var x = input.State;
+                    var u = input.Control;
                     var value = new[] { x[1], u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0, 1.0];
                     gradients[1] = [0.0, 0.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 });
 
             var grid = new CollocationGrid(0.0, 2.0, 10);
@@ -126,13 +128,14 @@ namespace Optimal.Control.Initialization.Tests
                 .WithControlSize(1)
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_oneState1D)
-                .WithDynamics((_, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0];
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 });
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
@@ -170,14 +173,15 @@ namespace Optimal.Control.Initialization.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((_, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     // Return empty gradients to force numerical differentiation
                     var gradients = new double[2][];
                     gradients[0] = Array.Empty<double>();
                     gradients[1] = Array.Empty<double>();
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 });
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
@@ -198,13 +202,14 @@ namespace Optimal.Control.Initialization.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState2D)
                 .WithFinalCondition(s_oneZeroState2D)
-                .WithDynamics((_, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0], u[1] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0, 0.0];
                     gradients[1] = [0.0, 0.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 });
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
@@ -225,13 +230,14 @@ namespace Optimal.Control.Initialization.Tests
                 .WithStateSize(1)
                 .WithControlSize(1)
                 .WithTimeHorizon(0.0, 1.0)
-                .WithDynamics((_, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0];
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 });
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
@@ -267,13 +273,14 @@ namespace Optimal.Control.Initialization.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((_, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0];
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 });
         }
 
@@ -291,15 +298,17 @@ namespace Optimal.Control.Initialization.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition([1.0])
                 .WithFinalCondition(s_zeroState1D)
-                .WithDynamics((x, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var x = input.State;
+                    var u = input.Control;
                     var value = new[] { -1.0 * x[0] + u[0] };
                     var gradients = new double[2][];
                     // df/dx = -1
                     gradients[0] = [-1.0];
                     // df/du = 1
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 });
 
             // System 2: Unstable system (a = +1)
@@ -310,15 +319,17 @@ namespace Optimal.Control.Initialization.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition([1.0])
                 .WithFinalCondition(s_zeroState1D)
-                .WithDynamics((x, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var x = input.State;
+                    var u = input.Control;
                     var value = new[] { 1.0 * x[0] + u[0] };
                     var gradients = new double[2][];
                     // df/dx = +1
                     gradients[0] = [1.0];
                     // df/du = 1
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 });
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
@@ -366,13 +377,15 @@ namespace Optimal.Control.Initialization.Tests
                 .WithTimeHorizon(0.0, 1.0)
                 .WithInitialCondition([1.0])
                 .WithFinalCondition(s_zeroState1D)
-                .WithDynamics((x, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var x = input.State;
+                    var u = input.Control;
                     var value = new[] { 2.0 * x[0] + u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [2.0];
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 });
 
             var grid = new CollocationGrid(0.0, 1.0, 1); // Just 2 points to simplify
@@ -421,15 +434,17 @@ namespace Optimal.Control.Initialization.Tests
                 .WithTimeHorizon(0.0, 2.0)
                 .WithInitialCondition([1.0, 0.0]) // Start at position 1, zero velocity
                 .WithFinalCondition(s_zeroState2D) // Target origin
-                .WithDynamics((x, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var x = input.State;
+                    var u = input.Control;
                     var value = new[] { x[1], u[0] };
                     var gradients = new double[2][];
                     // df/dx: [0, 1; 0, 0] flattened
                     gradients[0] = [0.0, 1.0, 0.0, 0.0];
                     // df/du: [0; 1] flattened
                     gradients[1] = [0.0, 1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 });
 
             var grid = new CollocationGrid(0.0, 2.0, 10);

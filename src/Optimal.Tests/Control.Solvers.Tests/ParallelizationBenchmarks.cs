@@ -53,7 +53,7 @@ namespace Optimal.Control.Solvers.Tests
             var problem = new ControlProblem()
                 .WithStateSize(2)
                 .WithControlSize(1)
-                .WithDynamics((x, u, _) => (new[] { x[1], u[0] }, s_emptyGradients));
+                .WithDynamics(input => new DynamicsResult(new[] { input.State[1], input.Control[0] }, s_emptyGradients));
 
             var grid = new CollocationGrid(0, 1, segments);
             var z = CreateRandomDecisionVector(segments, 2, 1);
@@ -63,7 +63,7 @@ namespace Optimal.Control.Solvers.Tests
             var sw = Stopwatch.StartNew();
             for (var i = 0; i < iterations; i++)
             {
-                var defects = seqTranscription.ComputeAllDefects(z, (x, u, t) => problem.Dynamics!(x, u, t).value);
+                var defects = seqTranscription.ComputeAllDefects(z, (x, u, t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value);
             }
             sw.Stop();
             var seqTime = sw.Elapsed.TotalMilliseconds;
@@ -73,7 +73,7 @@ namespace Optimal.Control.Solvers.Tests
             sw = Stopwatch.StartNew();
             for (var i = 0; i < iterations; i++)
             {
-                var defects = parTranscription.ComputeAllDefects(z, (x, u, t) => problem.Dynamics!(x, u, t).value);
+                var defects = parTranscription.ComputeAllDefects(z, (x, u, t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value);
             }
             sw.Stop();
             var parTime = sw.Elapsed.TotalMilliseconds;
@@ -116,7 +116,7 @@ namespace Optimal.Control.Solvers.Tests
             var problem = new ControlProblem()
                 .WithStateSize(2)
                 .WithControlSize(1)
-                .WithDynamics((x, u, _) => (new[] { x[1], u[0] }, s_emptyGradients))
+                .WithDynamics(input => new DynamicsResult(new[] { input.State[1], input.Control[0] }, s_emptyGradients))
                 .WithRunningCost((x, u, _) => (0.5 * (x[0] * x[0] + u[0] * u[0]), s_emptyGradient));
 
             var grid = new CollocationGrid(0, 1, segments);
@@ -251,7 +251,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithStateSize(2)
                 .WithControlSize(1)
                 .WithTimeHorizon(0.0, 10.0)
-                .WithDynamics((x, u, _) => (new[] { x[1], u[0] }, s_emptyGradients))
+                .WithDynamics(input => new DynamicsResult(new[] { input.State[1], input.Control[0] }, s_emptyGradients))
                 .WithRunningCost((x, u, _) => (0.5 * (x[0] * x[0] + u[0] * u[0]), s_emptyGradient))
                 .WithInitialCondition(s_initialState)
                 .WithFinalCondition(s_finalState);

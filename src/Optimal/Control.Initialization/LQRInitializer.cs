@@ -66,7 +66,8 @@ namespace Optimal.Control.Initialization
                     var uPrev = transcription.GetControl(initialGuess, k - 1);
 
                     // Simple forward Euler integration
-                    var (f, _) = problem.Dynamics!(xPrev, uPrev, grid.TimePoints[k - 1]);
+                    var dynResult = problem.Dynamics!(new DynamicsInput(xPrev, uPrev, grid.TimePoints[k - 1]));
+                    var f = dynResult.Value;
                     state = new double[nStates];
                     for (var i = 0; i < nStates; i++)
                     {
@@ -107,12 +108,14 @@ namespace Optimal.Control.Initialization
         /// Linearizes dynamics around a nominal point using finite differences.
         /// </summary>
         private static (double[,] A, double[,] B) LinearizeDynamics(
-            Func<double[], double[], double, (double[] value, double[][] gradients)> dynamics,
+            Func<DynamicsInput, DynamicsResult> dynamics,
             double[] xNominal,
             double[] uNominal,
             double t)
         {
-            var (f, gradients) = dynamics(xNominal, uNominal, t);
+            var result = dynamics(new DynamicsInput(xNominal, uNominal, t));
+            var f = result.Value;
+            var gradients = result.Gradients;
             var nStates = xNominal.Length;
             var nControls = uNominal.Length;
 
@@ -138,7 +141,7 @@ namespace Optimal.Control.Initialization
                 {
                     var xPerturb = (double[])xNominal.Clone();
                     xPerturb[j] += epsilon;
-                    var (fPerturb, _) = dynamics(xPerturb, uNominal, t);
+                    var fPerturb = dynamics(new DynamicsInput(xPerturb, uNominal, t)).Value;
 
                     for (var i = 0; i < nStates; i++)
                     {
@@ -166,7 +169,7 @@ namespace Optimal.Control.Initialization
                 {
                     var uPerturb = (double[])uNominal.Clone();
                     uPerturb[j] += epsilon;
-                    var (fPerturb, _) = dynamics(xNominal, uPerturb, t);
+                    var fPerturb = dynamics(new DynamicsInput(xNominal, uPerturb, t)).Value;
 
                     for (var i = 0; i < nStates; i++)
                     {

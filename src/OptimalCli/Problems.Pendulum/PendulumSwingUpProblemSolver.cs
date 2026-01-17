@@ -55,8 +55,10 @@ public sealed class PendulumSwingUpProblemSolver : ICommand
             .WithInitialCondition([0.0, 0.0]) // Hanging down at rest
             .WithFinalCondition([targetAngle, 0.0]) // Fully inverted at rest
             .WithControlBounds([-10.0], [10.0]) // Higher torque limits for full swing
-            .WithDynamics((x, u, _) =>
+            .WithDynamics(input =>
             {
+                var x = input.State;
+                var u = input.Control;
                 var theta = x[0];
                 var thetadot = x[1];
 
@@ -70,7 +72,7 @@ public sealed class PendulumSwingUpProblemSolver : ICommand
                 var gradients = new double[2][];
                 gradients[0] = [angleRateGrad[0], angleRateGrad[1]];  // ∂θ̇/∂[θ, θ̇]
                 gradients[1] = [angVelRateGrad[0], angVelRateGrad[1]];  // ∂θ̈/∂[θ, θ̇]
-                return (value, gradients);
+                return new DynamicsResult(value, gradients);
             })
             .WithRunningCost((x, u, _) =>
             {

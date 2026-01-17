@@ -276,8 +276,8 @@ namespace Optimal.Control.Solvers
             // Extract dynamics evaluator (without gradients for now)
             double[] DynamicsValue(double[] x, double[] u, double t)
             {
-                var result = problem.Dynamics!(x, u, t);
-                return result.value;
+                var result = problem.Dynamics!(new DynamicsInput(x, u, t));
+                return result.Value;
             }
 
             if (_verbose)
@@ -314,12 +314,12 @@ namespace Optimal.Control.Solvers
                 {
                     var testX = new double[problem.StateDim];
                     var testU = new double[problem.ControlDim];
-                    var testResult = problem.Dynamics!(testX, testU, 0.0);
+                    var testResult = problem.Dynamics!(new DynamicsInput(testX, testU, 0.0));
 
-                    if (testResult.gradients != null && testResult.gradients.Length >= 2)
+                    if (testResult.Gradients != null && testResult.Gradients.Length >= 2)
                     {
-                        var gradWrtState = testResult.gradients[0];
-                        var gradWrtControl = testResult.gradients[1];
+                        var gradWrtState = testResult.Gradients[0];
+                        var gradWrtControl = testResult.Gradients[1];
                         var expectedStateGradSize = problem.StateDim * problem.StateDim;
                         var expectedControlGradSize = problem.StateDim * problem.ControlDim;
 
@@ -544,8 +544,8 @@ namespace Optimal.Control.Solvers
                             segmentIndex, interiorPointIndex, stateComponentIndex,
                             (x, u, t) =>
                             {
-                                var res = problem.Dynamics!(x, u, t);
-                                return (res.value, res.gradients);
+                                var res = problem.Dynamics!(new DynamicsInput(x, u, t));
+                                return (res.Value, res.Gradients);
                             });
                         analyticalDefectCount++;
                     }
@@ -891,8 +891,8 @@ namespace Optimal.Control.Solvers
                 // Extract dynamics evaluator
                 double[] DynamicsValue(double[] x, double[] u, double t)
                 {
-                    var res = problem.Dynamics!(x, u, t);
-                    return res.value;
+                    var res = problem.Dynamics!(new DynamicsInput(x, u, t));
+                    return res.Value;
                 }
 
                 // Rebuild solution vector for defect computation

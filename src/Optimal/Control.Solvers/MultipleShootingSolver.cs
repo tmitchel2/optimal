@@ -367,18 +367,18 @@ namespace Optimal.Control.Solvers
         /// Computes maximum defect in the solution.
         /// </summary>
         private static double ComputeMaxDefect(
-            Func<double[], double[], double, (double[] value, double[][] gradients)> dynamics,
+            Func<DynamicsInput, DynamicsResult> dynamics,
             double[] times,
             double[][] states,
             double[][] controls)
         {
             var maxDefect = 0.0;
-            
+
             for (var i = 0; i < times.Length - 1; i++)
             {
                 var h = times[i + 1] - times[i];
-                var (f0, _) = dynamics(states[i], controls[i], times[i]);
-                var (f1, _) = dynamics(states[i + 1], controls[i + 1], times[i + 1]);
+                var f0 = dynamics(new DynamicsInput(states[i], controls[i], times[i])).Value;
+                var f1 = dynamics(new DynamicsInput(states[i + 1], controls[i + 1], times[i + 1])).Value;
                 
                 // Simple forward Euler check
                 for (var j = 0; j < states[i].Length; j++)

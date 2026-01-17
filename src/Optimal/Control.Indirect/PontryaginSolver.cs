@@ -310,7 +310,9 @@ namespace Optimal.Control.Indirect
             double t)
         {
             // State equation: ẋ = f(x, u, t)
-            var (f, gradients) = problem.Dynamics!(x, u, t);
+            var dynResult = problem.Dynamics!(new DynamicsInput(x, u, t));
+            var f = dynResult.Value;
+            var gradients = dynResult.Gradients;
 
             // Costate equation: λ̇ = -∂H/∂x = -∂L/∂x - λᵀ(∂f/∂x)
             var lambdaDot = new double[x.Length];

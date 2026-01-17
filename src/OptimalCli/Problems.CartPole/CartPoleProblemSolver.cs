@@ -58,8 +58,10 @@ public sealed class CartPoleProblemSolver : ICommand
             .WithStateBounds(
                 [-1.0, -2.0, -0.3, -2.0],
                 [1.0, 2.0, 0.3, 2.0])
-            .WithDynamics((x, u, _) =>
+            .WithDynamics(input =>
             {
+                var x = input.State;
+                var u = input.Control;
                 var xPos = x[0];
                 var xdot = x[1];
                 var theta = x[2];
@@ -91,7 +93,7 @@ public sealed class CartPoleProblemSolver : ICommand
                     thetaddot_gradients[4]   // ∂θ̈/∂F
                 ];
 
-                return (value, gradients);
+                return new DynamicsResult(value, gradients);
             })
             .WithRunningCost((x, u, _) =>
             {

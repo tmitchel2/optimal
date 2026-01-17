@@ -29,7 +29,7 @@ namespace Optimal.Control.Optimization
             bool hasAnalyticalGradients,
             AugmentedLagrangianOptimizer optimizer)
         {
-            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(x, u, t).value;
+            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value;
             var totalDefects = segments * problem.StateDim;
 
             for (var i = 0; i < totalDefects; i++)
@@ -161,8 +161,8 @@ namespace Optimal.Control.Optimization
                     segmentIndex, stateComponentIndex,
                     (x, u, t) =>
                     {
-                        var res = problem.Dynamics!(x, u, t);
-                        return (res.value, res.gradients);
+                        var res = problem.Dynamics!(new DynamicsInput(x, u, t));
+                        return (res.Value, res.Gradients);
                     });
             }
             catch

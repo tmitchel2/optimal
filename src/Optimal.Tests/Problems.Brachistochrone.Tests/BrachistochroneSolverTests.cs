@@ -306,8 +306,10 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithStateBounds(
                     [0.0, 0.0, 1e-6],
                     [15.0, 15.0, 20.0])
-                .WithDynamics((x, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var x = input.State;
+                    var u = input.Control;
                     var v = x[2];
                     var theta = u[0];
 
@@ -334,7 +336,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
                         Gravity * Math.Cos(theta) // dvrate/dtheta
                     ];
 
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 })
                 .WithRunningCost((_, _, _) =>
                 {
@@ -359,8 +361,10 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithStateBounds(
                     [0.0, 0.0, 1e-6, 0.1],
                     [15.0, 15.0, 20.0, 5.0])
-                .WithDynamics((x, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var x = input.State;
+                    var u = input.Control;
                     var v = x[2];
                     var Tf = x[3];
                     var theta = u[0];
@@ -396,7 +400,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
                         0.0                              // dTfrate/dtheta
                     ];
 
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 })
                 .WithTerminalCost((x, _) =>
                 {

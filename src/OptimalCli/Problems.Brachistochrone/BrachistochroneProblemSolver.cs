@@ -92,8 +92,10 @@ public sealed class BrachistochroneProblemSolver : ICommand
             .WithStateBounds(
                 [0.0, 0.0, 1e-6],
                 [15.0, 15.0, 20.0])
-            .WithDynamics((x, u, _) =>
+            .WithDynamics(input =>
             {
+                var x = input.State;
+                var u = input.Control;
                 var v = x[2];
                 var theta = u[0];
 
@@ -112,7 +114,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
                 ];
                 gradients[1] = [xrateGrad[3], yrateGrad[3], vrateGrad[3]];
 
-                return (value, gradients);
+                return new DynamicsResult(value, gradients);
             })
             .WithRunningCost((_, _, _) =>
             {
@@ -155,8 +157,10 @@ public sealed class BrachistochroneProblemSolver : ICommand
             .WithStateBounds(
                 [0.0, 0.0, 1e-6, 0.1],
                 [15.0, 15.0, 20.0, 5.0])
-            .WithDynamics((x, u, _) =>
+            .WithDynamics(input =>
             {
+                var x = input.State;
+                var u = input.Control;
                 var v = x[2];
                 var Tf = x[3];
                 var theta = u[0];
@@ -186,7 +190,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
                 ];
                 gradients[1] = [Tf * xrateGrad[1], Tf * yrateGrad[3], Tf * vrateGrad[3], 0.0];
 
-                return (value, gradients);
+                return new DynamicsResult(value, gradients);
             })
             .WithTerminalCost((x, _) =>
             {
@@ -231,8 +235,10 @@ public sealed class BrachistochroneProblemSolver : ICommand
             .WithStateBounds(
                 [0.0, 0.0, 1e-6, 0.1],
                 [15.0, 15.0, 20.0, 5.0])
-            .WithDynamics((x, u, _) =>
+            .WithDynamics(input =>
             {
+                var x = input.State;
+                var u = input.Control;
                 var v = x[2];
                 var Tf = x[3];
                 var theta = u[0];
@@ -262,7 +268,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
                 ];
                 gradients[1] = [Tf * xrateGrad[1], Tf * yrateGrad[3], Tf * vrateGrad[3], 0.0];
 
-                return (value, gradients);
+                return new DynamicsResult(value, gradients);
             })
             .WithRunningCost((x, _, _) =>
             {

@@ -126,13 +126,14 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTimeHorizon(0.0, 5.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((_, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0];
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 })
                 .WithRunningCost((_, u, _) =>
                 {
@@ -171,13 +172,15 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTimeHorizon(0.0, 2.0)
                 .WithInitialCondition(s_zeroState2D)
                 .WithFinalCondition(s_oneZeroState2D)
-                .WithDynamics((x, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var x = input.State;
+                    var u = input.Control;
                     var value = new[] { x[1], u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0, 1.0];
                     gradients[1] = [0.0, 0.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 })
                 .WithRunningCost((_, u, _) =>
                 {
@@ -217,13 +220,14 @@ namespace Optimal.Control.Solvers.Tests
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_threeState1D)
                 .WithControlBounds(s_controlBoundsLower, s_controlBoundsUpper)
-                .WithDynamics((_, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0];
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 })
                 .WithRunningCost((_, u, _) =>
                 {
@@ -264,13 +268,14 @@ namespace Optimal.Control.Solvers.Tests
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
                 .WithStateBounds(s_stateBoundsLower, s_stateBoundsUpper)
-                .WithDynamics((_, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0];
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 })
                 .WithRunningCost((_, u, _) =>
                 {
@@ -301,13 +306,14 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTimeHorizon(0.0, 2.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((_, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0];
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 })
                 .WithRunningCost((_, u, _) =>
                 {
@@ -344,13 +350,14 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTimeHorizon(0.0, 4.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((_, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0];
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 })
                 .WithRunningCost((_, u, _) =>
                 {
@@ -392,13 +399,14 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTimeHorizon(0.0, 2.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((_, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0];
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 })
                 .WithRunningCost((_, u, _) =>
                 {
@@ -429,13 +437,14 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTimeHorizon(0.0, 2.0)
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
-                .WithDynamics((_, u, _) =>
+                .WithDynamics(input =>
                 {
+                    var u = input.Control;
                     var value = new[] { u[0] };
                     var gradients = new double[2][];
                     gradients[0] = [0.0];
                     gradients[1] = [1.0];
-                    return (value, gradients);
+                    return new DynamicsResult(value, gradients);
                 })
                 .WithRunningCost((_, u, _) =>
                 {

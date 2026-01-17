@@ -487,7 +487,9 @@ namespace Optimal.Control.Indirect
             double[] u,
             double t)
         {
-            var (f, gradients) = problem.Dynamics!(x, u, t);
+            var dynResult = problem.Dynamics!(new DynamicsInput(x, u, t));
+            var f = dynResult.Value;
+            var gradients = dynResult.Gradients;
             var nStates = x.Length;
             var lambdaDot = new double[nStates];
 
