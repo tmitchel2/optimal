@@ -169,8 +169,9 @@ namespace Optimal.Control.Indirect
                     // For terminal cost Φ(x(tf)): λ(tf) = ∂Φ/∂x
                     if (problem.TerminalCost != null)
                     {
-                        var (phi, phiGrad) = problem.TerminalCost(xFinal, times[times.Length - 1]);
+                        var terminalResult = problem.TerminalCost(new TerminalCostInput(xFinal, times[times.Length - 1]));
                         var lambdaFinal = costates[costates.Length - 1];
+                        var phiGrad = terminalResult.Gradients;
 
                         for (var i = 0; i < nStates; i++)
                         {
@@ -366,8 +367,8 @@ namespace Optimal.Control.Indirect
             // Terminal cost
             if (problem.TerminalCost != null)
             {
-                var (phi, _) = problem.TerminalCost(states[states.Length - 1], times[times.Length - 1]);
-                cost += phi;
+                var terminalResult = problem.TerminalCost(new TerminalCostInput(states[states.Length - 1], times[times.Length - 1]));
+                cost += terminalResult.Value;
             }
 
             return cost;

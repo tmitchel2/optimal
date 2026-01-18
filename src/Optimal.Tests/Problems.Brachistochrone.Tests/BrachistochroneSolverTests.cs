@@ -402,12 +402,12 @@ namespace Optimal.Problems.Brachistochrone.Tests
 
                     return new DynamicsResult(value, gradients);
                 })
-                .WithTerminalCost((x, _) =>
+                .WithTerminalCost(input =>
                 {
-                    var Tf = x[3];
+                    var Tf = input.State[3];
                     var gradients = new double[5]; // [x, y, v, T_f, tau]
                     gradients[3] = 1.0; // ∂Φ/∂T_f = 1
-                    return (Tf, gradients);
+                    return new TerminalCostResult(Tf, gradients);
                 });
         }
 

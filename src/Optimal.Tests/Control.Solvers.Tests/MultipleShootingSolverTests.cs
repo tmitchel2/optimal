@@ -322,12 +322,12 @@ namespace Optimal.Control.Solvers.Tests
                     gradients[1] = u[0];
                     return (value, gradients);
                 })
-                .WithTerminalCost((x, _) =>
+                .WithTerminalCost(input =>
                 {
-                    var value = 0.5 * (x[0] - 1.0) * (x[0] - 1.0);
+                    var value = 0.5 * (input.State[0] - 1.0) * (input.State[0] - 1.0);
                     var gradients = new double[2];
-                    gradients[0] = x[0] - 1.0;
-                    return (value, gradients);
+                    gradients[0] = input.State[0] - 1.0;
+                    return new TerminalCostResult(value, gradients);
                 });
 
             var solver = new MultipleShootingSolver()

@@ -468,6 +468,7 @@ namespace Optimal.Control.Solvers
         private static double ComputeMaxViolation(ParallelHermiteSimpsonTranscription transcription, double[] z, Func<DynamicsInput, DynamicsResult> dynamics)
         {
             var allDefects = transcription.ComputeAllDefects(z, dynamics);
+            ThrowIfDefectsContainNaN(allDefects);
             return allDefects.Select(Math.Abs).Max();
         }
 
@@ -509,21 +510,17 @@ namespace Optimal.Control.Solvers
             Console.WriteLine($"Test objective on initial guess: cost={testCost}, grad[0]={testGrad[0]}");
 
             var testDefects = transcription.ComputeAllDefects(z0, problem.Dynamics!);
-            LogDefectNaNStatus(testDefects);
+            ThrowIfDefectsContainNaN(testDefects);
             LogMaxDefectPerState(testDefects, problem.StateDim, segments);
         }
 
-        private static void LogDefectNaNStatus(double[] defects)
+        private static void ThrowIfDefectsContainNaN(double[] defects)
         {
             var firstNaNIndex = Array.FindIndex(defects, double.IsNaN);
 
             if (firstNaNIndex >= 0)
             {
-                Console.WriteLine($"WARNING: Defect {firstNaNIndex} is NaN on initial guess!");
-            }
-            else
-            {
-                Console.WriteLine($"All {defects.Length} defects are finite on initial guess");
+                throw new InvalidOperationException($"Defect {firstNaNIndex} is NaN. Check dynamics function for numerical issues.");
             }
         }
 

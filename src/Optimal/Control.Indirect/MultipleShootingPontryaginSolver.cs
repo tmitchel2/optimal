@@ -331,10 +331,10 @@ namespace Optimal.Control.Indirect
 
             if (problem.TerminalCost != null)
             {
-                var (_, phiGrad) = problem.TerminalCost(xFinal, tf);
+                var terminalResult = problem.TerminalCost(new TerminalCostInput(xFinal, tf));
                 for (var j = 0; j < nStates; j++)
                 {
-                    residual[resIdx++] = lambdaFinal[j] - phiGrad[j];
+                    residual[resIdx++] = lambdaFinal[j] - terminalResult.Gradients[j];
                 }
             }
             else
@@ -539,8 +539,8 @@ namespace Optimal.Control.Indirect
 
             if (problem.TerminalCost != null)
             {
-                var (phi, _) = problem.TerminalCost(states[states.Length - 1], times[times.Length - 1]);
-                cost += phi;
+                var terminalResult = problem.TerminalCost(new TerminalCostInput(states[states.Length - 1], times[times.Length - 1]));
+                cost += terminalResult.Value;
             }
 
             return cost;

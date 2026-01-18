@@ -419,14 +419,15 @@ public sealed class GoddardRocketProblemSolver : ICommand
     /// <summary>
     /// Creates the terminal cost (-h to maximize altitude via minimization).
     /// </summary>
-    private static (double value, double[] gradients) CreateTerminalCost(double[] x, double t)
+    private static TerminalCostResult CreateTerminalCost(TerminalCostInput input)
     {
+        var x = input.State;
         var (cost, cost_gradients) = GoddardRocketDynamicsGradients.TerminalCostReverse(x[0], x[1], x[2]);
 
         var gradients = new double[2];
         gradients[0] = cost_gradients[0] + cost_gradients[1] + cost_gradients[2];
         gradients[1] = 0.0;
-        return (cost, gradients);
+        return new TerminalCostResult(cost, gradients);
     }
 
     /// <summary>

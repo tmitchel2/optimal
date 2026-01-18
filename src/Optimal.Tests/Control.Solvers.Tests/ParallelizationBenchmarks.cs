@@ -125,11 +125,15 @@ namespace Optimal.Control.Solvers.Tests
             // Sequential
             var seqTranscription = new ParallelHermiteSimpsonTranscription(problem, grid, enableParallelization: false);
             var sw = Stopwatch.StartNew();
+            Func<double[], double, double>? terminalCostFunc = problem.TerminalCost != null
+                ? (x, t) => problem.TerminalCost!(new TerminalCostInput(x, t)).Value
+                : null;
+
             for (var i = 0; i < iterations; i++)
             {
                 var gradient = seqTranscription.ComputeObjectiveGradient(z,
                     (x, u, t) => problem.RunningCost!(x, u, t).value,
-                    problem.TerminalCost != null ? (x, t) => problem.TerminalCost!(x, t).value : null);
+                    terminalCostFunc);
             }
             sw.Stop();
             var seqTime = sw.Elapsed.TotalMilliseconds;
@@ -141,7 +145,7 @@ namespace Optimal.Control.Solvers.Tests
             {
                 var gradient = parTranscription.ComputeObjectiveGradient(z,
                     (x, u, t) => problem.RunningCost!(x, u, t).value,
-                    problem.TerminalCost != null ? (x, t) => problem.TerminalCost!(x, t).value : null);
+                    terminalCostFunc);
             }
             sw.Stop();
             var parTime = sw.Elapsed.TotalMilliseconds;

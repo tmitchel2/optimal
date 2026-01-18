@@ -31,7 +31,7 @@ namespace Optimal.Control.Optimization
 
             if (problem.TerminalCost != null)
             {
-                double TerminalCostValue(double[] x, double t) => problem.TerminalCost(x, t).value;
+                double TerminalCostValue(double[] x, double t) => problem.TerminalCost(new TerminalCostInput(x, t)).Value;
                 cost += transcription.ComputeTerminalCost(z, TerminalCostValue);
             }
 
@@ -76,8 +76,8 @@ namespace Optimal.Control.Optimization
                     problem, grid, z, transcription.GetState,
                     (x, t) =>
                     {
-                        var res = problem.TerminalCost!(x, t);
-                        return (res.value, res.gradients!);
+                        var res = problem.TerminalCost!(new TerminalCostInput(x, t));
+                        return (res.Value, res.Gradients!);
                     });
 
                 for (var i = 0; i < gradient.Length; i++)
@@ -114,9 +114,9 @@ namespace Optimal.Control.Optimization
             {
                 try
                 {
-                    var testResult = problem.TerminalCost(new double[problem.StateDim], 0.0);
+                    var testResult = problem.TerminalCost(new TerminalCostInput(new double[problem.StateDim], 0.0));
                     var expectedSize = problem.StateDim + 1;
-                    useAnalytical = useAnalytical && testResult.gradients != null && testResult.gradients.Length >= expectedSize;
+                    useAnalytical = useAnalytical && testResult.Gradients != null && testResult.Gradients.Length >= expectedSize;
                 }
                 catch
                 {

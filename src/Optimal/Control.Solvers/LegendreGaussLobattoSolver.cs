@@ -295,7 +295,7 @@ namespace Optimal.Control.Solvers
                 }
                 if (problem.TerminalCost != null)
                 {
-                    initialCost += transcription.ComputeTerminalCost(z0, (x, t) => problem.TerminalCost(x, t).value);
+                    initialCost += transcription.ComputeTerminalCost(z0, (x, t) => problem.TerminalCost(new TerminalCostInput(x, t)).Value);
                 }
                 Console.WriteLine($"  Cost at initial guess: {initialCost:E6}");
             }
@@ -369,11 +369,11 @@ namespace Optimal.Control.Solvers
                 try
                 {
                     var testX = new double[problem.StateDim];
-                    var testResult = problem.TerminalCost(testX, 0.0);
+                    var testResult = problem.TerminalCost(new TerminalCostInput(testX, 0.0));
                     var expectedSize = problem.StateDim + 1;
                     useAnalyticalGradients = useAnalyticalGradients &&
-                        testResult.gradients != null &&
-                        testResult.gradients.Length >= expectedSize;
+                        testResult.Gradients != null &&
+                        testResult.Gradients.Length >= expectedSize;
                 }
                 catch
                 {
@@ -403,7 +403,7 @@ namespace Optimal.Control.Solvers
                 // Add terminal cost if defined
                 if (problem.TerminalCost != null)
                 {
-                    cost += transcription.ComputeTerminalCost(z, (x, t) => problem.TerminalCost(x, t).value);
+                    cost += transcription.ComputeTerminalCost(z, (x, t) => problem.TerminalCost(new TerminalCostInput(x, t)).Value);
                 }
 
                 double[] gradient;
@@ -435,8 +435,8 @@ namespace Optimal.Control.Solvers
                             problem, z, transcription.TotalPoints, grid.FinalTime, transcription.GetState,
                             (x, t) =>
                             {
-                                var res = problem.TerminalCost!(x, t);
-                                return (res.value, res.gradients!);
+                                var res = problem.TerminalCost!(new TerminalCostInput(x, t));
+                                return (res.Value, res.Gradients!);
                             });
 
                         for (var i = 0; i < gradient.Length; i++)
@@ -457,7 +457,7 @@ namespace Optimal.Control.Solvers
                         }
                         if (problem.TerminalCost != null)
                         {
-                            c += transcription.ComputeTerminalCost(zz, (x, t) => problem.TerminalCost(x, t).value);
+                            c += transcription.ComputeTerminalCost(zz, (x, t) => problem.TerminalCost(new TerminalCostInput(x, t)).Value);
                         }
                         return c;
                     }, z);

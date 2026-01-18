@@ -144,13 +144,13 @@ public sealed class CornerProblemSolver : ICommand
 
                 return new DynamicsResult(value, gradients);
             })
-            .WithTerminalCost((x, _) =>
+            .WithTerminalCost(input =>
             {
                 // Minimize final time T_f
-                var Tf = x[4];
+                var Tf = input.State[4];
                 var gradients = new double[6]; // [s, n, θ, v, T_f, τ]
                 gradients[4] = 1.0; // ∂Φ/∂T_f = 1
-                return (Tf, gradients);
+                return new TerminalCostResult(Tf, gradients);
             })
             // Road boundary constraints
             // The singularity occurs at n = CenterlineRadius = 5 where denominator 1 - n*κ = 0

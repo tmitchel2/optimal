@@ -340,14 +340,14 @@ namespace Optimal.Control.Solvers.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithTerminalCost((x, _) =>
+                .WithTerminalCost(input =>
                 {
-                    var error = x[0] - 1.0;
+                    var error = input.State[0] - 1.0;
                     var value = error * error;
                     var gradients = new double[2];
                     gradients[0] = 2.0 * error; // dΦ/dx
                     gradients[1] = 0.0; // dΦ/dt
-                    return (value, gradients);
+                    return new TerminalCostResult(value, gradients);
                 });
 
             var solver = CreateSolver()

@@ -101,11 +101,11 @@ namespace Optimal.Control.Optimization.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithTerminalCost((_, _) =>
+                .WithTerminalCost(_ =>
                 {
                     var value = 10.0; // Constant terminal cost
                     var gradients = new double[2];
-                    return (value, gradients);
+                    return new TerminalCostResult(value, gradients);
                 });
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
@@ -141,11 +141,11 @@ namespace Optimal.Control.Optimization.Tests
                     var gradients = new double[3];
                     return (value, gradients);
                 })
-                .WithTerminalCost((_, _) =>
+                .WithTerminalCost(_ =>
                 {
                     var value = 10.0;
                     var gradients = new double[2];
-                    return (value, gradients);
+                    return new TerminalCostResult(value, gradients);
                 });
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
@@ -275,13 +275,13 @@ namespace Optimal.Control.Optimization.Tests
                     var gradients = new double[2][];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithTerminalCost((x, _) =>
+                .WithTerminalCost(input =>
                 {
-                    var value = x[0];
+                    var value = input.State[0];
                     var gradients = new double[2]; // StateDim + 1 = 2
                     gradients[0] = 1.0;
                     gradients[1] = 0.0;
-                    return (value, gradients);
+                    return new TerminalCostResult(value, gradients);
                 });
 
             var result = ObjectiveFunctionFactory.CanUseAnalyticalGradientsForCosts(problem);

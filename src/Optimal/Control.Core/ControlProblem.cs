@@ -17,7 +17,7 @@ namespace Optimal.Control.Core
     {
         private Func<DynamicsInput, DynamicsResult>? _dynamics;
         private Func<double[], double[], double, (double value, double[] gradients)>? _runningCost;
-        private Func<double[], double, (double value, double[] gradients)>? _terminalCost;
+        private Func<TerminalCostInput, TerminalCostResult>? _terminalCost;
         private int _stateDim;
         private int _controlDim;
         private double _t0;
@@ -44,7 +44,7 @@ namespace Optimal.Control.Core
         /// <summary>
         /// Gets the terminal cost function: Φ(x, t).
         /// </summary>
-        public Func<double[], double, (double value, double[] gradients)>? TerminalCost => _terminalCost;
+        public Func<TerminalCostInput, TerminalCostResult>? TerminalCost => _terminalCost;
 
         /// <summary>
         /// Gets the state dimension.
@@ -126,9 +126,9 @@ namespace Optimal.Control.Core
         /// <summary>
         /// Sets the terminal cost function.
         /// </summary>
-        /// <param name="terminalCost">Terminal cost function.</param>
+        /// <param name="terminalCost">Terminal cost function returning TerminalCostResult.</param>
         /// <returns>This problem instance for method chaining.</returns>
-        public ControlProblem WithTerminalCost(Func<double[], double, (double value, double[] gradients)> terminalCost)
+        public ControlProblem WithTerminalCost(Func<TerminalCostInput, TerminalCostResult> terminalCost)
         {
             _terminalCost = terminalCost ?? throw new ArgumentNullException(nameof(terminalCost));
             return this;

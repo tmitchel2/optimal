@@ -68,4 +68,58 @@ namespace Optimal.Control.Core
             Gradients = gradients;
         }
     }
+
+    /// <summary>
+    /// Input arguments for the terminal cost function: Φ(x, t).
+    /// </summary>
+    public readonly struct TerminalCostInput
+    {
+        /// <summary>
+        /// Gets the state vector at final time.
+        /// </summary>
+        public double[] State { get; init; }
+
+        /// <summary>
+        /// Gets the final time.
+        /// </summary>
+        public double Time { get; init; }
+
+        /// <summary>
+        /// Creates a new terminal cost input.
+        /// </summary>
+        /// <param name="state">State vector at final time.</param>
+        /// <param name="time">Final time.</param>
+        public TerminalCostInput(double[] state, double time)
+        {
+            State = state;
+            Time = time;
+        }
+    }
+
+    /// <summary>
+    /// Result of the terminal cost function: Φ(x, t).
+    /// </summary>
+    public readonly struct TerminalCostResult
+    {
+        /// <summary>
+        /// Gets the terminal cost value.
+        /// </summary>
+        public double Value { get; init; }
+
+        /// <summary>
+        /// Gets the gradients: dΦ/dx.
+        /// </summary>
+        public double[] Gradients { get; init; }
+
+        /// <summary>
+        /// Creates a new terminal cost result.
+        /// </summary>
+        /// <param name="value">Terminal cost value.</param>
+        /// <param name="gradients">Gradients dΦ/dx.</param>
+        public TerminalCostResult(double value, double[] gradients)
+        {
+            Value = value;
+            Gradients = gradients;
+        }
+    }
 }
