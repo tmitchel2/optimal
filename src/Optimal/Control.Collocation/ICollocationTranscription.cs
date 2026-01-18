@@ -72,7 +72,7 @@ namespace Optimal.Control.Collocation
         /// <summary>
         /// Computes all defect constraints for the entire trajectory.
         /// </summary>
-        double[] ComputeAllDefects(double[] z, Func<double[], double[], double, double[]> dynamicsEvaluator);
+        double[] ComputeAllDefects(double[] z, Func<DynamicsInput, DynamicsResult> dynamicsEvaluator);
 
         /// <summary>
         /// Computes the running cost integrated over the trajectory.

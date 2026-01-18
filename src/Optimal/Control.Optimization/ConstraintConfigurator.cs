@@ -29,7 +29,7 @@ namespace Optimal.Control.Optimization
             bool hasAnalyticalGradients,
             AugmentedLagrangianOptimizer optimizer)
         {
-            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value;
+            var dynamics = problem.Dynamics!;
             var totalDefects = segments * problem.StateDim;
 
             for (var i = 0; i < totalDefects; i++)
@@ -37,8 +37,8 @@ namespace Optimal.Control.Optimization
                 var defectIndex = i;
                 optimizer.WithEqualityConstraint(z =>
                 {
-                    var allDefects = transcription.ComputeAllDefects(z, DynamicsValue);
-                    var gradient = ComputeDefectGradient(problem, grid, transcription, z, defectIndex, hasAnalyticalGradients, DynamicsValue);
+                    var allDefects = transcription.ComputeAllDefects(z, dynamics);
+                    var gradient = ComputeDefectGradient(problem, grid, transcription, z, defectIndex, hasAnalyticalGradients, dynamics);
                     return (allDefects[defectIndex], gradient);
                 });
             }
@@ -143,12 +143,12 @@ namespace Optimal.Control.Optimization
             double[] z,
             int defectIndex,
             bool hasAnalyticalGradients,
-            Func<double[], double[], double, double[]> dynamicsValue)
+            Func<DynamicsInput, DynamicsResult> dynamics)
         {
             if (!hasAnalyticalGradients)
             {
                 return NumericalGradients.ComputeConstraintGradient(
-                    zz => transcription.ComputeAllDefects(zz, dynamicsValue)[defectIndex], z);
+                    zz => transcription.ComputeAllDefects(zz, dynamics)[defectIndex], z);
             }
 
             var segmentIndex = defectIndex / problem.StateDim;
@@ -161,14 +161,14 @@ namespace Optimal.Control.Optimization
                     segmentIndex, stateComponentIndex,
                     (x, u, t) =>
                     {
-                        var res = problem.Dynamics!(new DynamicsInput(x, u, t));
+                        var res = dynamics(new DynamicsInput(x, u, t));
                         return (res.Value, res.Gradients);
                     });
             }
             catch
             {
                 return NumericalGradients.ComputeConstraintGradient(
-                    zz => transcription.ComputeAllDefects(zz, dynamicsValue)[defectIndex], z);
+                    zz => transcription.ComputeAllDefects(zz, dynamics)[defectIndex], z);
             }
         }
 

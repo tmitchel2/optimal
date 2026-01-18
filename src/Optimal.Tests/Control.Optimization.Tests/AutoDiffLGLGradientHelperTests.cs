@@ -57,7 +57,7 @@ namespace Optimal.Control.Optimization.Tests
             }
 
             // Dynamics for defect computation
-            double[] Dynamics(double[] x, double[] u, double t) => [u[0]];
+            DynamicsResult Dynamics(DynamicsInput input) => new([input.Control[0]], []);
 
             // Get differentiation matrix
             var diffMatrix = LegendreGaussLobatto.GetDifferentiationMatrix(order);
@@ -123,7 +123,7 @@ namespace Optimal.Control.Optimization.Tests
                 return (value_, gradients_);
             }
 
-            double[] Dynamics(double[] x, double[] u, double t) => [x[1], u[0]];
+            DynamicsResult Dynamics(DynamicsInput input) => new([input.State[1], input.Control[0]], []);
 
             var diffMatrix = LegendreGaussLobatto.GetDifferentiationMatrix(order);
             var numInteriorPerSegment = order - 2;
@@ -180,7 +180,7 @@ namespace Optimal.Control.Optimization.Tests
                 return (value_, gradients_);
             }
 
-            double[] Dynamics(double[] x, double[] u, double t) => [Math.Sin(u[0]) + x[0] * x[0]];
+            DynamicsResult Dynamics(DynamicsInput input) => new([Math.Sin(input.Control[0]) + input.State[0] * input.State[0]], []);
 
             var diffMatrix = LegendreGaussLobatto.GetDifferentiationMatrix(order);
             var numInteriorPerSegment = order - 2;
@@ -446,10 +446,10 @@ namespace Optimal.Control.Optimization.Tests
                 return (value_, gradients_);
             }
 
-            double[] Dynamics(double[] x, double[] u, double t)
+            DynamicsResult Dynamics(DynamicsInput input)
             {
-                var Tf = x[1];
-                return [Tf * u[0], 0.0];
+                var Tf = input.State[1];
+                return new([Tf * input.Control[0], 0.0], []);
             }
 
             var diffMatrix = LegendreGaussLobatto.GetDifferentiationMatrix(order);
@@ -509,10 +509,10 @@ namespace Optimal.Control.Optimization.Tests
             }
 
             // Dynamics: [T_f * u, 0]
-            double[] Dynamics(double[] x, double[] u, double t)
+            DynamicsResult Dynamics(DynamicsInput input)
             {
-                var Tf = x[1];
-                return [Tf * u[0], 0.0];
+                var Tf = input.State[1];
+                return new DynamicsResult([Tf * input.Control[0], 0.0], []);
             }
 
             // Compute numerical gradient of defect w.r.t. control
@@ -543,7 +543,7 @@ namespace Optimal.Control.Optimization.Tests
             double[] z,
             int defectIndex,
             LegendreGaussLobattoTranscription transcription,
-            Func<double[], double[], double, double[]> dynamics)
+            Func<DynamicsInput, DynamicsResult> dynamics)
         {
             var gradient = new double[z.Length];
             var defects = transcription.ComputeAllDefects(z, dynamics);

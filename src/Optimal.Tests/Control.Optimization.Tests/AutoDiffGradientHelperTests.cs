@@ -230,7 +230,7 @@ namespace Optimal.Control.Optimization.Tests
                 return (value_, gradients_);
             }
 
-            double[] Dynamics(double[] x, double[] u, double t) => [u[0]];
+            DynamicsResult Dynamics(DynamicsInput input) => new([input.Control[0]], []);
 
             // Test first defect
             var analyticalGrad = AutoDiffGradientHelper.ComputeDefectGradient(
@@ -274,7 +274,7 @@ namespace Optimal.Control.Optimization.Tests
                 return (value_, gradients_);
             }
 
-            double[] Dynamics(double[] x, double[] u, double t) => [x[1], u[0]];
+            DynamicsResult Dynamics(DynamicsInput input) => new([input.State[1], input.Control[0]], []);
 
             // Test all defects
             var totalDefects = grid.Segments * problem.StateDim;
@@ -355,7 +355,7 @@ namespace Optimal.Control.Optimization.Tests
             double[] z,
             int defectIndex,
             HermiteSimpsonTranscription transcription,
-            Func<double[], double[], double, double[]> dynamics)
+            Func<DynamicsInput, DynamicsResult> dynamics)
         {
             var gradient = new double[z.Length];
 

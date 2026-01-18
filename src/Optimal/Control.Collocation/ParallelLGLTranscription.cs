@@ -205,7 +205,7 @@ namespace Optimal.Control.Collocation
         private double[] ComputeSegmentDefects(
             int segmentIndex,
             double[] z,
-            Func<double[], double[], double, double[]> dynamicsEvaluator)
+            Func<DynamicsInput, DynamicsResult> dynamicsEvaluator)
         {
             var h = _grid.GetTimeStep(segmentIndex);
             var alpha = 2.0 / h; // Scaling factor for differentiation matrix
@@ -231,7 +231,7 @@ namespace Optimal.Control.Collocation
                 var ti = TauToPhysicalTime(_lglPoints[i], segmentIndex);
 
                 // Evaluate dynamics at this point
-                var fi = dynamicsEvaluator(xi, ui, ti);
+                var fi = dynamicsEvaluator(new DynamicsInput(xi, ui, ti)).Value;
 
                 // Compute derivative using differentiation matrix: dx/dt = α * Σ_j D_ij * x_j
                 var dxdt = new double[_stateDim];
@@ -264,7 +264,7 @@ namespace Optimal.Control.Collocation
         /// <param name="z">Decision vector.</param>
         /// <param name="dynamicsEvaluator">Function to evaluate dynamics: f(x, u, t).</param>
         /// <returns>Flat array of all defect constraints.</returns>
-        public double[] ComputeAllDefects(double[] z, Func<double[], double[], double, double[]> dynamicsEvaluator)
+        public double[] ComputeAllDefects(double[] z, Func<DynamicsInput, DynamicsResult> dynamicsEvaluator)
         {
             var numInteriorPointsPerSegment = _order - 2;
             var totalDefects = _grid.Segments * numInteriorPointsPerSegment * _stateDim;

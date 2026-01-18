@@ -272,13 +272,7 @@ namespace Optimal.Control.Solvers
             }
 
             var z0 = initialGuess;
-
-            // Extract dynamics evaluator (without gradients for now)
-            double[] DynamicsValue(double[] x, double[] u, double t)
-            {
-                var result = problem.Dynamics!(new DynamicsInput(x, u, t));
-                return result.Value;
-            }
+            var dynamics = problem.Dynamics!;
 
             if (_verbose)
             {
@@ -289,7 +283,7 @@ namespace Optimal.Control.Solvers
                 Console.WriteLine($"  First 10 controls: {string.Join(", ", Enumerable.Range(0, Math.Min(10, transcription.TotalPoints)).Select(i => transcription.GetControl(z0, i)[0].ToString("F6", System.Globalization.CultureInfo.InvariantCulture)))}");
 
                 // Compute defects at initial guess
-                var initialDefects = transcription.ComputeAllDefects(z0, DynamicsValue);
+                var initialDefects = transcription.ComputeAllDefects(z0, dynamics);
                 var maxInitialDefect = initialDefects.Length > 0 ? initialDefects.Max(d => Math.Abs(d)) : 0.0;
                 Console.WriteLine($"  Max defect at initial guess: {maxInitialDefect:E6}");
 
@@ -483,7 +477,7 @@ namespace Optimal.Control.Solvers
                     }
 
                     // Compute max constraint violation for defects
-                    var defects = transcription.ComputeAllDefects(z, DynamicsValue);
+                    var defects = transcription.ComputeAllDefects(z, dynamics);
                     var maxViolation = defects.Length > 0 ? defects.Max(d => Math.Abs(d)) : 0.0;
 
                     // Get time points from grid
@@ -520,7 +514,7 @@ namespace Optimal.Control.Solvers
             // Create defect constraint functions (one for each defect component)
             Func<int, Func<double[], (double, double[])>> DefectConstraint = defectIndex => z =>
             {
-                var allDefects = transcription.ComputeAllDefects(z, DynamicsValue);
+                var allDefects = transcription.ComputeAllDefects(z, dynamics);
 
                 double[] gradient;
 
@@ -554,7 +548,7 @@ namespace Optimal.Control.Solvers
                         // Fall back to numerical if AutoDiff fails
                         gradient = NumericalGradients.ComputeConstraintGradient(zz =>
                         {
-                            var defects = transcription.ComputeAllDefects(zz, DynamicsValue);
+                            var defects = transcription.ComputeAllDefects(zz, dynamics);
                             return defects[defectIndex];
                         }, z);
                         numericalDefectFallbackCount++;
@@ -565,7 +559,7 @@ namespace Optimal.Control.Solvers
                     // Compute gradient numerically
                     gradient = NumericalGradients.ComputeConstraintGradient(zz =>
                     {
-                        var defects = transcription.ComputeAllDefects(zz, DynamicsValue);
+                        var defects = transcription.ComputeAllDefects(zz, dynamics);
                         return defects[defectIndex];
                     }, z);
                     numericalDefectFallbackCount++;
@@ -608,7 +602,7 @@ namespace Optimal.Control.Solvers
                     var (defVal, analyticalGrad) = DefectConstraint(defectIdx)(z0);
                     var numericalGrad = NumericalGradients.ComputeConstraintGradient(zz =>
                     {
-                        var defects = transcription.ComputeAllDefects(zz, DynamicsValue);
+                        var defects = transcription.ComputeAllDefects(zz, dynamics);
                         return defects[defectIdx];
                     }, z0);
 
@@ -811,7 +805,7 @@ namespace Optimal.Control.Solvers
             }
 
             // Compute final defects
-            var finalDefects = transcription.ComputeAllDefects(zOpt, DynamicsValue);
+            var finalDefects = transcription.ComputeAllDefects(zOpt, dynamics);
             var maxDefect = LegendreGaussLobattoTranscription.MaxDefect(finalDefects);
 
             if (_verbose)
@@ -888,13 +882,6 @@ namespace Optimal.Control.Solvers
                     ? new ParallelLGLTranscription(problem, grid, _order, _enableParallelization)
                     : new LegendreGaussLobattoTranscription(problem, grid, _order);
 
-                // Extract dynamics evaluator
-                double[] DynamicsValue(double[] x, double[] u, double t)
-                {
-                    var res = problem.Dynamics!(new DynamicsInput(x, u, t));
-                    return res.Value;
-                }
-
                 // Rebuild solution vector for defect computation
                 var z = new double[transcription.DecisionVectorSize];
                 for (var k = 0; k < transcription.TotalPoints; k++)
@@ -903,7 +890,7 @@ namespace Optimal.Control.Solvers
                     transcription.SetControl(z, k, result.Controls[k]);
                 }
 
-                var defects = transcription.ComputeAllDefects(z, DynamicsValue);
+                var defects = transcription.ComputeAllDefects(z, problem.Dynamics!);
 
                 // Identify segments for refinement
                 var numInteriorPointsPerSegment = _order - 2;

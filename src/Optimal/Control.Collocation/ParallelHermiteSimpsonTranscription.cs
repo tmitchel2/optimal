@@ -137,7 +137,7 @@ namespace Optimal.Control.Collocation
         /// <summary>
         /// Computes all defect constraints with optional parallelization.
         /// </summary>
-        public double[] ComputeAllDefects(double[] z, Func<double[], double[], double, double[]> dynamicsEvaluator)
+        public double[] ComputeAllDefects(double[] z, Func<DynamicsInput, DynamicsResult> dynamicsEvaluator)
         {
             var totalDefects = _grid.Segments * _stateDim;
             var defects = new double[totalDefects];
@@ -167,7 +167,7 @@ namespace Optimal.Control.Collocation
         /// <summary>
         /// Computes defect constraint for a single segment.
         /// </summary>
-        private double[] ComputeSegmentDefect(double[] z, int k, Func<double[], double[], double, double[]> dynamicsEvaluator)
+        private double[] ComputeSegmentDefect(double[] z, int k, Func<DynamicsInput, DynamicsResult> dynamicsEvaluator)
         {
             var tk = _grid.TimePoints[k];
             var tk1 = _grid.TimePoints[k + 1];
@@ -179,12 +179,12 @@ namespace Optimal.Control.Collocation
             var uk = GetControl(z, k);
             var uk1 = GetControl(z, k + 1);
 
-            var fk = dynamicsEvaluator(xk, uk, tk);
-            var fk1 = dynamicsEvaluator(xk1, uk1, tk1);
+            var fk = dynamicsEvaluator(new DynamicsInput(xk, uk, tk)).Value;
+            var fk1 = dynamicsEvaluator(new DynamicsInput(xk1, uk1, tk1)).Value;
 
             var xMid = HermiteInterpolation(xk, xk1, fk, fk1, h);
             var uMid = ControlMidpoint(uk, uk1);
-            var fMid = dynamicsEvaluator(xMid, uMid, tMid);
+            var fMid = dynamicsEvaluator(new DynamicsInput(xMid, uMid, tMid)).Value;
 
             return ComputeDefect(xk, xk1, fk, fMid, fk1, h);
         }
@@ -193,7 +193,7 @@ namespace Optimal.Control.Collocation
         /// Computes numerical gradient of defects with respect to decision variables using finite differences.
         /// Returns sparse Jacobian structure optimized for parallel computation.
         /// </summary>
-        public double[,] ComputeDefectJacobian(double[] z, Func<double[], double[], double, double[]> dynamicsEvaluator, double epsilon = 1e-8)
+        public double[,] ComputeDefectJacobian(double[] z, Func<DynamicsInput, DynamicsResult> dynamicsEvaluator, double epsilon = 1e-8)
         {
             var numConstraints = _grid.Segments * _stateDim;
             var jacobian = new double[numConstraints, _decisionVectorSize];

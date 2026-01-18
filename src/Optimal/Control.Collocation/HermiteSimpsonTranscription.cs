@@ -216,7 +216,7 @@ namespace Optimal.Control.Collocation
         /// <param name="z">Decision vector.</param>
         /// <param name="dynamicsEvaluator">Function to evaluate dynamics: f(x, u, t).</param>
         /// <returns>Flat array of all defect constraints.</returns>
-        public double[] ComputeAllDefects(double[] z, Func<double[], double[], double, double[]> dynamicsEvaluator)
+        public double[] ComputeAllDefects(double[] z, Func<DynamicsInput, DynamicsResult> dynamicsEvaluator)
         {
             var totalDefects = _grid.Segments * _stateDim;
             var defects = new double[totalDefects];
@@ -233,12 +233,12 @@ namespace Optimal.Control.Collocation
                 var uk = GetControl(z, k);
                 var uk1 = GetControl(z, k + 1);
 
-                var fk = dynamicsEvaluator(xk, uk, tk);
-                var fk1 = dynamicsEvaluator(xk1, uk1, tk1);
+                var fk = dynamicsEvaluator(new DynamicsInput(xk, uk, tk)).Value;
+                var fk1 = dynamicsEvaluator(new DynamicsInput(xk1, uk1, tk1)).Value;
 
                 var xMid = HermiteInterpolation(xk, xk1, fk, fk1, h);
                 var uMid = ControlMidpoint(uk, uk1);
-                var fMid = dynamicsEvaluator(xMid, uMid, tMid);
+                var fMid = dynamicsEvaluator(new DynamicsInput(xMid, uMid, tMid)).Value;
 
                 var segmentDefect = ComputeDefect(xk, xk1, fk, fMid, fk1, h);
 

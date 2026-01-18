@@ -63,7 +63,7 @@ namespace Optimal.Control.Solvers.Tests
             var sw = Stopwatch.StartNew();
             for (var i = 0; i < iterations; i++)
             {
-                var defects = seqTranscription.ComputeAllDefects(z, (x, u, t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value);
+                var defects = seqTranscription.ComputeAllDefects(z, problem.Dynamics!);
             }
             sw.Stop();
             var seqTime = sw.Elapsed.TotalMilliseconds;
@@ -73,7 +73,7 @@ namespace Optimal.Control.Solvers.Tests
             sw = Stopwatch.StartNew();
             for (var i = 0; i < iterations; i++)
             {
-                var defects = parTranscription.ComputeAllDefects(z, (x, u, t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value);
+                var defects = parTranscription.ComputeAllDefects(z, problem.Dynamics!);
             }
             sw.Stop();
             var parTime = sw.Elapsed.TotalMilliseconds;

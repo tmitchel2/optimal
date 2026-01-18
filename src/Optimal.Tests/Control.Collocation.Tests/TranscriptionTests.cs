@@ -165,12 +165,10 @@ namespace Optimal.Control.Collocation.Tests
             }
 
             // Dynamics: ẋ = u
-#pragma warning disable RCS1163 // Unused parameter
-            double[] DynamicsEvaluator(double[] x, double[] u, double t)
+            DynamicsResult DynamicsEvaluator(DynamicsInput input)
             {
-                return [u[0]];
+                return new DynamicsResult([input.Control[0]], []);
             }
-#pragma warning restore RCS1163 // Unused parameter
 
             var defects = transcription.ComputeAllDefects(z, DynamicsEvaluator);
             var maxDefect = HermiteSimpsonTranscription.MaxDefect(defects);
@@ -202,9 +200,9 @@ namespace Optimal.Control.Collocation.Tests
             }
 
             // Dynamics: [dx/dt, dv/dt] = [v, u]
-            double[] DynamicsEvaluator(double[] x, double[] u, double _)
+            DynamicsResult DynamicsEvaluator(DynamicsInput input)
             {
-                return [x[1], u[0]];
+                return new DynamicsResult([input.State[1], input.Control[0]], []);
             }
 
             var defects = transcription.ComputeAllDefects(z, DynamicsEvaluator);

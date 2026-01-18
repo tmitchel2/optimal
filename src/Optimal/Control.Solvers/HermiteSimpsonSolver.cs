@@ -290,10 +290,8 @@ namespace Optimal.Control.Solvers
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, currentSegments);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _enableParallelization);
 
-            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value;
-
             var z = RebuildSolutionVector(transcription, result, currentSegments);
-            var defects = transcription.ComputeAllDefects(z, DynamicsValue);
+            var defects = transcription.ComputeAllDefects(z, problem.Dynamics!);
 
             var meshRefinement = new MeshRefinement(_refinementDefectThreshold, maxSegments: MaxMeshSegments);
             var shouldRefine = meshRefinement.IdentifySegmentsForRefinement(defects, problem.StateDim);
@@ -412,8 +410,6 @@ namespace Optimal.Control.Solvers
             int segments,
             int[] iterationCount)
         {
-            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value;
-
             return z =>
             {
                 var cost = ObjectiveFunctionFactory.ComputeTotalCost(problem, transcription, z);
@@ -424,7 +420,7 @@ namespace Optimal.Control.Solvers
                     LogObjectiveWarnings(cost, gradient);
                 }
 
-                InvokeProgressCallback(grid, transcription, segments, z, cost, DynamicsValue, iterationCount);
+                InvokeProgressCallback(grid, transcription, segments, z, cost, problem.Dynamics!, iterationCount);
 
                 return (cost, gradient);
             };
@@ -448,7 +444,7 @@ namespace Optimal.Control.Solvers
             int segments,
             double[] z,
             double cost,
-            Func<double[], double[], double, double[]> dynamicsValue,
+            Func<DynamicsInput, DynamicsResult> dynamics,
             int[] iterationCount)
         {
             if (_progressCallback == null)
@@ -465,13 +461,13 @@ namespace Optimal.Control.Solvers
                 controls[k] = transcription.GetControl(z, k);
             }
 
-            var maxViolation = ComputeMaxViolation(transcription, z, dynamicsValue);
+            var maxViolation = ComputeMaxViolation(transcription, z, dynamics);
             _progressCallback(iterationCount[0], cost, states, controls, grid.TimePoints, maxViolation, _tolerance);
         }
 
-        private static double ComputeMaxViolation(ParallelHermiteSimpsonTranscription transcription, double[] z, Func<double[], double[], double, double[]> dynamicsValue)
+        private static double ComputeMaxViolation(ParallelHermiteSimpsonTranscription transcription, double[] z, Func<DynamicsInput, DynamicsResult> dynamics)
         {
-            var allDefects = transcription.ComputeAllDefects(z, dynamicsValue);
+            var allDefects = transcription.ComputeAllDefects(z, dynamics);
             return allDefects.Select(Math.Abs).Max();
         }
 
@@ -502,19 +498,17 @@ namespace Optimal.Control.Solvers
             return constrainedOptimizer;
         }
 
-        private void LogInitialDiagnostics(
+        private static void LogInitialDiagnostics(
             ControlProblem problem,
             ParallelHermiteSimpsonTranscription transcription,
             int segments,
             double[] z0,
             Func<double[], (double value, double[] gradient)> nlpObjective)
         {
-            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value;
-
             var (testCost, testGrad) = nlpObjective(z0);
             Console.WriteLine($"Test objective on initial guess: cost={testCost}, grad[0]={testGrad[0]}");
 
-            var testDefects = transcription.ComputeAllDefects(z0, DynamicsValue);
+            var testDefects = transcription.ComputeAllDefects(z0, problem.Dynamics!);
             LogDefectNaNStatus(testDefects);
             LogMaxDefectPerState(testDefects, problem.StateDim, segments);
         }
@@ -549,7 +543,6 @@ namespace Optimal.Control.Solvers
 
         private static CollocationResult ExtractSolution(ControlProblem problem, CollocationGrid grid, ParallelHermiteSimpsonTranscription transcription, int segments, OptimizerResult nlpResult)
         {
-            double[] DynamicsValue(double[] x, double[] u, double t) => problem.Dynamics!(new DynamicsInput(x, u, t)).Value;
             var zOpt = nlpResult.OptimalPoint;
 
             var states = new double[segments + 1][];
@@ -560,7 +553,7 @@ namespace Optimal.Control.Solvers
                 controls[k] = transcription.GetControl(zOpt, k);
             }
 
-            var maxDefect = ComputeMaxViolation(transcription, zOpt, DynamicsValue);
+            var maxDefect = ComputeMaxViolation(transcription, zOpt, problem.Dynamics!);
 
             return new CollocationResult
             {
