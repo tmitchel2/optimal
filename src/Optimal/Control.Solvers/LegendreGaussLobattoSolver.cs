@@ -291,7 +291,7 @@ namespace Optimal.Control.Solvers
                 var initialCost = 0.0;
                 if (problem.RunningCost != null)
                 {
-                    initialCost += transcription.ComputeRunningCost(z0, (x, u, t) => problem.RunningCost(x, u, t).value);
+                    initialCost += transcription.ComputeRunningCost(z0, (x, u, t) => problem.RunningCost(new RunningCostInput(x, u, t)).Value);
                 }
                 if (problem.TerminalCost != null)
                 {
@@ -342,17 +342,17 @@ namespace Optimal.Control.Solvers
                 {
                     var testX = new double[problem.StateDim];
                     var testU = new double[problem.ControlDim];
-                    var testResult = problem.RunningCost(testX, testU, 0.0);
+                    var testResult = problem.RunningCost(new RunningCostInput(testX, testU, 0.0));
                     var expectedSize = problem.StateDim + problem.ControlDim + 1;
 
                     if (_verbose)
                     {
-                        Console.WriteLine($"Testing running cost gradients: hasGrads={(testResult.gradients != null)}, length={testResult.gradients?.Length ?? 0}, expected={expectedSize}");
+                        Console.WriteLine($"Testing running cost gradients: hasGrads={(testResult.Gradients != null)}, length={testResult.Gradients?.Length ?? 0}, expected={expectedSize}");
                     }
 
                     useAnalyticalGradients = useAnalyticalGradients &&
-                        testResult.gradients != null &&
-                        testResult.gradients.Length >= expectedSize;
+                        testResult.Gradients != null &&
+                        testResult.Gradients.Length >= expectedSize;
                 }
                 catch (Exception ex)
                 {
@@ -397,7 +397,7 @@ namespace Optimal.Control.Solvers
                 // Add running cost if defined
                 if (problem.RunningCost != null)
                 {
-                    cost += transcription.ComputeRunningCost(z, (x, u, t) => problem.RunningCost(x, u, t).value);
+                    cost += transcription.ComputeRunningCost(z, (x, u, t) => problem.RunningCost(new RunningCostInput(x, u, t)).Value);
                 }
 
                 // Add terminal cost if defined
@@ -419,8 +419,8 @@ namespace Optimal.Control.Solvers
                             problem, grid, z, _order, transcription.GetState, transcription.GetControl,
                             (x, u, t) =>
                             {
-                                var res = problem.RunningCost!(x, u, t);
-                                return (res.value, res.gradients!);
+                                var res = problem.RunningCost!(new RunningCostInput(x, u, t));
+                                return (res.Value, res.Gradients!);
                             });
 
                         for (var i = 0; i < gradient.Length; i++)
@@ -453,7 +453,7 @@ namespace Optimal.Control.Solvers
                         var c = 0.0;
                         if (problem.RunningCost != null)
                         {
-                            c += transcription.ComputeRunningCost(zz, (x, u, t) => problem.RunningCost(x, u, t).value);
+                            c += transcription.ComputeRunningCost(zz, (x, u, t) => problem.RunningCost(new RunningCostInput(x, u, t)).Value);
                         }
                         if (problem.TerminalCost != null)
                         {

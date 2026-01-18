@@ -338,12 +338,12 @@ namespace Optimal.Problems.Brachistochrone.Tests
 
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, _, _) =>
+                .WithRunningCost(_ =>
                 {
                     // L = 1 to minimize time
                     var value = 1.0;
                     var gradients = new double[5]; // [dx, dy, dv, dtheta, dt] all zero
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
         }
 

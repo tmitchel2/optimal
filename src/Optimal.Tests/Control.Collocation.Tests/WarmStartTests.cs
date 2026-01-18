@@ -44,14 +44,15 @@ namespace Optimal.Control.Collocation.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[3];
                     gradients[0] = 0.0;
                     gradients[1] = 2.0 * u[0];
                     gradients[2] = 0.0;
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             var solver = new HermiteSimpsonSolver()
@@ -99,14 +100,15 @@ namespace Optimal.Control.Collocation.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = 0.5 * u[0] * u[0];
                     var gradients = new double[3];
                     gradients[0] = 0.0;
                     gradients[1] = u[0];
                     gradients[2] = 0.0;
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             // First solve with fewer segments
@@ -154,14 +156,15 @@ namespace Optimal.Control.Collocation.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[3];
                     gradients[0] = 0.0;
                     gradients[1] = 2.0 * u[0];
                     gradients[2] = 0.0;
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             var solver = new HermiteSimpsonSolver()
@@ -205,11 +208,12 @@ namespace Optimal.Control.Collocation.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[3];
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             var problem2 = new ControlProblem()
@@ -227,11 +231,12 @@ namespace Optimal.Control.Collocation.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[3];
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             var solver = new HermiteSimpsonSolver()
@@ -269,7 +274,7 @@ namespace Optimal.Control.Collocation.Tests
                 .WithInitialCondition(s_zeroState1D)
                 .WithFinalCondition(s_oneState1D)
                 .WithDynamics(input => new DynamicsResult(new[] { input.Control[0] }, new double[2][]))
-                .WithRunningCost((_, u, _) => (u[0] * u[0], new double[3]));
+                .WithRunningCost(input => new RunningCostResult(input.Control[0] * input.Control[0], new double[3]));
 
             var solver = new HermiteSimpsonSolver()
                 .WithSegments(5)
@@ -309,14 +314,15 @@ namespace Optimal.Control.Collocation.Tests
                     gradients[1] = [1.0, 0.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = 0.5 * u[0] * u[0];
                     var gradients = new double[3];
                     gradients[0] = 0.0;
                     gradients[1] = 0.0;
                     gradients[2] = u[0];
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             // Solve coarse first

@@ -40,7 +40,7 @@ namespace Optimal.Control.Core.Tests
                     .WithInitialCondition(s_zeroState1D)
                     .WithFinalCondition(s_oneState1D)
                     .WithDynamics(input => new DynamicsResult(new[] { input.Control[0] }, new double[2][]))
-                    .WithRunningCost((_, u, _) => (u[0] * u[0], new double[3]))
+                    .WithRunningCost(input => new RunningCostResult(input.Control[0] * input.Control[0], new double[3]))
             };
 
             multiPhase.AddPhase(phase1);
@@ -188,14 +188,15 @@ namespace Optimal.Control.Core.Tests
                         gradients[1] = [1.0, 0.0];
                         return new DynamicsResult(value, gradients);
                     })
-                    .WithRunningCost((_, u, _) =>
+                    .WithRunningCost(input =>
                     {
+                        var u = input.Control;
                         var value = 0.5 * u[0] * u[0];
                         var gradients = new double[3];
                         gradients[0] = 0.0;
                         gradients[1] = 0.0;
                         gradients[2] = u[0];
-                        return (value, gradients);
+                        return new RunningCostResult(value, gradients);
                     })
             };
 
@@ -220,14 +221,15 @@ namespace Optimal.Control.Core.Tests
                         gradients[1] = [1.0, 0.0];
                         return new DynamicsResult(value, gradients);
                     })
-                    .WithRunningCost((_, u, _) =>
+                    .WithRunningCost(input =>
                     {
+                        var u = input.Control;
                         var value = 0.5 * u[0] * u[0];
                         var gradients = new double[3];
                         gradients[0] = 0.0;
                         gradients[1] = 0.0;
                         gradients[2] = u[0];
-                        return (value, gradients);
+                        return new RunningCostResult(value, gradients);
                     })
             };
 
@@ -321,14 +323,15 @@ namespace Optimal.Control.Core.Tests
                         gradients[1] = [1.0];
                         return new DynamicsResult(value, gradients);
                     })
-                    .WithRunningCost((_, u, _) =>
+                    .WithRunningCost(input =>
                     {
+                        var u = input.Control;
                         var value = 0.5 * u[0] * u[0];
                         var gradients = new double[3];
                         gradients[0] = 0.0;
                         gradients[1] = u[0];
                         gradients[2] = 0.0;
-                        return (value, gradients);
+                        return new RunningCostResult(value, gradients);
                     })
             };
         }

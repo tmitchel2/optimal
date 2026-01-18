@@ -51,14 +51,15 @@ namespace Optimal.Control.Solvers.Tests
                     gradients[1] = [1.0]; // df/du
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[3];
                     gradients[0] = 0.0; // dL/dx
                     gradients[1] = 2.0 * u[0]; // dL/du
                     gradients[2] = 0.0; // dL/dt
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             var solver = CreateSolver()
@@ -128,15 +129,16 @@ namespace Optimal.Control.Solvers.Tests
                     // Note: df/du would be [[0, 0], [0, 1]] but simplified
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[4];
                     gradients[0] = 0.0; // dL/dx0
                     gradients[1] = 0.0; // dL/dx1
                     gradients[2] = 2.0 * u[0]; // dL/du
                     gradients[3] = 0.0; // dL/dt
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             var solver = CreateSolver()
@@ -182,14 +184,15 @@ namespace Optimal.Control.Solvers.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[3];
                     gradients[0] = 0.0;
                     gradients[1] = 2.0 * u[0];
                     gradients[2] = 0.0;
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             var solver = CreateSolver()
@@ -235,11 +238,12 @@ namespace Optimal.Control.Solvers.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[3];
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             var solver = CreateSolver()

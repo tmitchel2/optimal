@@ -321,8 +321,8 @@ namespace Optimal.Control.Indirect
             // Get ∂L/∂x from running cost
             if (problem.RunningCost != null)
             {
-                var (L, Lgrad) = problem.RunningCost(x, u, t);
-                lambdaDot[0] = -Lgrad[0]; // Assuming Lgrad[0] is ∂L/∂x
+                var runningResult = problem.RunningCost(new RunningCostInput(x, u, t));
+                lambdaDot[0] = -runningResult.Gradients[0]; // Assuming Gradients[0] is ∂L/∂x
             }
 
             // Add -λᵀ(∂f/∂x) term
@@ -358,8 +358,8 @@ namespace Optimal.Control.Indirect
                 for (var k = 0; k < times.Length - 1; k++)
                 {
                     var dt = times[k + 1] - times[k];
-                    var (L1, _) = problem.RunningCost(states[k], controls[k], times[k]);
-                    var (L2, _) = problem.RunningCost(states[k + 1], controls[k + 1], times[k + 1]);
+                    var L1 = problem.RunningCost(new RunningCostInput(states[k], controls[k], times[k])).Value;
+                    var L2 = problem.RunningCost(new RunningCostInput(states[k + 1], controls[k + 1], times[k + 1])).Value;
                     cost += 0.5 * (L1 + L2) * dt;
                 }
             }

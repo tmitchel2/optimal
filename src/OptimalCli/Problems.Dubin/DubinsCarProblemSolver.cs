@@ -85,8 +85,10 @@ public sealed class DubinsCarProblemSolver : ICommand
 
                 return new DynamicsResult(value, gradients);
             })
-            .WithRunningCost((x, u, _) =>
+            .WithRunningCost(input =>
             {
+                var x = input.State;
+                var u = input.Control;
                 var xPos = x[0];
                 var yPos = x[1];
                 var theta = x[2];
@@ -100,7 +102,7 @@ public sealed class DubinsCarProblemSolver : ICommand
                 gradients[0] = 0.0;                 // ∂L/∂x = 0 (cost independent of state)
                 gradients[1] = cost_gradients[3];  // ∂L/∂u (∂L/∂omega)
                 gradients[2] = 0.0;                 // ∂L/∂t = 0
-                return (cost, gradients);
+                return new RunningCostResult(cost, gradients);
             });
 
         Console.WriteLine("Solver configuration:");

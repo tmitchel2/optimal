@@ -74,8 +74,10 @@ public sealed class PendulumSwingUpProblemSolver : ICommand
                 gradients[1] = [angVelRateGrad[0], angVelRateGrad[1]];  // ∂θ̈/∂[θ, θ̇]
                 return new DynamicsResult(value, gradients);
             })
-            .WithRunningCost((x, u, _) =>
+            .WithRunningCost(input =>
             {
+                var x = input.State;
+                var u = input.Control;
                 var theta = x[0];
                 var thetadot = x[1];
 
@@ -87,7 +89,7 @@ public sealed class PendulumSwingUpProblemSolver : ICommand
                 gradients[0] = costGrad[0];  // ∂L/∂θ
                 gradients[1] = costGrad[1];  // ∂L/∂θ̇
                 gradients[2] = costGrad[2];  // ∂L/∂u
-                return (cost, gradients);
+                return new RunningCostResult(cost, gradients);
             });
 
         Console.WriteLine("Solver configuration:");

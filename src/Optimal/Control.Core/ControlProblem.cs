@@ -16,7 +16,7 @@ namespace Optimal.Control.Core
     public sealed class ControlProblem
     {
         private Func<DynamicsInput, DynamicsResult>? _dynamics;
-        private Func<double[], double[], double, (double value, double[] gradients)>? _runningCost;
+        private Func<RunningCostInput, RunningCostResult>? _runningCost;
         private Func<TerminalCostInput, TerminalCostResult>? _terminalCost;
         private int _stateDim;
         private int _controlDim;
@@ -39,7 +39,7 @@ namespace Optimal.Control.Core
         /// <summary>
         /// Gets the running cost function: L(x, u, t).
         /// </summary>
-        public Func<double[], double[], double, (double value, double[] gradients)>? RunningCost => _runningCost;
+        public Func<RunningCostInput, RunningCostResult>? RunningCost => _runningCost;
 
         /// <summary>
         /// Gets the terminal cost function: Φ(x, t).
@@ -115,9 +115,9 @@ namespace Optimal.Control.Core
         /// <summary>
         /// Sets the running cost function.
         /// </summary>
-        /// <param name="runningCost">Running cost function.</param>
+        /// <param name="runningCost">Running cost function returning RunningCostResult.</param>
         /// <returns>This problem instance for method chaining.</returns>
-        public ControlProblem WithRunningCost(Func<double[], double[], double, (double value, double[] gradients)> runningCost)
+        public ControlProblem WithRunningCost(Func<RunningCostInput, RunningCostResult> runningCost)
         {
             _runningCost = runningCost ?? throw new ArgumentNullException(nameof(runningCost));
             return this;

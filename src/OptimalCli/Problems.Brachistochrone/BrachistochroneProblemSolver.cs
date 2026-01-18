@@ -116,11 +116,11 @@ public sealed class BrachistochroneProblemSolver : ICommand
 
                 return new DynamicsResult(value, gradients);
             })
-            .WithRunningCost((_, _, _) =>
+            .WithRunningCost(_ =>
             {
                 // Running cost = 1 (integral equals time)
                 var gradients = new double[5]; // [x, y, v, theta, t]
-                return (1.0, gradients);
+                return new RunningCostResult(1.0, gradients);
             });
 
         return (problem, description);
@@ -270,13 +270,13 @@ public sealed class BrachistochroneProblemSolver : ICommand
 
                 return new DynamicsResult(value, gradients);
             })
-            .WithRunningCost((x, _, _) =>
+            .WithRunningCost(input =>
             {
-                var Tf = x[3];
+                var Tf = input.State[3];
                 // Running cost = T_f, so ∫₀¹ T_f dτ = T_f (since T_f is constant)
                 var gradients = new double[6]; // [x, y, v, T_f, theta, tau]
                 gradients[3] = 1.0; // ∂L/∂T_f = 1
-                return (Tf, gradients);
+                return new RunningCostResult(Tf, gradients);
             });
 
         return (problem, description);

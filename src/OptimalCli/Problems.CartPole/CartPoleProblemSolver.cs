@@ -95,8 +95,10 @@ public sealed class CartPoleProblemSolver : ICommand
 
                 return new DynamicsResult(value, gradients);
             })
-            .WithRunningCost((x, u, _) =>
+            .WithRunningCost(input =>
             {
+                var x = input.State;
+                var u = input.Control;
                 var xPos = x[0];
                 var xdot = x[1];
                 var theta = x[2];
@@ -110,7 +112,7 @@ public sealed class CartPoleProblemSolver : ICommand
                 gradients[0] = cost_gradients[0] + cost_gradients[1] + cost_gradients[2] + cost_gradients[3];  // ∂L/∂x (sum over state components)
                 gradients[1] = cost_gradients[4];  // ∂L/∂u
                 gradients[2] = 0.0;                 // ∂L/∂t
-                return (cost, gradients);
+                return new RunningCostResult(cost, gradients);
             });
 
         Console.WriteLine("Solver configuration:");

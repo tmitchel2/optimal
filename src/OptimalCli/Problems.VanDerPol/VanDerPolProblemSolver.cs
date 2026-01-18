@@ -62,12 +62,14 @@ public sealed class VanDerPolProblemSolver : ICommand
                 var gradients = new double[2][];
                 return new DynamicsResult(value, gradients);
             })
-            .WithRunningCost((x, u, _) =>
+            .WithRunningCost(input =>
             {
                 // Minimize control effort and state deviation
+                var x = input.State;
+                var u = input.Control;
                 var value = 0.1 * (x[0] * x[0] + x[1] * x[1]) + u[0] * u[0];
                 var gradients = new double[4];
-                return (value, gradients);
+                return new RunningCostResult(value, gradients);
             });
 
         Console.WriteLine("Solver configuration:");

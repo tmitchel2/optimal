@@ -405,15 +405,17 @@ public sealed class GoddardRocketProblemSolver : ICommand
     /// <summary>
     /// Creates the running cost (zero for Goddard problem - we maximize terminal altitude).
     /// </summary>
-    private static (double value, double[] gradients) CreateRunningCost(double[] x, double[] u, double t)
+    private static RunningCostResult CreateRunningCost(RunningCostInput input)
     {
+        var x = input.State;
+        var u = input.Control;
         var (cost, cost_gradients) = GoddardRocketDynamicsGradients.RunningCostReverse(x[0], x[1], x[2], u[0]);
 
         var gradients = new double[3];
         gradients[0] = cost_gradients[0] + cost_gradients[1] + cost_gradients[2];
         gradients[1] = cost_gradients[3];
         gradients[2] = 0.0;
-        return (cost, gradients);
+        return new RunningCostResult(cost, gradients);
     }
 
     /// <summary>

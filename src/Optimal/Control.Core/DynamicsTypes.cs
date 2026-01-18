@@ -70,6 +70,67 @@ namespace Optimal.Control.Core
     }
 
     /// <summary>
+    /// Input arguments for the running cost function: L(x, u, t).
+    /// </summary>
+    public readonly struct RunningCostInput
+    {
+        /// <summary>
+        /// Gets the state vector.
+        /// </summary>
+        public double[] State { get; init; }
+
+        /// <summary>
+        /// Gets the control vector.
+        /// </summary>
+        public double[] Control { get; init; }
+
+        /// <summary>
+        /// Gets the time.
+        /// </summary>
+        public double Time { get; init; }
+
+        /// <summary>
+        /// Creates a new running cost input.
+        /// </summary>
+        /// <param name="state">State vector.</param>
+        /// <param name="control">Control vector.</param>
+        /// <param name="time">Time.</param>
+        public RunningCostInput(double[] state, double[] control, double time)
+        {
+            State = state;
+            Control = control;
+            Time = time;
+        }
+    }
+
+    /// <summary>
+    /// Result of the running cost function: L(x, u, t).
+    /// </summary>
+    public readonly struct RunningCostResult
+    {
+        /// <summary>
+        /// Gets the running cost value.
+        /// </summary>
+        public double Value { get; init; }
+
+        /// <summary>
+        /// Gets the gradients: [dL/dx, dL/du, dL/dt].
+        /// </summary>
+        public double[] Gradients { get; init; }
+
+        /// <summary>
+        /// Creates a new running cost result.
+        /// </summary>
+        /// <param name="value">Running cost value.</param>
+        /// <param name="gradients">Gradients [dL/dx, dL/du, dL/dt].</param>
+        public RunningCostResult(double value, double[] gradients)
+        {
+            Value = value;
+            Gradients = gradients;
+        }
+    }
+
+    /// <summary>
     /// Input arguments for the terminal cost function: Φ(x, t).
     /// </summary>
     public readonly struct TerminalCostInput

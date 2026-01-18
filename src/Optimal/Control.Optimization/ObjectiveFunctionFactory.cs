@@ -25,7 +25,7 @@ namespace Optimal.Control.Optimization
 
             if (problem.RunningCost != null)
             {
-                double RunningCostValue(double[] x, double[] u, double t) => problem.RunningCost(x, u, t).value;
+                double RunningCostValue(double[] x, double[] u, double t) => problem.RunningCost(new RunningCostInput(x, u, t)).Value;
                 cost += transcription.ComputeRunningCost(z, RunningCostValue);
             }
 
@@ -60,8 +60,8 @@ namespace Optimal.Control.Optimization
                     problem, grid, z, transcription.GetState, transcription.GetControl,
                     (x, u, t) =>
                     {
-                        var res = problem.RunningCost!(x, u, t);
-                        return (res.value, res.gradients!);
+                        var res = problem.RunningCost!(new RunningCostInput(x, u, t));
+                        return (res.Value, res.Gradients!);
                     });
 
                 for (var i = 0; i < gradient.Length; i++)
@@ -100,9 +100,9 @@ namespace Optimal.Control.Optimization
             {
                 try
                 {
-                    var testResult = problem.RunningCost(new double[problem.StateDim], new double[problem.ControlDim], 0.0);
+                    var testResult = problem.RunningCost(new RunningCostInput(new double[problem.StateDim], new double[problem.ControlDim], 0.0));
                     var expectedSize = problem.StateDim + problem.ControlDim + 1;
-                    useAnalytical = useAnalytical && testResult.gradients != null && testResult.gradients.Length >= expectedSize;
+                    useAnalytical = useAnalytical && testResult.Gradients != null && testResult.Gradients.Length >= expectedSize;
                 }
                 catch
                 {

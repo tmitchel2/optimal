@@ -66,11 +66,11 @@ namespace Optimal.Control.Optimization.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, _, _) =>
+                .WithRunningCost(_ =>
                 {
                     var value = 1.0; // Constant running cost
                     var gradients = new double[3];
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
@@ -135,11 +135,11 @@ namespace Optimal.Control.Optimization.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, _, _) =>
+                .WithRunningCost(_ =>
                 {
                     var value = 1.0;
                     var gradients = new double[3];
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 })
                 .WithTerminalCost(_ =>
                 {
@@ -174,14 +174,15 @@ namespace Optimal.Control.Optimization.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[3]; // StateDim + ControlDim + 1 = 3
                     gradients[0] = 0.0;
                     gradients[1] = 2.0 * u[0];
                     gradients[2] = 0.0;
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             var result = ObjectiveFunctionFactory.CanUseAnalyticalGradientsForCosts(problem);
@@ -203,11 +204,12 @@ namespace Optimal.Control.Optimization.Tests
                     var gradients = new double[2][];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[1]; // Too short - needs 3
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             var result = ObjectiveFunctionFactory.CanUseAnalyticalGradientsForCosts(problem);
@@ -229,11 +231,12 @@ namespace Optimal.Control.Optimization.Tests
                     var gradients = new double[2][];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     double[]? gradients = null;
-                    return (value, gradients!);
+                    return new RunningCostResult(value, gradients!);
                 });
 
             var result = ObjectiveFunctionFactory.CanUseAnalyticalGradientsForCosts(problem);
@@ -307,14 +310,15 @@ namespace Optimal.Control.Optimization.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[3];
                     gradients[0] = 0.0;
                     gradients[1] = 2.0 * u[0];
                     gradients[2] = 0.0;
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
@@ -342,11 +346,12 @@ namespace Optimal.Control.Optimization.Tests
                     var gradients = new double[2][];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     double[]? gradients = null;
-                    return (value, gradients!);
+                    return new RunningCostResult(value, gradients!);
                 });
 
             var grid = new CollocationGrid(0.0, 1.0, 5);

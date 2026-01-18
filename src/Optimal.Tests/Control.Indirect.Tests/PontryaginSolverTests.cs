@@ -101,14 +101,15 @@ namespace Optimal.Control.Indirect.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[3];
                     gradients[0] = 0.0;
                     gradients[1] = 2.0 * u[0];
                     gradients[2] = 0.0;
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             Func<double[], double[], double[], double, double[]> optimalControl = (_, lambda, _, _) =>
@@ -149,14 +150,15 @@ namespace Optimal.Control.Indirect.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = 0.5 * u[0] * u[0];
                     var gradients = new double[3];
                     gradients[0] = 0.0;
                     gradients[1] = u[0];
                     gradients[2] = 0.0;
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 })
                 .WithTerminalCost(input =>
                 {
@@ -203,12 +205,13 @@ namespace Optimal.Control.Indirect.Tests
                     gradients[1] = [0.0, 1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[4];
                     gradients[2] = 2.0 * u[0];
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
 
             Func<double[], double[], double[], double, double[]> optimalControl = (_, lambda, _, _) =>
@@ -309,14 +312,15 @@ namespace Optimal.Control.Indirect.Tests
                     gradients[1] = [1.0];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithRunningCost((_, u, _) =>
+                .WithRunningCost(input =>
                 {
+                    var u = input.Control;
                     var value = u[0] * u[0];
                     var gradients = new double[3];
                     gradients[0] = 0.0;
                     gradients[1] = 2.0 * u[0];
                     gradients[2] = 0.0;
-                    return (value, gradients);
+                    return new RunningCostResult(value, gradients);
                 });
         }
     }
