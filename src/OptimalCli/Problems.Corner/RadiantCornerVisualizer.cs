@@ -233,10 +233,10 @@ internal static class RadiantCornerVisualizer
         // Entry straight: from x = -EntryLength to x = 0, y ∈ [-RoadHalfWidth, +RoadHalfWidth]
 
         // === ENTRY STRAIGHT ===
-        // Lower edge: y = -RoadHalfWidth
+        // Upper edge (north): y = +RoadHalfWidth
         renderer.DrawLine(new Vector2(-(float)EntryLength * scale, (float)RoadHalfWidth * scale),
                          new Vector2(0, (float)RoadHalfWidth * scale), boundaryColor);
-        // Upper edge: y = +RoadHalfWidth
+        // Lower edge (south): y = -RoadHalfWidth
         renderer.DrawLine(new Vector2(-(float)EntryLength * scale, -(float)RoadHalfWidth * scale),
                          new Vector2(0, -(float)RoadHalfWidth * scale), boundaryColor);
 
@@ -254,16 +254,16 @@ internal static class RadiantCornerVisualizer
             {
                 var (ix1, iy1) = GetArcBoundaryPoint(i, ArcSegments, RoadHalfWidth);
                 var (ix2, iy2) = GetArcBoundaryPoint(i + 1, ArcSegments, RoadHalfWidth);
-                renderer.DrawLine(new Vector2((float)ix1 * scale, -(float)iy1 * scale),
-                                 new Vector2((float)ix2 * scale, -(float)iy2 * scale), boundaryColor);
+                renderer.DrawLine(new Vector2((float)ix1 * scale, (float)iy1 * scale),
+                                 new Vector2((float)ix2 * scale, (float)iy2 * scale), boundaryColor);
             }
         }
         else
         {
             // Inner of curve is a single point - mark as apex
             var (apexX, apexY) = GetArcBoundaryPoint(ArcSegments / 2, ArcSegments, RoadHalfWidth - 0.01);
-            renderer.DrawCircleOutline((float)apexX * scale, -(float)apexY * scale, 8, Colors.Amber400, 16);
-            renderer.DrawText("APEX", (float)apexX * scale + 12, -(float)apexY * scale + 5, 2, Colors.Amber400);
+            renderer.DrawCircleOutline((float)apexX * scale, (float)apexY * scale, 8, Colors.Amber400, 16);
+            renderer.DrawText("APEX", (float)apexX * scale + 12, (float)apexY * scale + 5, 2, Colors.Amber400);
         }
 
         // Outer of curve (at n = -RoadHalfWidth, left of centerline = away from arc center)
@@ -271,8 +271,8 @@ internal static class RadiantCornerVisualizer
         {
             var (ox1, oy1) = GetArcBoundaryPoint(i, ArcSegments, -RoadHalfWidth);
             var (ox2, oy2) = GetArcBoundaryPoint(i + 1, ArcSegments, -RoadHalfWidth);
-            renderer.DrawLine(new Vector2((float)ox1 * scale, -(float)oy1 * scale),
-                             new Vector2((float)ox2 * scale, -(float)oy2 * scale), boundaryColor);
+            renderer.DrawLine(new Vector2((float)ox1 * scale, (float)oy1 * scale),
+                             new Vector2((float)ox2 * scale, (float)oy2 * scale), boundaryColor);
         }
 
         // === EXIT STRAIGHT ===
@@ -285,10 +285,10 @@ internal static class RadiantCornerVisualizer
         var exitStartY = -CenterlineRadius;
         var exitEndY = -CenterlineRadius - 25.0; // Show 25m of exit
 
-        renderer.DrawLine(new Vector2((float)exitLeftX * scale, -(float)exitStartY * scale),
-                         new Vector2((float)exitLeftX * scale, -(float)exitEndY * scale), boundaryColor);
-        renderer.DrawLine(new Vector2((float)exitRightX * scale, -(float)exitStartY * scale),
-                         new Vector2((float)exitRightX * scale, -(float)exitEndY * scale), boundaryColor);
+        renderer.DrawLine(new Vector2((float)exitLeftX * scale, (float)exitStartY * scale),
+                         new Vector2((float)exitLeftX * scale, (float)exitEndY * scale), boundaryColor);
+        renderer.DrawLine(new Vector2((float)exitRightX * scale, (float)exitStartY * scale),
+                         new Vector2((float)exitRightX * scale, (float)exitEndY * scale), boundaryColor);
 
         // === CENTER LINE (dashed) ===
         // Entry center
@@ -303,16 +303,16 @@ internal static class RadiantCornerVisualizer
             {
                 var (cx1, cy1) = GetArcBoundaryPoint(i, ArcSegments, 0);
                 var (cx2, cy2) = GetArcBoundaryPoint(i + 1, ArcSegments, 0);
-                renderer.DrawLine(new Vector2((float)cx1 * scale, -(float)cy1 * scale),
-                                 new Vector2((float)cx2 * scale, -(float)cy2 * scale), centerLineColor);
+                renderer.DrawLine(new Vector2((float)cx1 * scale, (float)cy1 * scale),
+                                 new Vector2((float)cx2 * scale, (float)cy2 * scale), centerLineColor);
             }
         }
         // Exit center
         var exitCenterX = CenterlineRadius;
         for (var yc = (float)exitStartY; yc > (float)exitEndY; yc -= 20.0f / scale)
         {
-            renderer.DrawLine(new Vector2((float)exitCenterX * scale, -yc * scale),
-                             new Vector2((float)exitCenterX * scale, -Math.Max(yc - 10.0f / scale, (float)exitEndY) * scale), centerLineColor);
+            renderer.DrawLine(new Vector2((float)exitCenterX * scale, yc * scale),
+                             new Vector2((float)exitCenterX * scale, Math.Max(yc - 10.0f / scale, (float)exitEndY) * scale), centerLineColor);
         }
 
         // === DEBUG: Draw offset lines at n = -2.5 and n = +2.5 to verify curvilinear coords ===
@@ -341,8 +341,8 @@ internal static class RadiantCornerVisualizer
             var (x2, y2) = CornerDynamicsHelpers.CurvilinearToCartesian(s2, nOffset);
 
             renderer.DrawLine(
-                new Vector2((float)x1 * scale, -(float)y1 * scale),
-                new Vector2((float)x2 * scale, -(float)y2 * scale),
+                new Vector2((float)x1 * scale, (float)y1 * scale),
+                new Vector2((float)x2 * scale, (float)y2 * scale),
                 color);
         }
     }
@@ -369,8 +369,8 @@ internal static class RadiantCornerVisualizer
             var vNorm = Math.Clamp((v - 5.0) / 20.0, 0.0, 1.0);
             var color = new Vector4((float)vNorm, (float)(1.0 - vNorm * 0.5), 0.2f, 0.9f);
 
-            renderer.DrawLine(new Vector2((float)x1 * scale, -(float)y1 * scale),
-                             new Vector2((float)x2 * scale, -(float)y2 * scale), color);
+            renderer.DrawLine(new Vector2((float)x1 * scale, (float)y1 * scale),
+                             new Vector2((float)x2 * scale, (float)y2 * scale), color);
         }
 
         // Draw future path in gray
@@ -379,31 +379,30 @@ internal static class RadiantCornerVisualizer
             var (x1, y1) = CornerDynamicsHelpers.CurvilinearToCartesian(states[i][0], states[i][1]);
             var (x2, y2) = CornerDynamicsHelpers.CurvilinearToCartesian(states[i + 1][0], states[i + 1][1]);
 
-            renderer.DrawLine(new Vector2((float)x1 * scale, -(float)y1 * scale),
-                             new Vector2((float)x2 * scale, -(float)y2 * scale), new Vector4(0.4f, 0.4f, 0.4f, 0.5f));
+            renderer.DrawLine(new Vector2((float)x1 * scale, (float)y1 * scale),
+                             new Vector2((float)x2 * scale, (float)y2 * scale), new Vector4(0.4f, 0.4f, 0.4f, 0.5f));
         }
     }
 
     private static void DrawVehicle(Radiant.Graphics2D.Renderer2D renderer, double x, double y, double heading, double velocity, float scale)
     {
         var vehX = (float)x * scale;
-        var vehY = -(float)y * scale;
+        var vehY = (float)y * scale;
 
         // Draw vehicle as a triangle
-        // Left-hand rule: positive θ = clockwise, so θ = +π/2 = south = negative Cartesian y = positive screen y
+        // Left-hand rule: positive θ = clockwise, so θ = +π/2 = south = negative y
         // Direction vector in Cartesian: (cos(θ), -sin(θ))
-        // In screen coords (y flipped): (cos(θ), sin(θ))
         const float VehicleSize = 12.0f;
         var frontX = vehX + (float)(VehicleSize * Math.Cos(heading));
-        var frontY = vehY + (float)(VehicleSize * Math.Sin(heading));
+        var frontY = vehY - (float)(VehicleSize * Math.Sin(heading));
 
         var angle1 = heading + 2.5 * Math.PI / 3.0;
         var angle2 = heading - 2.5 * Math.PI / 3.0;
 
         var backLeftX = vehX + (float)(VehicleSize * 0.7 * Math.Cos(angle1));
-        var backLeftY = vehY + (float)(VehicleSize * 0.7 * Math.Sin(angle1));
+        var backLeftY = vehY - (float)(VehicleSize * 0.7 * Math.Sin(angle1));
         var backRightX = vehX + (float)(VehicleSize * 0.7 * Math.Cos(angle2));
-        var backRightY = vehY + (float)(VehicleSize * 0.7 * Math.Sin(angle2));
+        var backRightY = vehY - (float)(VehicleSize * 0.7 * Math.Sin(angle2));
 
         // Color by velocity
         var vNorm = Math.Clamp((velocity - 5.0) / 20.0, 0.0, 1.0);
@@ -422,13 +421,13 @@ internal static class RadiantCornerVisualizer
 
         // Start marker
         var (startX, startY) = CornerDynamicsHelpers.CurvilinearToCartesian(states[0][0], states[0][1]);
-        renderer.DrawCircleFilled((float)startX * scale, -(float)startY * scale, 10, Colors.Emerald500, 24);
-        renderer.DrawText("START", (float)startX * scale - 30, -(float)startY * scale - 20, 2, Colors.Emerald400);
+        renderer.DrawCircleFilled((float)startX * scale, (float)startY * scale, 10, Colors.Emerald500, 24);
+        renderer.DrawText("START", (float)startX * scale - 30, (float)startY * scale + 20, 2, Colors.Emerald400);
 
         // End marker
         var (endX, endY) = CornerDynamicsHelpers.CurvilinearToCartesian(states[^1][0], states[^1][1]);
-        renderer.DrawCircleFilled((float)endX * scale, -(float)endY * scale, 10, Colors.Rose500, 24);
-        renderer.DrawText("FINISH", (float)endX * scale - 35, -(float)endY * scale + 15, 2, Colors.Rose400);
+        renderer.DrawCircleFilled((float)endX * scale, (float)endY * scale, 10, Colors.Rose500, 24);
+        renderer.DrawText("FINISH", (float)endX * scale - 35, (float)endY * scale - 15, 2, Colors.Rose400);
     }
 
     private static void DrawInformation(Radiant.Graphics2D.Renderer2D renderer,
