@@ -25,6 +25,7 @@ internal static class RadiantCornerVisualizer
     private static readonly double RoadHalfWidth = CornerDynamics.RoadHalfWidth;
     private static readonly double CenterlineRadius = CornerDynamics.CenterlineRadius;
     private static readonly double EntryLength = CornerDynamics.EntryLength;
+    private static readonly double TotalLength = CornerDynamics.EntryLength + CornerDynamics.ArcLength + 20.0;
 
     private static double[][]? s_currentStates;
     private static double[][]? s_currentControls;
@@ -196,14 +197,16 @@ internal static class RadiantCornerVisualizer
         DrawRoadLayout(renderer, Scale);
 
         // Draw trajectory path (convert curvilinear to Cartesian)
+        // s is derived from frame index: s = (frameIndex / (totalFrames - 1)) * TotalLength
         DrawPathTrace(renderer, states, frameIndex, Scale);
 
         // Draw the vehicle (convert curvilinear to Cartesian)
+        // State is now [n, θ, v, T_f] - s is computed from frame position
         var state = states[frameIndex];
-        var s = state[0];
-        var n = state[1];
-        var theta = state[2];
-        var v = state[3];
+        var s = states.Length > 1 ? (frameIndex / (double)(states.Length - 1)) * TotalLength : 0.0;
+        var n = state[0];
+        var theta = state[1];
+        var v = state[2];
         var (x, y) = CornerDynamicsHelpers.CurvilinearToCartesian(s, n);
         DrawVehicle(renderer, x, y, theta, v, Scale);
 
@@ -358,14 +361,19 @@ internal static class RadiantCornerVisualizer
 
     private static void DrawPathTrace(Radiant.Graphics2D.Renderer2D renderer, double[][] states, int currentFrame, float scale)
     {
+        var totalFrames = states.Length;
+
         // Draw completed path
+        // State is now [n, θ, v, T_f] - s is computed from frame position
         for (var i = 0; i < currentFrame && i < states.Length - 1; i++)
         {
-            var (x1, y1) = CornerDynamicsHelpers.CurvilinearToCartesian(states[i][0], states[i][1]);
-            var (x2, y2) = CornerDynamicsHelpers.CurvilinearToCartesian(states[i + 1][0], states[i + 1][1]);
+            var s1 = totalFrames > 1 ? (i / (double)(totalFrames - 1)) * TotalLength : 0.0;
+            var s2 = totalFrames > 1 ? ((i + 1) / (double)(totalFrames - 1)) * TotalLength : 0.0;
+            var (x1, y1) = CornerDynamicsHelpers.CurvilinearToCartesian(s1, states[i][0]);
+            var (x2, y2) = CornerDynamicsHelpers.CurvilinearToCartesian(s2, states[i + 1][0]);
 
             // Color by velocity (green = slow, yellow = medium, red = fast)
-            var v = states[i][3];
+            var v = states[i][2];
             var vNorm = Math.Clamp((v - 5.0) / 20.0, 0.0, 1.0);
             var color = new Vector4((float)vNorm, (float)(1.0 - vNorm * 0.5), 0.2f, 0.9f);
 
@@ -376,8 +384,10 @@ internal static class RadiantCornerVisualizer
         // Draw future path in gray
         for (var i = currentFrame; i < states.Length - 1; i++)
         {
-            var (x1, y1) = CornerDynamicsHelpers.CurvilinearToCartesian(states[i][0], states[i][1]);
-            var (x2, y2) = CornerDynamicsHelpers.CurvilinearToCartesian(states[i + 1][0], states[i + 1][1]);
+            var s1 = totalFrames > 1 ? (i / (double)(totalFrames - 1)) * TotalLength : 0.0;
+            var s2 = totalFrames > 1 ? ((i + 1) / (double)(totalFrames - 1)) * TotalLength : 0.0;
+            var (x1, y1) = CornerDynamicsHelpers.CurvilinearToCartesian(s1, states[i][0]);
+            var (x2, y2) = CornerDynamicsHelpers.CurvilinearToCartesian(s2, states[i + 1][0]);
 
             renderer.DrawLine(new Vector2((float)x1 * scale, (float)y1 * scale),
                              new Vector2((float)x2 * scale, (float)y2 * scale), new Vector4(0.4f, 0.4f, 0.4f, 0.5f));
@@ -419,13 +429,14 @@ internal static class RadiantCornerVisualizer
     {
         if (states.Length < 2) return;
 
-        // Start marker
-        var (startX, startY) = CornerDynamicsHelpers.CurvilinearToCartesian(states[0][0], states[0][1]);
+        // State is now [n, θ, v, T_f] - s is computed from frame position
+        // Start marker (s = 0)
+        var (startX, startY) = CornerDynamicsHelpers.CurvilinearToCartesian(0.0, states[0][0]);
         renderer.DrawCircleFilled((float)startX * scale, (float)startY * scale, 10, Colors.Emerald500, 24);
         renderer.DrawText("START", (float)startX * scale - 30, (float)startY * scale + 20, 2, Colors.Emerald400);
 
-        // End marker
-        var (endX, endY) = CornerDynamicsHelpers.CurvilinearToCartesian(states[^1][0], states[^1][1]);
+        // End marker (s = TotalLength)
+        var (endX, endY) = CornerDynamicsHelpers.CurvilinearToCartesian(TotalLength, states[^1][0]);
         renderer.DrawCircleFilled((float)endX * scale, (float)endY * scale, 10, Colors.Rose500, 24);
         renderer.DrawText("FINISH", (float)endX * scale - 35, (float)endY * scale - 15, 2, Colors.Rose400);
     }

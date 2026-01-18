@@ -231,7 +231,7 @@ namespace Optimal.Control.Collocation
                 var ti = TauToPhysicalTime(_lglPoints[i], segmentIndex);
 
                 // Evaluate dynamics at this point
-                var fi = dynamicsEvaluator(new DynamicsInput(xi, ui, ti)).Value;
+                var fi = dynamicsEvaluator(new DynamicsInput(xi, ui, ti, segmentIndex, _grid.Segments)).Value;
 
                 // Compute derivative using differentiation matrix: dx/dt = α * Σ_j D_ij * x_j
                 var dxdt = new double[_stateDim];

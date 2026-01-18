@@ -233,12 +233,12 @@ namespace Optimal.Control.Collocation
                 var uk = GetControl(z, k);
                 var uk1 = GetControl(z, k + 1);
 
-                var fk = dynamicsEvaluator(new DynamicsInput(xk, uk, tk)).Value;
-                var fk1 = dynamicsEvaluator(new DynamicsInput(xk1, uk1, tk1)).Value;
+                var fk = dynamicsEvaluator(new DynamicsInput(xk, uk, tk, k, _grid.Segments)).Value;
+                var fk1 = dynamicsEvaluator(new DynamicsInput(xk1, uk1, tk1, k, _grid.Segments)).Value;
 
                 var xMid = HermiteInterpolation(xk, xk1, fk, fk1, h);
                 var uMid = ControlMidpoint(uk, uk1);
-                var fMid = dynamicsEvaluator(new DynamicsInput(xMid, uMid, tMid)).Value;
+                var fMid = dynamicsEvaluator(new DynamicsInput(xMid, uMid, tMid, k, _grid.Segments)).Value;
 
                 var segmentDefect = ComputeDefect(xk, xk1, fk, fMid, fk1, h);
 

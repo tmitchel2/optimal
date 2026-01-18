@@ -66,7 +66,7 @@ namespace Optimal.Control.Initialization
                     var uPrev = transcription.GetControl(initialGuess, k - 1);
 
                     // Simple forward Euler integration
-                    var dynResult = problem.Dynamics!(new DynamicsInput(xPrev, uPrev, grid.TimePoints[k - 1]));
+                    var dynResult = problem.Dynamics!(new DynamicsInput(xPrev, uPrev, grid.TimePoints[k - 1], -1, -1));
                     var f = dynResult.Value;
                     state = new double[nStates];
                     for (var i = 0; i < nStates; i++)
@@ -113,7 +113,7 @@ namespace Optimal.Control.Initialization
             double[] uNominal,
             double t)
         {
-            var result = dynamics(new DynamicsInput(xNominal, uNominal, t));
+            var result = dynamics(new DynamicsInput(xNominal, uNominal, t, -1, -1));
             var f = result.Value;
             var gradients = result.Gradients;
             var nStates = xNominal.Length;
@@ -141,7 +141,7 @@ namespace Optimal.Control.Initialization
                 {
                     var xPerturb = (double[])xNominal.Clone();
                     xPerturb[j] += epsilon;
-                    var fPerturb = dynamics(new DynamicsInput(xPerturb, uNominal, t)).Value;
+                    var fPerturb = dynamics(new DynamicsInput(xPerturb, uNominal, t, -1, -1)).Value;
 
                     for (var i = 0; i < nStates; i++)
                     {
@@ -169,7 +169,7 @@ namespace Optimal.Control.Initialization
                 {
                     var uPerturb = (double[])uNominal.Clone();
                     uPerturb[j] += epsilon;
-                    var fPerturb = dynamics(new DynamicsInput(xNominal, uPerturb, t)).Value;
+                    var fPerturb = dynamics(new DynamicsInput(xNominal, uPerturb, t, -1, -1)).Value;
 
                     for (var i = 0; i < nStates; i++)
                     {

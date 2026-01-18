@@ -311,7 +311,7 @@ namespace Optimal.Control.Indirect
             double t)
         {
             // State equation: ẋ = f(x, u, t)
-            var dynResult = problem.Dynamics!(new DynamicsInput(x, u, t));
+            var dynResult = problem.Dynamics!(new DynamicsInput(x, u, t, -1, -1));
             var f = dynResult.Value;
             var gradients = dynResult.Gradients;
 

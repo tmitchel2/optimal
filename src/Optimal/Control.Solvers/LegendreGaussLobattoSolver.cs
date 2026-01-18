@@ -308,7 +308,7 @@ namespace Optimal.Control.Solvers
                 {
                     var testX = new double[problem.StateDim];
                     var testU = new double[problem.ControlDim];
-                    var testResult = problem.Dynamics!(new DynamicsInput(testX, testU, 0.0));
+                    var testResult = problem.Dynamics!(new DynamicsInput(testX, testU, 0.0, -1, -1));
 
                     if (testResult.Gradients != null && testResult.Gradients.Length >= 2)
                     {
@@ -538,7 +538,7 @@ namespace Optimal.Control.Solvers
                             segmentIndex, interiorPointIndex, stateComponentIndex,
                             (x, u, t) =>
                             {
-                                var res = problem.Dynamics!(new DynamicsInput(x, u, t));
+                                var res = problem.Dynamics!(new DynamicsInput(x, u, t, segmentIndex, grid.Segments));
                                 return (res.Value, res.Gradients);
                             });
                         analyticalDefectCount++;

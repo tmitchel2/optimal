@@ -337,32 +337,32 @@ namespace Optimal.Control.Solvers
         /// <summary>
         /// Solves on a fixed grid (no refinement).
         /// </summary>
-        private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segments, double[] initialGuess)
+        private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segmentCount, double[] initialGuess)
         {
-            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, segments);
+            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, segmentCount);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _enableParallelization);
 
             var z0 = initialGuess;
-            var hasAnalyticalGradients = CheckAnalyticalGradientCapability(problem);
+            var hasAnalyticalGradients = CheckAnalyticalGradientCapability(problem, segmentCount);
             var iterationCount = new int[1];
 
-            var nlpObjective = CreateObjectiveFunction(problem, grid, transcription, segments, iterationCount);
-            var constrainedOptimizer = ConfigureOptimizer(problem, grid, transcription, segments, z0, hasAnalyticalGradients);
+            var nlpObjective = CreateObjectiveFunction(problem, grid, transcription, segmentCount, iterationCount);
+            var constrainedOptimizer = ConfigureOptimizer(problem, grid, transcription, segmentCount, z0, hasAnalyticalGradients);
 
             if (_verbose)
             {
-                LogInitialDiagnostics(problem, transcription, segments, z0, nlpObjective);
+                LogInitialDiagnostics(problem, transcription, segmentCount, z0, nlpObjective);
             }
 
             var nlpResult = constrainedOptimizer.Minimize(nlpObjective);
-            return ExtractSolution(problem, grid, transcription, segments, nlpResult);
+            return ExtractSolution(problem, grid, transcription, segmentCount, nlpResult);
         }
 
-        private bool CheckAnalyticalGradientCapability(ControlProblem problem)
+        private bool CheckAnalyticalGradientCapability(ControlProblem problem, int segmentCount)
         {
             try
             {
-                var hasGradients = ValidateAnalyticalGradients(problem);
+                var hasGradients = ValidateAnalyticalGradients(problem, segmentCount);
                 LogGradientMode(hasGradients);
                 return hasGradients;
             }
@@ -373,11 +373,11 @@ namespace Optimal.Control.Solvers
             }
         }
 
-        private static bool ValidateAnalyticalGradients(ControlProblem problem)
+        private static bool ValidateAnalyticalGradients(ControlProblem problem, int segmentCount)
         {
             var testX = new double[problem.StateDim];
             var testU = new double[problem.ControlDim];
-            var testResult = problem.Dynamics!(new DynamicsInput(testX, testU, 0.0));
+            var testResult = problem.Dynamics!(new DynamicsInput(testX, testU, 0.0, 0, segmentCount));
 
             if (testResult.Gradients == null || testResult.Gradients.Length < 2)
             {

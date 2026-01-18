@@ -161,7 +161,7 @@ namespace Optimal.Control.Optimization
                     segmentIndex, stateComponentIndex,
                     (x, u, t) =>
                     {
-                        var res = dynamics(new DynamicsInput(x, u, t));
+                        var res = dynamics(new DynamicsInput(x, u, t, segmentIndex, -1));
                         return (res.Value, res.Gradients);
                     });
             }

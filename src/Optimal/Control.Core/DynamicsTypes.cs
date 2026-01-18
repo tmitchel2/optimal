@@ -29,16 +29,30 @@ namespace Optimal.Control.Core
         public double Time { get; init; }
 
         /// <summary>
+        /// Gets the segment index (0-based). -1 if not applicable.
+        /// </summary>
+        public int SegmentIndex { get; init; }
+
+        /// <summary>
+        /// Gets the total number of segments. -1 if not applicable.
+        /// </summary>
+        public int SegmentCount { get; init; }
+
+        /// <summary>
         /// Creates a new dynamics input.
         /// </summary>
         /// <param name="state">State vector.</param>
         /// <param name="control">Control vector.</param>
         /// <param name="time">Time.</param>
-        public DynamicsInput(double[] state, double[] control, double time)
+        /// <param name="segmentIndex">Segment index (0-based), or -1 if not applicable.</param>
+        /// <param name="segmentCount">Total number of segments, or -1 if not applicable.</param>
+        public DynamicsInput(double[] state, double[] control, double time, int segmentIndex, int segmentCount)
         {
             State = state;
             Control = control;
             Time = time;
+            SegmentIndex = segmentIndex;
+            SegmentCount = segmentCount;
         }
     }
 
