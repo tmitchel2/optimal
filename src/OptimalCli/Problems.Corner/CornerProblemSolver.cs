@@ -236,11 +236,6 @@ public sealed class CornerProblemSolver : ICommand
                         .WithInitialPenalty(50.0) // Higher initial penalty to enforce constraints more strongly
                         .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                         {
-                            if (iteration == 1857)
-                            {
-                                Console.WriteLine("Breakpoint hit at iteration 1861");
-                            }
-
                             var token = RadiantCornerVisualizer.CancellationToken;
                             if (token.IsCancellationRequested)
                             {

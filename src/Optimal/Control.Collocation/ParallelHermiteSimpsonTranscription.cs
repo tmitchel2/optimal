@@ -7,15 +7,15 @@
  */
 
 using System;
-using Optimal.Control.Core;
 using System.Threading.Tasks;
+using Optimal.Control.Core;
 
 namespace Optimal.Control.Collocation
 {
     /// <summary>
     /// Parallel version of Hermite-Simpson transcription with optimized constraint and gradient evaluation.
     /// </summary>
-    public sealed class ParallelHermiteSimpsonTranscription
+    public sealed class ParallelHermiteSimpsonTranscription : ICollocationTranscription
     {
 #pragma warning disable IDE0052 // Remove unread private members
         private readonly ControlProblem _problem;
@@ -37,6 +37,18 @@ namespace Optimal.Control.Collocation
         public int Segments => _grid.Segments;
 
         /// <summary>
+        /// Gets the total number of unique collocation points.
+        /// For Hermite-Simpson, this is Segments + 1 (the node points).
+        /// </summary>
+        public int TotalPoints => _grid.Segments + 1;
+
+        /// <summary>
+        /// Gets the order of the transcription method.
+        /// For Hermite-Simpson, this is 2 (two endpoints per segment).
+        /// </summary>
+        public int Order => 2;
+
+        /// <summary>
         /// Creates a parallel transcription.
         /// </summary>
         /// <param name="problem">The control problem to transcribe.</param>
@@ -55,15 +67,15 @@ namespace Optimal.Control.Collocation
         /// <summary>
         /// Extracts state vector at a given node from the decision vector.
         /// </summary>
-        public double[] GetState(double[] z, int nodeIndex)
+        public double[] GetState(double[] z, int globalPointIndex)
         {
-            if (nodeIndex < 0 || nodeIndex > _grid.Segments)
+            if (globalPointIndex < 0 || globalPointIndex > _grid.Segments)
             {
-                throw new ArgumentOutOfRangeException(nameof(nodeIndex));
+                throw new ArgumentOutOfRangeException(nameof(globalPointIndex));
             }
 
             var state = new double[_stateDim];
-            var offset = nodeIndex * (_stateDim + _controlDim);
+            var offset = globalPointIndex * (_stateDim + _controlDim);
             Array.Copy(z, offset, state, 0, _stateDim);
             return state;
         }
@@ -71,15 +83,15 @@ namespace Optimal.Control.Collocation
         /// <summary>
         /// Extracts control vector at a given node from the decision vector.
         /// </summary>
-        public double[] GetControl(double[] z, int nodeIndex)
+        public double[] GetControl(double[] z, int globalPointIndex)
         {
-            if (nodeIndex < 0 || nodeIndex > _grid.Segments)
+            if (globalPointIndex < 0 || globalPointIndex > _grid.Segments)
             {
-                throw new ArgumentOutOfRangeException(nameof(nodeIndex));
+                throw new ArgumentOutOfRangeException(nameof(globalPointIndex));
             }
 
             var control = new double[_controlDim];
-            var offset = nodeIndex * (_stateDim + _controlDim) + _stateDim;
+            var offset = globalPointIndex * (_stateDim + _controlDim) + _stateDim;
             Array.Copy(z, offset, control, 0, _controlDim);
             return control;
         }
@@ -87,11 +99,11 @@ namespace Optimal.Control.Collocation
         /// <summary>
         /// Sets state vector at a given node in the decision vector.
         /// </summary>
-        public void SetState(double[] z, int nodeIndex, double[] state)
+        public void SetState(double[] z, int globalPointIndex, double[] state)
         {
-            if (nodeIndex < 0 || nodeIndex > _grid.Segments)
+            if (globalPointIndex < 0 || globalPointIndex > _grid.Segments)
             {
-                throw new ArgumentOutOfRangeException(nameof(nodeIndex));
+                throw new ArgumentOutOfRangeException(nameof(globalPointIndex));
             }
 
             if (state.Length != _stateDim)
@@ -99,18 +111,18 @@ namespace Optimal.Control.Collocation
                 throw new ArgumentException($"State must have {_stateDim} elements.", nameof(state));
             }
 
-            var offset = nodeIndex * (_stateDim + _controlDim);
+            var offset = globalPointIndex * (_stateDim + _controlDim);
             Array.Copy(state, 0, z, offset, _stateDim);
         }
 
         /// <summary>
         /// Sets control vector at a given node in the decision vector.
         /// </summary>
-        public void SetControl(double[] z, int nodeIndex, double[] control)
+        public void SetControl(double[] z, int globalPointIndex, double[] control)
         {
-            if (nodeIndex < 0 || nodeIndex > _grid.Segments)
+            if (globalPointIndex < 0 || globalPointIndex > _grid.Segments)
             {
-                throw new ArgumentOutOfRangeException(nameof(nodeIndex));
+                throw new ArgumentOutOfRangeException(nameof(globalPointIndex));
             }
 
             if (control.Length != _controlDim)
@@ -118,7 +130,7 @@ namespace Optimal.Control.Collocation
                 throw new ArgumentException($"Control must have {_controlDim} elements.", nameof(control));
             }
 
-            var offset = nodeIndex * (_stateDim + _controlDim) + _stateDim;
+            var offset = globalPointIndex * (_stateDim + _controlDim) + _stateDim;
             Array.Copy(control, 0, z, offset, _controlDim);
         }
 
@@ -280,7 +292,7 @@ namespace Optimal.Control.Collocation
             {
                 // Parallel cost computation
                 var segmentCosts = new double[_grid.Segments];
-                
+
                 Parallel.For(0, _grid.Segments, k =>
                 {
                     segmentCosts[k] = ComputeSegmentRunningCost(z, k, runningCostEvaluator);
