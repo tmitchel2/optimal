@@ -85,7 +85,7 @@ public sealed class CornerProblemSolver : ICommand
             .WithStateSize(4) // [n, θ, v, T_f]
             .WithControlSize(2) // [a, ω]
             .WithTimeHorizon(0.0, 1.0) // Normalized time τ ∈ [0, 1]
-            .WithInitialCondition([double.NaN, 0.0, initialVelocity, tfGuess]) // n=free, heading east, initial velocity, T_f guess
+            .WithInitialCondition([double.NaN, 0.0, initialVelocity, double.NaN]) // n=free, heading east, initial velocity, T_f=free (optimized)
             .WithFinalCondition([double.NaN, Math.PI / 2.0, double.NaN, double.NaN]) // n=free, heading south (θ=+π/2), free v, T_f
             .WithControlBounds([maxDecel, -maxSteerRate], [maxAccel, maxSteerRate])
             .WithStateBounds(
