@@ -108,14 +108,6 @@ public sealed class CornerProblemSolver : ICommand
                 var a = u[0];
                 var omega = u[1];
 
-                // Defensive bounds checking - return zeros for extreme values
-                // This prevents NaN/Inf propagation during optimization exploration
-                if (Math.Abs(n) > 100 || Math.Abs(theta) > 10 || Math.Abs(v) > 1000 || Math.Abs(Tf) > 1000)
-                {
-                    // Return zero dynamics with zero gradients for extreme values
-                    return new DynamicsResult([0.0, 0.0, 0.0, 0.0], [new double[16], new double[8]]);
-                }
-
                 // Physical dynamics using curvilinear coordinates
                 // Note: sdot gradients w.r.t. s are not needed since s is not a state variable
                 var (_, sdot_gradients) = CornerDynamicsGradients.ProgressRateReverse(s, n, theta, v);
