@@ -18,17 +18,17 @@ namespace Optimal.Problems.Corner.Tests
         private const double Tolerance = 1e-10;
         private const double GradientTolerance = 1e-5;
         private const double Epsilon = 1e-7;
+        private readonly TrackGeometry _trackGeometry;
 
-        [TestInitialize]
-        public void Initialize()
+        public CornerDynamicsTests()
         {
             // Initialize track geometry before each test
             // Entry straight (15m) → 90° right turn (radius 5m) → Exit straight (20m)
-            TrackGeometry.StartAt(x: -15, y: 0, heading: 0)
+            _trackGeometry = TrackGeometry.StartAt(x: -15, y: 0, heading: 0)
                 .AddLine(distance: 15.0)
                 .AddArc(radius: 5.0, angle: Math.PI / 2, turnRight: true)
                 .AddLine(distance: 20.0)
-                .BuildAndSetCurrent();
+                .Build();
         }
 
         #region Road Geometry Tests
@@ -38,7 +38,7 @@ namespace Optimal.Problems.Corner.Tests
         {
             // In entry region (s < 15), road heading should be 0 (east)
             var s = 10.0;
-            var heading = TrackGeometry.Current.RoadHeading(s);
+            var heading = _trackGeometry.RoadHeading(s);
             Assert.AreEqual(0.0, heading, Tolerance);
         }
 
@@ -46,11 +46,11 @@ namespace Optimal.Problems.Corner.Tests
         public void RoadHeadingInArcRegionVariesLinearly()
         {
             // At middle of arc, heading should be +π/4 (left-hand rule: clockwise is positive)
-            var entryEnd = TrackGeometry.Current.GetEntryLength();
-            var arcLength = TrackGeometry.Current.GetArcLength();
+            var entryEnd = _trackGeometry.GetEntryLength();
+            var arcLength = _trackGeometry.GetArcLength();
             var s = entryEnd + arcLength / 2.0;
 
-            var heading = TrackGeometry.Current.RoadHeading(s);
+            var heading = _trackGeometry.RoadHeading(s);
             Assert.AreEqual(Math.PI / 4.0, heading, Tolerance);
         }
 
@@ -58,30 +58,30 @@ namespace Optimal.Problems.Corner.Tests
         public void RoadHeadingInExitRegionIsPositiveHalfPi()
         {
             // In exit region, heading should be +π/2 (south, left-hand rule)
-            var entryLength = TrackGeometry.Current.GetEntryLength();
-            var arcLength = TrackGeometry.Current.GetArcLength();
+            var entryLength = _trackGeometry.GetEntryLength();
+            var arcLength = _trackGeometry.GetArcLength();
             var s = entryLength + arcLength + 5.0;
-            var heading = TrackGeometry.Current.RoadHeading(s);
+            var heading = _trackGeometry.RoadHeading(s);
             Assert.AreEqual(Math.PI / 2.0, heading, Tolerance);
         }
 
         [TestMethod]
         public void RoadCurvatureIsZeroOnStraights()
         {
-            var entryLength = TrackGeometry.Current.GetEntryLength();
-            var arcLength = TrackGeometry.Current.GetArcLength();
-            Assert.AreEqual(0.0, TrackGeometry.Current.RoadCurvature(5.0), Tolerance, "Entry curvature");
-            Assert.AreEqual(0.0, TrackGeometry.Current.RoadCurvature(entryLength + arcLength + 5.0), Tolerance, "Exit curvature");
+            var entryLength = _trackGeometry.GetEntryLength();
+            var arcLength = _trackGeometry.GetArcLength();
+            Assert.AreEqual(0.0, _trackGeometry.RoadCurvature(5.0), Tolerance, "Entry curvature");
+            Assert.AreEqual(0.0, _trackGeometry.RoadCurvature(entryLength + arcLength + 5.0), Tolerance, "Exit curvature");
         }
 
         [TestMethod]
         public void RoadCurvatureIsOneOverRadiusInArc()
         {
-            var entryLength = TrackGeometry.Current.GetEntryLength();
-            var arcLength = TrackGeometry.Current.GetArcLength();
-            var arcRadius = TrackGeometry.Current.GetArcRadius();
+            var entryLength = _trackGeometry.GetEntryLength();
+            var arcLength = _trackGeometry.GetArcLength();
+            var arcRadius = _trackGeometry.GetArcRadius();
             var s = entryLength + arcLength / 2.0;
-            var curvature = TrackGeometry.Current.RoadCurvature(s);
+            var curvature = _trackGeometry.RoadCurvature(s);
             Assert.AreEqual(1.0 / arcRadius, curvature, Tolerance);
         }
 
@@ -122,7 +122,7 @@ namespace Optimal.Problems.Corner.Tests
         public void ProgressRateInArcAccountsForCurvature()
         {
             // In arc with n offset, denominator = 1 - n × κ
-            var arcRadius = TrackGeometry.Current.GetArcRadius();
+            var arcRadius = _trackGeometry.GetArcRadius();
             var thetaRoad = Math.PI / 4.0; // Mid-arc heading
             var curvature = 1.0 / arcRadius;
             var n = 2.0; // 2m right of centerline
@@ -248,7 +248,7 @@ namespace Optimal.Problems.Corner.Tests
         public void ProgressRateGradientWrtNMatchesNumericalInArc()
         {
             // In arc region where curvature matters
-            var arcRadius = TrackGeometry.Current.GetArcRadius();
+            var arcRadius = _trackGeometry.GetArcRadius();
             var thetaRoad = Math.PI / 6.0;
             var curvature = 1.0 / arcRadius;
             var n = 1.0;
@@ -426,7 +426,7 @@ namespace Optimal.Problems.Corner.Tests
             var thetaFinal = Math.PI / 2.0; // South = +π/2 with left-hand rule
 
             var segments = 30;
-            var totalLength = TrackGeometry.Current.TotalLength;
+            var totalLength = _trackGeometry.TotalLength;
 
             for (var i = 0; i <= segments; i++)
             {
@@ -434,8 +434,8 @@ namespace Optimal.Problems.Corner.Tests
 
                 // Compute s and get road geometry
                 var s = tau * totalLength;
-                var thetaRoad = TrackGeometry.Current.RoadHeading(s);
-                var curvature = TrackGeometry.Current.RoadCurvature(s);
+                var thetaRoad = _trackGeometry.RoadHeading(s);
+                var curvature = _trackGeometry.RoadCurvature(s);
 
                 var n = 0.0; // Centerline
                 var theta = theta0 + tau * (thetaFinal - theta0);
@@ -454,54 +454,6 @@ namespace Optimal.Problems.Corner.Tests
 
         #endregion
 
-        #region Curvilinear to Cartesian Conversion Tests
-
-        [TestMethod]
-        public void EntryStartMapsToCorrectCartesian()
-        {
-            // s=0, n=0 should map to x=-15, y=0
-            var (x, y) = CornerDynamicsHelpers.CurvilinearToCartesian(0.0, 0.0);
-            Assert.AreEqual(-TrackGeometry.Current.GetEntryLength(), x, Tolerance);
-            Assert.AreEqual(0.0, y, Tolerance);
-        }
-
-        [TestMethod]
-        public void EntryEndMapsToOrigin()
-        {
-            // s=EntryLength, n=0 should map to x=0, y=0
-            var entryLength = TrackGeometry.Current.GetEntryLength();
-            var (x, y) = CornerDynamicsHelpers.CurvilinearToCartesian(entryLength, 0.0);
-            Assert.AreEqual(0.0, x, Tolerance);
-            Assert.AreEqual(0.0, y, Tolerance);
-        }
-
-        [TestMethod]
-        public void ArcEndMapsToCorrectCartesian()
-        {
-            // s=EntryLength+ArcLength, n=0 should map to x=5, y=-5
-            var entryLength = TrackGeometry.Current.GetEntryLength();
-            var arcLength = TrackGeometry.Current.GetArcLength();
-            var arcRadius = TrackGeometry.Current.GetArcRadius();
-            var s = entryLength + arcLength;
-            var (x, y) = CornerDynamicsHelpers.CurvilinearToCartesian(s, 0.0);
-            Assert.AreEqual(arcRadius, x, Tolerance);
-            Assert.AreEqual(-arcRadius, y, Tolerance);
-        }
-
-        [TestMethod]
-        public void LateralOffsetInEntryIsCorrect()
-        {
-            // n > 0 should be right of centerline (negative y on entry)
-            var entryLength = TrackGeometry.Current.GetEntryLength();
-            var s = 10.0;
-            var n = 2.0;
-            var (x, y) = CornerDynamicsHelpers.CurvilinearToCartesian(s, n);
-            Assert.AreEqual(s - entryLength, x, Tolerance);
-            Assert.AreEqual(-n, y, Tolerance, "n>0 should give negative y on entry");
-        }
-
-        #endregion
-
         #region TrackGeometry Builder Tests
 
         [TestMethod]
@@ -509,27 +461,27 @@ namespace Optimal.Problems.Corner.Tests
         {
             // Entry (15) + Arc (π×5/2 ≈ 7.854) + Exit (20) ≈ 42.854
             var expected = 15.0 + Math.PI * 5.0 / 2.0 + 20.0;
-            Assert.AreEqual(expected, TrackGeometry.Current.TotalLength, Tolerance);
+            Assert.AreEqual(expected, _trackGeometry.TotalLength, Tolerance);
         }
 
         [TestMethod]
         public void TrackGeometryBuilderCreatesThreeSegments()
         {
-            Assert.AreEqual(3, TrackGeometry.Current.SegmentCount);
+            Assert.AreEqual(3, _trackGeometry.SegmentCount);
         }
 
         [TestMethod]
         public void TrackGeometryFirstSegmentIsLine()
         {
-            Assert.IsInstanceOfType<LineSegment>(TrackGeometry.Current[0]);
-            Assert.AreEqual(15.0, TrackGeometry.Current[0].Length, Tolerance);
+            Assert.IsInstanceOfType<LineSegment>(_trackGeometry[0]);
+            Assert.AreEqual(15.0, _trackGeometry[0].Length, Tolerance);
         }
 
         [TestMethod]
         public void TrackGeometrySecondSegmentIsArc()
         {
-            Assert.IsInstanceOfType<ArcSegment>(TrackGeometry.Current[1]);
-            var arc = (ArcSegment)TrackGeometry.Current[1];
+            Assert.IsInstanceOfType<ArcSegment>(_trackGeometry[1]);
+            var arc = (ArcSegment)_trackGeometry[1];
             Assert.AreEqual(5.0, arc.Radius, Tolerance);
             Assert.AreEqual(Math.PI / 2, arc.SweepAngle, Tolerance);
         }
@@ -537,26 +489,26 @@ namespace Optimal.Problems.Corner.Tests
         [TestMethod]
         public void TrackGeometryThirdSegmentIsLine()
         {
-            Assert.IsInstanceOfType<LineSegment>(TrackGeometry.Current[2]);
-            Assert.AreEqual(20.0, TrackGeometry.Current[2].Length, Tolerance);
+            Assert.IsInstanceOfType<LineSegment>(_trackGeometry[2]);
+            Assert.AreEqual(20.0, _trackGeometry[2].Length, Tolerance);
         }
 
         [TestMethod]
         public void TrackGeometryGetEntryLengthReturnsCorrectValue()
         {
-            Assert.AreEqual(15.0, TrackGeometry.Current.GetEntryLength(), Tolerance);
+            Assert.AreEqual(15.0, _trackGeometry.GetEntryLength(), Tolerance);
         }
 
         [TestMethod]
         public void TrackGeometryGetArcLengthReturnsCorrectValue()
         {
-            Assert.AreEqual(Math.PI * 5.0 / 2.0, TrackGeometry.Current.GetArcLength(), Tolerance);
+            Assert.AreEqual(Math.PI * 5.0 / 2.0, _trackGeometry.GetArcLength(), Tolerance);
         }
 
         [TestMethod]
         public void TrackGeometryGetArcRadiusReturnsCorrectValue()
         {
-            Assert.AreEqual(5.0, TrackGeometry.Current.GetArcRadius(), Tolerance);
+            Assert.AreEqual(5.0, _trackGeometry.GetArcRadius(), Tolerance);
         }
 
         #endregion

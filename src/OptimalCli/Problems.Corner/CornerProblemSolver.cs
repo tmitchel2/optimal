@@ -37,7 +37,7 @@ public sealed class CornerProblemSolver : ICommand
             .AddLine(distance: 15.0)
             .AddArc(radius: 5.0, angle: Math.PI / 2, turnRight: true)
             .AddLine(distance: 20.0)
-            .BuildAndSetCurrent();
+            .Build();
 
         // Create visualizer with track geometry
         var visualizer = new RadiantCornerVisualizer(trackGeometry);
@@ -62,14 +62,14 @@ public sealed class CornerProblemSolver : ICommand
 
         // Final position: at the end of the exit section
         const double sInit = 0.0;           // Start at beginning of entry
-        var sFinal = TrackGeometry.Current.TotalLength;  // End at exit
+        var sFinal = trackGeometry.TotalLength;  // End at exit
 
         // Initial T_f guess: Based on variable velocity profile that slows to 5 m/s in the arc.
         // Average velocity ≈ 9 m/s, so T_f ≈ sFinal / v_avg = 42.9 / 9 ≈ 4.8 seconds
         const double tfGuess = 5.0;         // Initial guess for final time
 
         Console.WriteLine("Problem setup (curvilinear coordinates):");
-        Console.WriteLine($"  Track length: {TrackGeometry.Current.TotalLength:F1} m (s derived from segment position)");
+        Console.WriteLine($"  Track length: {trackGeometry.TotalLength:F1} m (s derived from segment position)");
         Console.WriteLine($"  Initial state: n=free, θ=0, v={initialVelocity} m/s");
         Console.WriteLine("  Final state: n=free, θ=+π/2, v=free");
         Console.WriteLine($"  Acceleration bounds: [{maxDecel}, {maxAccel}] m/s²");
@@ -101,11 +101,11 @@ public sealed class CornerProblemSolver : ICommand
                 // Compute s from segment position
                 var segmentIndex = input.SegmentIndex;
                 var segmentCount = input.SegmentCount;
-                var s = segmentCount > 0 ? segmentIndex / segmentCount * TrackGeometry.Current.TotalLength : 0.0;
+                var s = segmentCount > 0 ? segmentIndex / segmentCount * trackGeometry.TotalLength : 0.0;
 
                 // Get road geometry at current position
-                var thetaRoad = TrackGeometry.Current.RoadHeading(s);
-                var curvature = TrackGeometry.Current.RoadCurvature(s);
+                var thetaRoad = trackGeometry.RoadHeading(s);
+                var curvature = trackGeometry.RoadCurvature(s);
 
                 var n = x[0];
                 var theta = x[1];
@@ -208,7 +208,7 @@ public sealed class CornerProblemSolver : ICommand
         var useLGL = options.Solver == SolverType.LGL;
 
         // Create initial guess
-        var initialGuess = CreateCenterlineInitialGuess(30, sInit, sFinal, initialVelocity);
+        var initialGuess = CreateCenterlineInitialGuess(trackGeometry, 30, sInit, sFinal, initialVelocity);
 
         // Headless mode - run synchronously without visualization
         if (options.Headless)
@@ -236,7 +236,7 @@ public sealed class CornerProblemSolver : ICommand
                     .WithInitialPenalty(50.0);
 
             var headlessResult = solver.Solve(problem, initialGuess);
-            PrintSolutionSummary(headlessResult);
+            PrintSolutionSummary(trackGeometry, headlessResult);
             return;
         }
 
@@ -329,9 +329,9 @@ public sealed class CornerProblemSolver : ICommand
 
         // Convert final state from curvilinear to Cartesian for display
         // s is derived from segment position - final segment corresponds to s = TotalLength
-        var finalS = TrackGeometry.Current.TotalLength;
+        var finalS = trackGeometry.TotalLength;
         var finalN = result.States[^1][0];
-        var (finalX, finalY) = TrackGeometry.Current.CurvilinearToCartesian(finalS, finalN);
+        var (finalX, finalY) = trackGeometry.CurvilinearToCartesian(finalS, finalN);
 
         Console.WriteLine("\n" + "=".PadRight(70, '=') + "\n");
         Console.WriteLine("SOLUTION SUMMARY:");
@@ -355,6 +355,7 @@ public sealed class CornerProblemSolver : ICommand
     /// Note: s is derived from segment position, not stored in state.
     /// </summary>
     private static InitialGuess CreateCenterlineInitialGuess(
+        TrackGeometry trackGeometry,
         int segments,
         double sInit,
         double sFinal,
@@ -380,9 +381,9 @@ public sealed class CornerProblemSolver : ICommand
         var tf = totalDistance / velocity;
 
         // Get geometry properties
-        var entryLength = TrackGeometry.Current.GetEntryLength();
-        var arcLength = TrackGeometry.Current.GetArcLength();
-        var arcRadius = TrackGeometry.Current.GetArcRadius();
+        var entryLength = trackGeometry.GetEntryLength();
+        var arcLength = trackGeometry.GetArcLength();
+        var arcRadius = trackGeometry.GetArcRadius();
         var arcEnd = entryLength + arcLength;
 
         // During arc: dθ_road/ds = +π / (2 × arcLength) = +1/R (left-hand rule: right turn increases θ)
@@ -400,7 +401,7 @@ public sealed class CornerProblemSolver : ICommand
             const double n = 0.0;
 
             // Follow road heading exactly
-            var theta = TrackGeometry.Current.RoadHeading(s);
+            var theta = trackGeometry.RoadHeading(s);
 
             // State: [n, θ, v, Tf]
             stateTrajectory[k] = [n, theta, velocity, tf];
@@ -434,13 +435,13 @@ public sealed class CornerProblemSolver : ICommand
     /// <summary>
     /// Prints a summary of the solution to the console.
     /// </summary>
-    private static void PrintSolutionSummary(CollocationResult result)
+    private static void PrintSolutionSummary(TrackGeometry trackGeometry, CollocationResult result)
     {
         // Convert final state from curvilinear to Cartesian for display
         // s is derived from segment position - final segment corresponds to s = TotalLength
-        var finalS = TrackGeometry.Current.TotalLength;
+        var finalS = trackGeometry.TotalLength;
         var finalN = result.States[^1][0];
-        var (finalX, finalY) = TrackGeometry.Current.CurvilinearToCartesian(finalS, finalN);
+        var (finalX, finalY) = trackGeometry.CurvilinearToCartesian(finalS, finalN);
 
         Console.WriteLine("\n" + "=".PadRight(70, '=') + "\n");
         Console.WriteLine("SOLUTION SUMMARY:");

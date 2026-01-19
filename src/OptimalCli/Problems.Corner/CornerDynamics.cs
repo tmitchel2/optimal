@@ -93,26 +93,4 @@ namespace OptimalCli.Problems.Corner
             return 1.0;
         }
     }
-
-    /// <summary>
-    /// Helper methods for coordinate conversions and visualization.
-    /// Not marked with [OptimalCode] since these don't need gradients.
-    /// </summary>
-    public static class CornerDynamicsHelpers
-    {
-        /// <summary>
-        /// Convert curvilinear coordinates (s, n) to Cartesian coordinates (x, y).
-        /// Used for visualization.
-        ///
-        /// Cartesian coordinate system:
-        /// - x increases to the right (east)
-        /// - y increases upward (north)
-        /// - The track goes east, then turns right (south)
-        /// </summary>
-        public static (double x, double y) CurvilinearToCartesian(double s, double n)
-        {
-            var (x, y) = TrackGeometry.Current.CurvilinearToCartesian(s, n);
-            return (x, y);
-        }
-    }
 }

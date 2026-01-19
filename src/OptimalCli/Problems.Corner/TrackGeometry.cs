@@ -184,18 +184,6 @@ public sealed class TrackGeometry
     /// </summary>
     public const double RoadHalfWidth = 5.0;
 
-    private static TrackGeometry? s_current;
-
-    /// <summary>
-    /// Gets or sets the current track geometry used by dynamics calculations.
-    /// </summary>
-    public static TrackGeometry Current
-    {
-        get => s_current ?? throw new InvalidOperationException(
-            "Track geometry not initialized. Call TrackGeometry.StartAt(...).Build() first.");
-        set => s_current = value ?? throw new ArgumentNullException(nameof(value));
-    }
-
     private readonly TrackSegment[] _segments;
     private readonly double[] _segmentEndS; // Cached for binary search
 
@@ -399,15 +387,5 @@ public sealed class TrackGeometryBuilder
         }
 
         return new TrackGeometry([.. _segments]);
-    }
-
-    /// <summary>
-    /// Build and set as the current geometry.
-    /// </summary>
-    public TrackGeometry BuildAndSetCurrent()
-    {
-        var geometry = Build();
-        TrackGeometry.Current = geometry;
-        return geometry;
     }
 }
