@@ -25,22 +25,27 @@ namespace OptimalCli.Problems.Corner;
 /// </summary>
 public sealed class CornerProblemSolver : ICommand
 {
-    // Road geometry (from CornerDynamics)
-    private static readonly double EntryLength = CornerDynamics.EntryLength;
-    private static readonly double ArcLength = CornerDynamics.ArcLength;
-    private static readonly double RoadHalfWidth = CornerDynamics.RoadHalfWidth;
-    private static readonly double TotalLength = EntryLength + ArcLength + 20.0; // Exit length of 20m
-
     public string Name => "corner";
 
     public string Description => "Optimal racing line through 90° corner with road constraints (curvilinear coordinates)";
 
     public void Run(CommandOptions options)
     {
+        // Initialize track geometry using fluent builder
+        // Entry straight (15m) → 90° right turn (radius 5m) → Exit straight (20m)
+        var trackGeometry = TrackGeometry.StartAt(x: -15, y: 0, heading: 0)
+            .AddLine(distance: 15.0)
+            .AddArc(radius: 5.0, angle: Math.PI / 2, turnRight: true)
+            .AddLine(distance: 20.0)
+            .BuildAndSetCurrent();
+
+        // Create visualizer with track geometry
+        var visualizer = new RadiantCornerVisualizer(trackGeometry);
+
         // Debug visualization mode - just show track without optimization
         if (options.DebugViz)
         {
-            RadiantCornerVisualizer.RunDebugVisualization();
+            visualizer.RunDebugVisualization();
             return;
         }
 
@@ -50,26 +55,23 @@ public sealed class CornerProblemSolver : ICommand
         Console.WriteLine();
 
         // Vehicle parameters
-        var maxAccel = 5.0;      // Maximum acceleration (m/s²)
-        var maxDecel = -8.0;     // Maximum braking (m/s²)
-        var maxSteerRate = 1.0;  // Maximum steering rate (rad/s)
-        var initialVelocity = 15.0;  // Entry speed (m/s)
+        const double maxAccel = 5.0;      // Maximum acceleration (m/s²)
+        const double maxDecel = -8.0;     // Maximum braking (m/s²)
+        const double maxSteerRate = 1.0;  // Maximum steering rate (rad/s)
+        const double initialVelocity = 15.0;  // Entry speed (m/s)
 
         // Final position: at the end of the exit section
-        var sInit = 0.0;           // Start at beginning of entry
-        var sFinal = TotalLength;  // End at exit
+        const double sInit = 0.0;           // Start at beginning of entry
+        var sFinal = TrackGeometry.Current.TotalLength;  // End at exit
 
         // Initial T_f guess: Based on variable velocity profile that slows to 5 m/s in the arc.
         // Average velocity ≈ 9 m/s, so T_f ≈ sFinal / v_avg = 42.9 / 9 ≈ 4.8 seconds
-        var tfGuess = 5.0;         // Initial guess for final time
+        const double tfGuess = 5.0;         // Initial guess for final time
 
-        Console.WriteLine($"Problem setup (curvilinear coordinates):");
-        Console.WriteLine($"  Entry length: {EntryLength} m");
-        Console.WriteLine($"  Arc length: {ArcLength:F3} m (π × {CornerDynamics.CenterlineRadius} / 2)");
-        Console.WriteLine($"  Road half-width: {RoadHalfWidth} m");
-        Console.WriteLine($"  Track length: {TotalLength:F1} m (s derived from segment position)");
+        Console.WriteLine("Problem setup (curvilinear coordinates):");
+        Console.WriteLine($"  Track length: {TrackGeometry.Current.TotalLength:F1} m (s derived from segment position)");
         Console.WriteLine($"  Initial state: n=free, θ=0, v={initialVelocity} m/s");
-        Console.WriteLine($"  Final state: n=free, θ=+π/2, v=free");
+        Console.WriteLine("  Final state: n=free, θ=+π/2, v=free");
         Console.WriteLine($"  Acceleration bounds: [{maxDecel}, {maxAccel}] m/s²");
         Console.WriteLine($"  Steering rate bounds: [-{maxSteerRate}, {maxSteerRate}] rad/s");
         Console.WriteLine($"  Final time T_f: free (to be optimized, guess {tfGuess} s)");
@@ -89,8 +91,8 @@ public sealed class CornerProblemSolver : ICommand
             .WithFinalCondition([double.NaN, Math.PI / 2.0, double.NaN, double.NaN]) // n=free, heading south (θ=+π/2), free v, T_f
             .WithControlBounds([maxDecel, -maxSteerRate], [maxAccel, maxSteerRate])
             .WithStateBounds(
-                [-RoadHalfWidth, -Math.PI, 1.0, 0.5],  // Min: n >= -RoadHalfWidth, θ, v >= 1 m/s, T_f >= 0.5s
-                [RoadHalfWidth - 0.5, Math.PI, 30.0, 10.0])   // Max: n <= 4.5 (0.5m from apex), θ, v <= 30 m/s, T_f <= 10s
+                [-TrackGeometry.RoadHalfWidth, -Math.PI, 1.0, 0.5],  // Min: n >= -RoadHalfWidth, θ, v >= 1 m/s, T_f >= 0.5s
+                [TrackGeometry.RoadHalfWidth - 0.5, Math.PI, 30.0, 10.0])   // Max: n <= 4.5 (0.5m from apex), θ, v <= 30 m/s, T_f <= 10s
             .WithDynamics(input =>
             {
                 var x = input.State;
@@ -99,38 +101,42 @@ public sealed class CornerProblemSolver : ICommand
                 // Compute s from segment position
                 var segmentIndex = input.SegmentIndex;
                 var segmentCount = input.SegmentCount;
-                var s = segmentCount > 0 ? (segmentIndex / segmentCount) * TotalLength : 0.0;
+                var s = segmentCount > 0 ? segmentIndex / segmentCount * TrackGeometry.Current.TotalLength : 0.0;
+
+                // Get road geometry at current position
+                var thetaRoad = TrackGeometry.Current.RoadHeading(s);
+                var curvature = TrackGeometry.Current.RoadCurvature(s);
 
                 var n = x[0];
                 var theta = x[1];
                 var v = x[2];
-                var Tf = x[3];
+                var tf = x[3];
                 var a = u[0];
                 var omega = u[1];
 
                 // Physical dynamics using curvilinear coordinates
-                // Note: sdot gradients w.r.t. s are not needed since s is not a state variable
-                var (_, sdot_gradients) = CornerDynamicsGradients.ProgressRateReverse(s, n, theta, v);
-                var (ndotPhys, ndot_gradients) = CornerDynamicsGradients.LateralRateReverse(s, n, theta, v);
+                var (_, sdot_gradients) = CornerDynamicsGradients.ProgressRateReverse(thetaRoad, curvature, n, theta, v);
+                var (ndotPhys, ndot_gradients) = CornerDynamicsGradients.LateralRateReverse(thetaRoad, theta, v);
                 var (thetadotPhys, thetadot_gradients) = CornerDynamicsGradients.ThetaRateReverse(omega);
                 var (vdotPhys, vdot_gradients) = CornerDynamicsGradients.VelocityRateReverse(a);
 
                 // Time-scaled dynamics: dx/dτ = T_f · (dx/dt)
-                var ndot = Tf * ndotPhys;
-                var thetadot = Tf * thetadotPhys;
-                var vdot = Tf * vdotPhys;
-                var Tfdot = 0.0; // T_f is constant over the trajectory
+                var ndot = tf * ndotPhys;
+                var thetadot = tf * thetadotPhys;
+                var vdot = tf * vdotPhys;
+                const double tfdot = 0.0; // T_f is constant over the trajectory
 
-                var value = new[] { ndot, thetadot, vdot, Tfdot };
+                var value = new[] { ndot, thetadot, vdot, tfdot };
                 var gradients = new double[2][];
 
                 // Gradients w.r.t. state: chain rule ∂(T_f·f)/∂x = T_f·(∂f/∂x), ∂(T_f·f)/∂T_f = f
                 // State order: [n, θ, v, T_f]
-                // Note: ndot_gradients indices are [∂/∂s, ∂/∂n, ∂/∂θ, ∂/∂v], we skip ∂/∂s (index 0)
+                // ndot_gradients indices are [∂/∂thetaRoad, ∂/∂theta, ∂/∂v], we need [∂/∂n, ∂/∂theta, ∂/∂v]
+                // Since LateralRate doesn't depend on n, ∂ndot/∂n = 0
                 gradients[0] =
                 [
                     // ∂ṅ/∂[n, θ, v, T_f]
-                    Tf * ndot_gradients[1], Tf * ndot_gradients[2], Tf * ndot_gradients[3], ndotPhys,
+                    0.0, tf * ndot_gradients[1], tf * ndot_gradients[2], ndotPhys,
                     // ∂θ̇/∂[n, θ, v, T_f] - thetadot only depends on omega, not state
                     0.0, 0.0, 0.0, thetadotPhys,
                     // ∂v̇/∂[n, θ, v, T_f] - vdot only depends on a, not state
@@ -143,8 +149,8 @@ public sealed class CornerProblemSolver : ICommand
                 gradients[1] =
                 [
                     0.0, 0.0,  // ∂ṅ/∂[a, ω] = 0
-                    0.0, Tf * thetadot_gradients[0],  // ∂θ̇/∂[a, ω]
-                    Tf * vdot_gradients[0], 0.0,  // ∂v̇/∂[a, ω]
+                    0.0, tf * thetadot_gradients[0],  // ∂θ̇/∂[a, ω]
+                    tf * vdot_gradients[0], 0.0,  // ∂v̇/∂[a, ω]
                     0.0, 0.0   // ∂Ṫf/∂[a, ω] = 0
                 ];
 
@@ -153,10 +159,10 @@ public sealed class CornerProblemSolver : ICommand
             .WithTerminalCost(input =>
             {
                 // Minimize final time T_f
-                var Tf = input.State[3];
+                var tf = input.State[3];
                 var gradients = new double[5]; // [n, θ, v, T_f, τ]
                 gradients[3] = 1.0; // ∂Φ/∂T_f = 1
-                return new TerminalCostResult(Tf, gradients);
+                return new TerminalCostResult(tf, gradients);
             })
             // Road boundary constraints
             // The singularity occurs at n = CenterlineRadius = 5 where denominator 1 - n*κ = 0
@@ -165,7 +171,7 @@ public sealed class CornerProblemSolver : ICommand
             .WithPathConstraint((x, _, _) =>
             {
                 var n = x[0];
-                var violation = -RoadHalfWidth - n;  // violation <= 0 when n >= -RoadHalfWidth
+                var violation = -TrackGeometry.RoadHalfWidth - n;  // violation <= 0 when n >= -RoadHalfWidth
                 var grads = new[] { -1.0, 0.0, 0.0, 0.0 };
                 return (violation, grads);
             })
@@ -174,8 +180,8 @@ public sealed class CornerProblemSolver : ICommand
             .WithPathConstraint((x, _, _) =>
             {
                 var n = x[0];
-                const double ApexMargin = 0.5;  // Keep 0.5m away from apex
-                var maxN = RoadHalfWidth - ApexMargin;
+                const double apexMargin = 0.5;  // Keep 0.5m away from apex
+                var maxN = TrackGeometry.RoadHalfWidth - apexMargin;
                 var violation = n - maxN;  // violation <= 0 when n <= maxN
                 var grads = new[] { 1.0, 0.0, 0.0, 0.0 };
                 return (violation, grads);
@@ -184,9 +190,9 @@ public sealed class CornerProblemSolver : ICommand
             // This is needed because box constraints are only projected after inner optimization
             .WithPathConstraint((x, _, _) =>
             {
-                var Tf = x[3];
-                const double MinTime = 0.5;
-                var violation = MinTime - Tf;  // violation <= 0 when T_f >= 0.5
+                var tf = x[3];
+                const double minTime = 0.5;
+                var violation = minTime - tf;  // violation <= 0 when T_f >= 0.5
                 var grads = new[] { 0.0, 0.0, 0.0, -1.0 };
                 return (violation, grads);
             });
@@ -260,8 +266,8 @@ public sealed class CornerProblemSolver : ICommand
                         .WithInnerOptimizer(innerOptimizer)
                         .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                         {
-                            RadiantCornerVisualizer.CancellationToken.ThrowIfCancellationRequested();
-                            RadiantCornerVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+                            visualizer.CancellationToken.ThrowIfCancellationRequested();
+                            visualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
                         })
                     : new HermiteSimpsonSolver()
                         .WithSegments(30)
@@ -273,8 +279,8 @@ public sealed class CornerProblemSolver : ICommand
                         .WithInitialPenalty(50.0) // Higher initial penalty to enforce constraints more strongly
                         .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                         {
-                            RadiantCornerVisualizer.CancellationToken.ThrowIfCancellationRequested();
-                            RadiantCornerVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+                            visualizer.CancellationToken.ThrowIfCancellationRequested();
+                            visualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
                         });
 
                 var result = solver.Solve(problem, initialGuess);
@@ -286,10 +292,10 @@ public sealed class CornerProblemSolver : ICommand
                 Console.WriteLine("[SOLVER] Optimization cancelled");
                 throw;
             }
-        }, RadiantCornerVisualizer.CancellationToken);
+        }, visualizer.CancellationToken);
 
         // Run the visualization window on the main thread
-        RadiantCornerVisualizer.RunVisualizationWindow();
+        visualizer.RunVisualizationWindow();
 
         // Check if optimization is still running after window closed
         if (!optimizationTask.IsCompleted)
@@ -323,9 +329,9 @@ public sealed class CornerProblemSolver : ICommand
 
         // Convert final state from curvilinear to Cartesian for display
         // s is derived from segment position - final segment corresponds to s = TotalLength
-        var finalS = TotalLength;
+        var finalS = TrackGeometry.Current.TotalLength;
         var finalN = result.States[^1][0];
-        var (finalX, finalY) = CornerDynamicsHelpers.CurvilinearToCartesian(finalS, finalN);
+        var (finalX, finalY) = TrackGeometry.Current.CurvilinearToCartesian(finalS, finalN);
 
         Console.WriteLine("\n" + "=".PadRight(70, '=') + "\n");
         Console.WriteLine("SOLUTION SUMMARY:");
@@ -373,12 +379,15 @@ public sealed class CornerProblemSolver : ICommand
         // Time to traverse at constant velocity
         var tf = totalDistance / velocity;
 
-        // Arc geometry for steering rate calculation
-        var arcEnd = CornerDynamics.EntryLength + CornerDynamics.ArcLength;
+        // Get geometry properties
+        var entryLength = TrackGeometry.Current.GetEntryLength();
+        var arcLength = TrackGeometry.Current.GetArcLength();
+        var arcRadius = TrackGeometry.Current.GetArcRadius();
+        var arcEnd = entryLength + arcLength;
 
         // During arc: dθ_road/ds = +π / (2 × arcLength) = +1/R (left-hand rule: right turn increases θ)
         // So ω = dθ_road/ds × v = +v/R
-        var arcSteeringRate = velocity / CornerDynamics.CenterlineRadius;
+        var arcSteeringRate = velocity / arcRadius;
 
         for (var k = 0; k < numNodes; k++)
         {
@@ -391,7 +400,7 @@ public sealed class CornerProblemSolver : ICommand
             const double n = 0.0;
 
             // Follow road heading exactly
-            var theta = CornerDynamics.RoadHeading(s);
+            var theta = TrackGeometry.Current.RoadHeading(s);
 
             // State: [n, θ, v, Tf]
             stateTrajectory[k] = [n, theta, velocity, tf];
@@ -400,7 +409,7 @@ public sealed class CornerProblemSolver : ICommand
             // - Acceleration = 0 (constant velocity)
             // - Steering rate = dθ_road/dt to follow road heading
             double omega;
-            if (s < CornerDynamics.EntryLength)
+            if (s < entryLength)
             {
                 // Entry straight: no steering needed
                 omega = 0.0;
@@ -429,9 +438,9 @@ public sealed class CornerProblemSolver : ICommand
     {
         // Convert final state from curvilinear to Cartesian for display
         // s is derived from segment position - final segment corresponds to s = TotalLength
-        var finalS = TotalLength;
+        var finalS = TrackGeometry.Current.TotalLength;
         var finalN = result.States[^1][0];
-        var (finalX, finalY) = CornerDynamicsHelpers.CurvilinearToCartesian(finalS, finalN);
+        var (finalX, finalY) = TrackGeometry.Current.CurvilinearToCartesian(finalS, finalN);
 
         Console.WriteLine("\n" + "=".PadRight(70, '=') + "\n");
         Console.WriteLine("SOLUTION SUMMARY:");

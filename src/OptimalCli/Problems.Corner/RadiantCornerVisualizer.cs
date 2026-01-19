@@ -16,97 +16,103 @@ namespace OptimalCli.Problems.Corner;
 /// Shows the road layout, boundaries, and vehicle trajectory through the 90° turn.
 /// Converts curvilinear coordinates (s, n) to Cartesian (x, y) for display.
 /// </summary>
-internal static class RadiantCornerVisualizer
+internal sealed class RadiantCornerVisualizer
 {
     private const int WindowWidth = 900;
     private const int WindowHeight = 800;
 
-    // Road geometry constants (from CornerDynamics)
-    private static readonly double RoadHalfWidth = CornerDynamics.RoadHalfWidth;
-    private static readonly double CenterlineRadius = CornerDynamics.CenterlineRadius;
-    private static readonly double EntryLength = CornerDynamics.EntryLength;
-    private static readonly double TotalLength = CornerDynamics.EntryLength + CornerDynamics.ArcLength + 20.0;
+    private readonly TrackGeometry _trackGeometry;
 
-    private static double[][]? s_currentStates;
-    private static double[][]? s_currentControls;
-    private static int s_currentIteration;
-    private static double s_currentCost;
-    private static double s_currentMaxViolation;
-    private static double s_currentConstraintTolerance;
-    private static int s_currentFrameIndex;
-    private static DateTime s_animationStartTime;
-    private static readonly object s_lock = new();
+    // Road geometry (from passed-in TrackGeometry)
+    private double CenterlineRadius => _trackGeometry.GetArcRadius();
+    private double EntryLength => _trackGeometry.GetEntryLength();
+    private double TotalLength => _trackGeometry.TotalLength;
+
+    private double[][]? _currentStates;
+    private double[][]? _currentControls;
+    private int _currentIteration;
+    private double _currentCost;
+    private double _currentMaxViolation;
+    private double _currentConstraintTolerance;
+    private int _currentFrameIndex;
+    private DateTime _animationStartTime;
+    private readonly object _lock = new();
 
     // Buffered next trajectory
-    private static double[][]? s_nextStates;
-    private static double[][]? s_nextControls;
-    private static int s_nextIteration;
-    private static double s_nextCost;
-    private static double s_nextMaxViolation;
-    private static double s_nextConstraintTolerance;
-    private static bool s_hasNextTrajectory;
+    private double[][]? _nextStates;
+    private double[][]? _nextControls;
+    private int _nextIteration;
+    private double _nextCost;
+    private double _nextMaxViolation;
+    private double _nextConstraintTolerance;
+    private bool _hasNextTrajectory;
 
-    private static CancellationTokenSource? s_cancellationTokenSource;
+    private CancellationTokenSource? _cancellationTokenSource;
 
-    public static CancellationToken CancellationToken => s_cancellationTokenSource?.Token ?? CancellationToken.None;
+    public RadiantCornerVisualizer(TrackGeometry trackGeometry)
+    {
+        _trackGeometry = trackGeometry ?? throw new ArgumentNullException(nameof(trackGeometry));
+    }
 
-    public static void UpdateTrajectory(double[][] states, double[][] controls, int iteration, double cost, double maxViolation, double constraintTolerance)
+    public CancellationToken CancellationToken => _cancellationTokenSource?.Token ?? CancellationToken.None;
+
+    public void UpdateTrajectory(double[][] states, double[][] controls, int iteration, double cost, double maxViolation, double constraintTolerance)
     {
         if (states.Length == 0 || controls.Length == 0)
         {
             return;
         }
 
-        lock (s_lock)
+        lock (_lock)
         {
-            s_nextStates = states;
-            s_nextControls = controls;
-            s_nextIteration = iteration;
-            s_nextCost = cost;
-            s_nextMaxViolation = maxViolation;
-            s_nextConstraintTolerance = constraintTolerance;
-            s_hasNextTrajectory = true;
+            _nextStates = states;
+            _nextControls = controls;
+            _nextIteration = iteration;
+            _nextCost = cost;
+            _nextMaxViolation = maxViolation;
+            _nextConstraintTolerance = constraintTolerance;
+            _hasNextTrajectory = true;
 
             Console.WriteLine($"[VIZ] Buffered Iter {iteration}: {states.Length} frames, cost={cost:F4}, violation={maxViolation:E2}/{constraintTolerance:E2}");
         }
     }
 
-    public static void RunVisualizationWindow()
+    public void RunVisualizationWindow()
     {
-        s_cancellationTokenSource = new CancellationTokenSource();
+        _cancellationTokenSource = new CancellationTokenSource();
 
         try
         {
             using var app = new RadiantApplication();
-            app.Run("Corner Racing Line Optimization (Curvilinear)", WindowWidth, WindowHeight, RenderFrame, Colors.Slate900);
+            app.Run("Corner Racing Line Optimization (Curvilinear)", WindowWidth, WindowHeight, renderer => RenderFrame(renderer), Colors.Slate900);
         }
         finally
         {
-            if (s_cancellationTokenSource?.IsCancellationRequested == false)
+            if (_cancellationTokenSource?.IsCancellationRequested == false)
             {
                 Console.WriteLine("[VIZ] Window closed - requesting optimization cancellation");
-                s_cancellationTokenSource.Cancel();
+                _cancellationTokenSource.Cancel();
             }
 
-            s_cancellationTokenSource?.Dispose();
-            s_cancellationTokenSource = null;
+            _cancellationTokenSource?.Dispose();
+            _cancellationTokenSource = null;
         }
     }
 
     /// <summary>
     /// Run visualization in debug mode - shows track and offset lines without optimization.
     /// </summary>
-    public static void RunDebugVisualization()
+    public void RunDebugVisualization()
     {
         Console.WriteLine("=== DEBUG VISUALIZATION MODE ===");
         Console.WriteLine("Showing track layout with offset lines at n = -2.5 (cyan) and n = +2.5 (orange)");
         Console.WriteLine("Close window to exit.");
 
         using var app = new RadiantApplication();
-        app.Run("Corner Track Debug View", WindowWidth, WindowHeight, RenderDebugFrame, Colors.Slate900);
+        app.Run("Corner Track Debug View", WindowWidth, WindowHeight, renderer => RenderDebugFrame(renderer), Colors.Slate900);
     }
 
-    private static void RenderDebugFrame(Radiant.Graphics2D.Renderer2D renderer)
+    private void RenderDebugFrame(Radiant.Graphics2D.Renderer2D renderer)
     {
         const float scale = 15.0f;
 
@@ -121,7 +127,7 @@ internal static class RadiantCornerVisualizer
         renderer.DrawText("White dashed: Centerline (n = 0)", -400, -290, 2, Colors.White);
     }
 
-    private static void RenderFrame(Radiant.Graphics2D.Renderer2D renderer)
+    private void RenderFrame(Radiant.Graphics2D.Renderer2D renderer)
     {
         double[][] states;
         double[][] controls;
@@ -131,23 +137,23 @@ internal static class RadiantCornerVisualizer
         double constraintTolerance;
         int frameIndex;
 
-        lock (s_lock)
+        lock (_lock)
         {
-            if (s_currentStates == null || s_currentControls == null)
+            if (_currentStates == null || _currentControls == null)
             {
-                if (s_hasNextTrajectory && s_nextStates != null && s_nextControls != null)
+                if (_hasNextTrajectory && _nextStates != null && _nextControls != null)
                 {
-                    s_currentStates = s_nextStates;
-                    s_currentControls = s_nextControls;
-                    s_currentIteration = s_nextIteration;
-                    s_currentCost = s_nextCost;
-                    s_currentMaxViolation = s_nextMaxViolation;
-                    s_currentConstraintTolerance = s_nextConstraintTolerance;
-                    s_currentFrameIndex = 0;
-                    s_animationStartTime = DateTime.Now;
-                    s_hasNextTrajectory = false;
+                    _currentStates = _nextStates;
+                    _currentControls = _nextControls;
+                    _currentIteration = _nextIteration;
+                    _currentCost = _nextCost;
+                    _currentMaxViolation = _nextMaxViolation;
+                    _currentConstraintTolerance = _nextConstraintTolerance;
+                    _currentFrameIndex = 0;
+                    _animationStartTime = DateTime.Now;
+                    _hasNextTrajectory = false;
 
-                    Console.WriteLine($"[VIZ] Started displaying Iter {s_currentIteration}");
+                    Console.WriteLine($"[VIZ] Started displaying Iter {_currentIteration}");
                 }
                 else
                 {
@@ -157,37 +163,37 @@ internal static class RadiantCornerVisualizer
                 }
             }
 
-            var elapsed = (DateTime.Now - s_animationStartTime).TotalMilliseconds;
+            var elapsed = (DateTime.Now - _animationStartTime).TotalMilliseconds;
             const double FrameDuration = 80.0;
-            var totalFrames = s_currentStates.Length;
+            var totalFrames = _currentStates.Length;
             var frameInSequence = (int)(elapsed / FrameDuration);
 
-            if (frameInSequence >= totalFrames && s_hasNextTrajectory && s_nextStates != null && s_nextControls != null)
+            if (frameInSequence >= totalFrames && _hasNextTrajectory && _nextStates != null && _nextControls != null)
             {
-                s_currentStates = s_nextStates;
-                s_currentControls = s_nextControls;
-                s_currentIteration = s_nextIteration;
-                s_currentCost = s_nextCost;
-                s_currentMaxViolation = s_nextMaxViolation;
-                s_currentConstraintTolerance = s_nextConstraintTolerance;
-                s_currentFrameIndex = 0;
-                s_animationStartTime = DateTime.Now;
-                s_hasNextTrajectory = false;
+                _currentStates = _nextStates;
+                _currentControls = _nextControls;
+                _currentIteration = _nextIteration;
+                _currentCost = _nextCost;
+                _currentMaxViolation = _nextMaxViolation;
+                _currentConstraintTolerance = _nextConstraintTolerance;
+                _currentFrameIndex = 0;
+                _animationStartTime = DateTime.Now;
+                _hasNextTrajectory = false;
 
-                Console.WriteLine($"[VIZ] Switched to Iter {s_currentIteration}");
+                Console.WriteLine($"[VIZ] Switched to Iter {_currentIteration}");
                 frameInSequence = 0;
-                totalFrames = s_currentStates.Length;
+                totalFrames = _currentStates.Length;
             }
 
-            s_currentFrameIndex = frameInSequence % totalFrames;
+            _currentFrameIndex = frameInSequence % totalFrames;
 
-            states = s_currentStates;
-            controls = s_currentControls;
-            iteration = s_currentIteration;
-            cost = s_currentCost;
-            maxViolation = s_currentMaxViolation;
-            constraintTolerance = s_currentConstraintTolerance;
-            frameIndex = s_currentFrameIndex;
+            states = _currentStates;
+            controls = _currentControls;
+            iteration = _currentIteration;
+            cost = _currentCost;
+            maxViolation = _currentMaxViolation;
+            constraintTolerance = _currentConstraintTolerance;
+            frameIndex = _currentFrameIndex;
         }
 
         // Calculate scale to fit the road in the window
@@ -207,7 +213,7 @@ internal static class RadiantCornerVisualizer
         var n = state[0];
         var theta = state[1];
         var v = state[2];
-        var (x, y) = CornerDynamicsHelpers.CurvilinearToCartesian(s, n);
+        var (x, y) = _trackGeometry.CurvilinearToCartesian(s, n);
         DrawVehicle(renderer, x, y, theta, v, Scale);
 
         // Draw start and end markers
@@ -218,7 +224,7 @@ internal static class RadiantCornerVisualizer
             iteration, cost, maxViolation, constraintTolerance, frameIndex, states.Length);
     }
 
-    private static void DrawRoadLayout(Radiant.Graphics2D.Renderer2D renderer, float scale)
+    private void DrawRoadLayout(Radiant.Graphics2D.Renderer2D renderer, float scale)
     {
         // var boundaryColor = Colors.Red500;
         var centerLineColor = new Vector4(1.0f, 1.0f, 1.0f, 0.3f);
@@ -329,10 +335,10 @@ internal static class RadiantCornerVisualizer
     /// Draw a line at a fixed n offset along the entire track using CurvilinearToCartesian.
     /// This verifies the coordinate conversion is correct.
     /// </summary>
-    private static void DrawOffsetLine(Radiant.Graphics2D.Renderer2D renderer, double nOffset, float scale, Vector4 color)
+    private void DrawOffsetLine(Radiant.Graphics2D.Renderer2D renderer, double nOffset, float scale, Vector4 color)
     {
         const int NumPoints = 100;
-        var arcLength = CornerDynamics.ArcLength;
+        var arcLength = _trackGeometry.GetArcLength();
         var totalLength = EntryLength + arcLength + 25.0; // Entry + arc + 25m exit
 
         for (var i = 0; i < NumPoints - 1; i++)
@@ -340,8 +346,8 @@ internal static class RadiantCornerVisualizer
             var s1 = totalLength * i / (NumPoints - 1);
             var s2 = totalLength * (i + 1) / (NumPoints - 1);
 
-            var (x1, y1) = CornerDynamicsHelpers.CurvilinearToCartesian(s1, nOffset);
-            var (x2, y2) = CornerDynamicsHelpers.CurvilinearToCartesian(s2, nOffset);
+            var (x1, y1) = _trackGeometry.CurvilinearToCartesian(s1, nOffset);
+            var (x2, y2) = _trackGeometry.CurvilinearToCartesian(s2, nOffset);
 
             renderer.DrawLine(
                 new Vector2((float)x1 * scale, (float)y1 * scale),
@@ -350,16 +356,16 @@ internal static class RadiantCornerVisualizer
         }
     }
 
-    private static (double x, double y) GetArcBoundaryPoint(int segment, int totalSegments, double nOffset)
+    private (double x, double y) GetArcBoundaryPoint(int segment, int totalSegments, double nOffset)
     {
-        var arcLength = CornerDynamics.ArcLength;
+        var arcLength = _trackGeometry.GetArcLength();
         var entryEnd = EntryLength;
         var arcProgress = (double)segment / totalSegments;
         var s = entryEnd + arcProgress * arcLength;
-        return CornerDynamicsHelpers.CurvilinearToCartesian(s, nOffset);
+        return _trackGeometry.CurvilinearToCartesian(s, nOffset);
     }
 
-    private static void DrawPathTrace(Radiant.Graphics2D.Renderer2D renderer, double[][] states, int currentFrame, float scale)
+    private void DrawPathTrace(Radiant.Graphics2D.Renderer2D renderer, double[][] states, int currentFrame, float scale)
     {
         var totalFrames = states.Length;
 
@@ -369,8 +375,8 @@ internal static class RadiantCornerVisualizer
         {
             var s1 = totalFrames > 1 ? (i / (double)(totalFrames - 1)) * TotalLength : 0.0;
             var s2 = totalFrames > 1 ? ((i + 1) / (double)(totalFrames - 1)) * TotalLength : 0.0;
-            var (x1, y1) = CornerDynamicsHelpers.CurvilinearToCartesian(s1, states[i][0]);
-            var (x2, y2) = CornerDynamicsHelpers.CurvilinearToCartesian(s2, states[i + 1][0]);
+            var (x1, y1) = _trackGeometry.CurvilinearToCartesian(s1, states[i][0]);
+            var (x2, y2) = _trackGeometry.CurvilinearToCartesian(s2, states[i + 1][0]);
 
             // Color by velocity (green = slow, yellow = medium, red = fast)
             var v = states[i][2];
@@ -386,8 +392,8 @@ internal static class RadiantCornerVisualizer
         {
             var s1 = totalFrames > 1 ? (i / (double)(totalFrames - 1)) * TotalLength : 0.0;
             var s2 = totalFrames > 1 ? ((i + 1) / (double)(totalFrames - 1)) * TotalLength : 0.0;
-            var (x1, y1) = CornerDynamicsHelpers.CurvilinearToCartesian(s1, states[i][0]);
-            var (x2, y2) = CornerDynamicsHelpers.CurvilinearToCartesian(s2, states[i + 1][0]);
+            var (x1, y1) = _trackGeometry.CurvilinearToCartesian(s1, states[i][0]);
+            var (x2, y2) = _trackGeometry.CurvilinearToCartesian(s2, states[i + 1][0]);
 
             renderer.DrawLine(new Vector2((float)x1 * scale, (float)y1 * scale),
                              new Vector2((float)x2 * scale, (float)y2 * scale), new Vector4(0.4f, 0.4f, 0.4f, 0.5f));
@@ -425,18 +431,18 @@ internal static class RadiantCornerVisualizer
         renderer.DrawCircleFilled(vehX, vehY, 6, vehicleColor, 16);
     }
 
-    private static void DrawMarkers(Radiant.Graphics2D.Renderer2D renderer, double[][] states, float scale)
+    private void DrawMarkers(Radiant.Graphics2D.Renderer2D renderer, double[][] states, float scale)
     {
         if (states.Length < 2) return;
 
         // State is now [n, θ, v, T_f] - s is computed from frame position
         // Start marker (s = 0)
-        var (startX, startY) = CornerDynamicsHelpers.CurvilinearToCartesian(0.0, states[0][0]);
+        var (startX, startY) = _trackGeometry.CurvilinearToCartesian(0.0, states[0][0]);
         renderer.DrawCircleFilled((float)startX * scale, (float)startY * scale, 10, Colors.Emerald500, 24);
         renderer.DrawText("START", (float)startX * scale - 30, (float)startY * scale + 20, 2, Colors.Emerald400);
 
         // End marker (s = TotalLength)
-        var (endX, endY) = CornerDynamicsHelpers.CurvilinearToCartesian(TotalLength, states[^1][0]);
+        var (endX, endY) = _trackGeometry.CurvilinearToCartesian(TotalLength, states[^1][0]);
         renderer.DrawCircleFilled((float)endX * scale, (float)endY * scale, 10, Colors.Rose500, 24);
         renderer.DrawText("FINISH", (float)endX * scale - 35, (float)endY * scale - 15, 2, Colors.Rose400);
     }
