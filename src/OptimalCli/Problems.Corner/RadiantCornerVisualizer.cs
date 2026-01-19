@@ -20,6 +20,7 @@ internal sealed class RadiantCornerVisualizer
 {
     private const int WindowWidth = 900;
     private const int WindowHeight = 800;
+    private static readonly Vector2 Translation = new(-100, 300);
 
     private readonly TrackGeometry _trackGeometry;
 
@@ -256,8 +257,8 @@ internal sealed class RadiantCornerVisualizer
             var (x2, y2) = _trackGeometry.CurvilinearToCartesian(s2, nOffset);
 
             renderer.DrawLine(
-                new Vector2((float)x1 * scale, (float)y1 * scale),
-                new Vector2((float)x2 * scale, (float)y2 * scale),
+                new Vector2((float)x1 * scale, (float)y1 * scale) + Translation,
+                new Vector2((float)x2 * scale, (float)y2 * scale) + Translation,
                 color);
         }
     }
@@ -279,8 +280,8 @@ internal sealed class RadiantCornerVisualizer
             var (x2, y2) = _trackGeometry.CurvilinearToCartesian(s2, nOffset);
 
             renderer.DrawLine(
-                new Vector2((float)x1 * scale, (float)y1 * scale),
-                new Vector2((float)x2 * scale, (float)y2 * scale),
+                new Vector2((float)x1 * scale, (float)y1 * scale) + Translation,
+                new Vector2((float)x2 * scale, (float)y2 * scale) + Translation,
                 color);
         }
     }
@@ -303,8 +304,8 @@ internal sealed class RadiantCornerVisualizer
             var vNorm = Math.Clamp((v - 5.0) / 20.0, 0.0, 1.0);
             var color = new Vector4((float)vNorm, (float)(1.0 - vNorm * 0.5), 0.2f, 0.9f);
 
-            renderer.DrawLine(new Vector2((float)x1 * scale, (float)y1 * scale),
-                             new Vector2((float)x2 * scale, (float)y2 * scale), color);
+            renderer.DrawLine(new Vector2((float)x1 * scale, (float)y1 * scale) + Translation,
+                             new Vector2((float)x2 * scale, (float)y2 * scale) + Translation, color);
         }
 
         // Draw future path in gray
@@ -315,15 +316,15 @@ internal sealed class RadiantCornerVisualizer
             var (x1, y1) = _trackGeometry.CurvilinearToCartesian(s1, states[i][0]);
             var (x2, y2) = _trackGeometry.CurvilinearToCartesian(s2, states[i + 1][0]);
 
-            renderer.DrawLine(new Vector2((float)x1 * scale, (float)y1 * scale),
-                             new Vector2((float)x2 * scale, (float)y2 * scale), new Vector4(0.4f, 0.4f, 0.4f, 0.5f));
+            renderer.DrawLine(new Vector2((float)x1 * scale, (float)y1 * scale) + Translation,
+                             new Vector2((float)x2 * scale, (float)y2 * scale) + Translation, new Vector4(0.4f, 0.4f, 0.4f, 0.5f));
         }
     }
 
     private static void DrawVehicle(Radiant.Graphics2D.Renderer2D renderer, double x, double y, double heading, double velocity, float scale)
     {
-        var vehX = (float)x * scale;
-        var vehY = (float)y * scale;
+        var vehX = (float)x * scale + Translation.X;
+        var vehY = (float)y * scale + Translation.Y;
 
         // Draw vehicle as a triangle
         // Left-hand rule: positive θ = clockwise, so θ = +π/2 = south = negative y
@@ -358,13 +359,15 @@ internal sealed class RadiantCornerVisualizer
         // State is now [n, θ, v, T_f] - s is computed from frame position
         // Start marker (s = 0)
         var (startX, startY) = _trackGeometry.CurvilinearToCartesian(0.0, states[0][0]);
-        renderer.DrawCircleFilled((float)startX * scale, (float)startY * scale, 10, Colors.Emerald500, 24);
-        renderer.DrawText("START", (float)startX * scale - 30, (float)startY * scale + 20, 2, Colors.Emerald400);
+        var startPos = new Vector2((float)startX * scale, (float)startY * scale) + Translation;
+        renderer.DrawCircleFilled(startPos.X, startPos.Y, 10, Colors.Emerald500, 24);
+        renderer.DrawText("START", startPos.X - 30, startPos.Y + 20, 2, Colors.Emerald400);
 
         // End marker (s = TotalLength)
         var (endX, endY) = _trackGeometry.CurvilinearToCartesian(_trackGeometry.TotalLength, states[^1][0]);
-        renderer.DrawCircleFilled((float)endX * scale, (float)endY * scale, 10, Colors.Rose500, 24);
-        renderer.DrawText("FINISH", (float)endX * scale - 35, (float)endY * scale - 15, 2, Colors.Rose400);
+        var endPos = new Vector2((float)endX * scale, (float)endY * scale) + Translation;
+        renderer.DrawCircleFilled(endPos.X, endPos.Y, 10, Colors.Rose500, 24);
+        renderer.DrawText("FINISH", endPos.X - 35, endPos.Y - 15, 2, Colors.Rose400);
     }
 
     private static void DrawInformation(Radiant.Graphics2D.Renderer2D renderer,
