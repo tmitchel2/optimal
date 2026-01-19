@@ -220,7 +220,7 @@ internal static class RadiantCornerVisualizer
 
     private static void DrawRoadLayout(Radiant.Graphics2D.Renderer2D renderer, float scale)
     {
-        var boundaryColor = Colors.Red500;
+        // var boundaryColor = Colors.Red500;
         var centerLineColor = new Vector4(1.0f, 1.0f, 1.0f, 0.3f);
 
         // Road geometry for curvilinear coordinates:
@@ -237,11 +237,11 @@ internal static class RadiantCornerVisualizer
 
         // === ENTRY STRAIGHT ===
         // Upper edge (north): y = +RoadHalfWidth
-        renderer.DrawLine(new Vector2(-(float)EntryLength * scale, (float)RoadHalfWidth * scale),
-                         new Vector2(0, (float)RoadHalfWidth * scale), boundaryColor);
+        // renderer.DrawLine(new Vector2(-(float)EntryLength * scale, (float)RoadHalfWidth * scale),
+        //                  new Vector2(0, (float)RoadHalfWidth * scale), boundaryColor);
         // Lower edge (south): y = -RoadHalfWidth
-        renderer.DrawLine(new Vector2(-(float)EntryLength * scale, -(float)RoadHalfWidth * scale),
-                         new Vector2(0, -(float)RoadHalfWidth * scale), boundaryColor);
+        // renderer.DrawLine(new Vector2(-(float)EntryLength * scale, -(float)RoadHalfWidth * scale),
+        //                  new Vector2(0, -(float)RoadHalfWidth * scale), boundaryColor);
 
         // === ARC SECTION ===
         // Arc centerline is at (0,0) start, curves to (CenterlineRadius, -CenterlineRadius)
@@ -251,47 +251,47 @@ internal static class RadiantCornerVisualizer
 
         // Inner of curve (at n = +RoadHalfWidth, right of centerline = toward arc center)
         // This collapses to a point at the apex when CenterlineRadius == RoadHalfWidth
-        if (Math.Abs(CenterlineRadius - RoadHalfWidth) > 0.1)
-        {
-            for (var i = 0; i < ArcSegments; i++)
-            {
-                var (ix1, iy1) = GetArcBoundaryPoint(i, ArcSegments, RoadHalfWidth);
-                var (ix2, iy2) = GetArcBoundaryPoint(i + 1, ArcSegments, RoadHalfWidth);
-                renderer.DrawLine(new Vector2((float)ix1 * scale, (float)iy1 * scale),
-                                 new Vector2((float)ix2 * scale, (float)iy2 * scale), boundaryColor);
-            }
-        }
-        else
-        {
-            // Inner of curve is a single point - mark as apex
-            var (apexX, apexY) = GetArcBoundaryPoint(ArcSegments / 2, ArcSegments, RoadHalfWidth - 0.01);
-            renderer.DrawCircleOutline((float)apexX * scale, (float)apexY * scale, 8, Colors.Amber400, 16);
-            renderer.DrawText("APEX", (float)apexX * scale + 12, (float)apexY * scale + 5, 2, Colors.Amber400);
-        }
+        // if (Math.Abs(CenterlineRadius - RoadHalfWidth) > 0.1)
+        // {
+        //     for (var i = 0; i < ArcSegments; i++)
+        //     {
+        //         var (ix1, iy1) = GetArcBoundaryPoint(i, ArcSegments, RoadHalfWidth);
+        //         var (ix2, iy2) = GetArcBoundaryPoint(i + 1, ArcSegments, RoadHalfWidth);
+        //         renderer.DrawLine(new Vector2((float)ix1 * scale, (float)iy1 * scale),
+        //                          new Vector2((float)ix2 * scale, (float)iy2 * scale), boundaryColor);
+        //     }
+        // }
+        // else
+        // {
+        //     // Inner of curve is a single point - mark as apex
+        //     var (apexX, apexY) = GetArcBoundaryPoint(ArcSegments / 2, ArcSegments, RoadHalfWidth - 0.01);
+        //     renderer.DrawCircleOutline((float)apexX * scale, (float)apexY * scale, 8, Colors.Amber400, 16);
+        //     renderer.DrawText("APEX", (float)apexX * scale + 12, (float)apexY * scale + 5, 2, Colors.Amber400);
+        // }
 
         // Outer of curve (at n = -RoadHalfWidth, left of centerline = away from arc center)
-        for (var i = 0; i < ArcSegments; i++)
-        {
-            var (ox1, oy1) = GetArcBoundaryPoint(i, ArcSegments, -RoadHalfWidth);
-            var (ox2, oy2) = GetArcBoundaryPoint(i + 1, ArcSegments, -RoadHalfWidth);
-            renderer.DrawLine(new Vector2((float)ox1 * scale, (float)oy1 * scale),
-                             new Vector2((float)ox2 * scale, (float)oy2 * scale), boundaryColor);
-        }
+        // for (var i = 0; i < ArcSegments; i++)
+        // {
+        //     var (ox1, oy1) = GetArcBoundaryPoint(i, ArcSegments, -RoadHalfWidth);
+        //     var (ox2, oy2) = GetArcBoundaryPoint(i + 1, ArcSegments, -RoadHalfWidth);
+        //     renderer.DrawLine(new Vector2((float)ox1 * scale, (float)oy1 * scale),
+        //                      new Vector2((float)ox2 * scale, (float)oy2 * scale), boundaryColor);
+        // }
 
         // === EXIT STRAIGHT ===
         // From CurvilinearToCartesian for exit: x = CenterlineRadius - n, y = -CenterlineRadius - exitProgress
         // When heading south, positive n (right of centerline) = west = smaller x
         // Inner of curve (n = +RoadHalfWidth): x = CenterlineRadius - RoadHalfWidth = 0
         // Outer of curve (n = -RoadHalfWidth): x = CenterlineRadius + RoadHalfWidth = 10
-        var exitLeftX = CenterlineRadius - RoadHalfWidth;
-        var exitRightX = CenterlineRadius + RoadHalfWidth;
+        // var exitLeftX = CenterlineRadius - RoadHalfWidth;
+        // var exitRightX = CenterlineRadius + RoadHalfWidth;
         var exitStartY = -CenterlineRadius;
         var exitEndY = -CenterlineRadius - 25.0; // Show 25m of exit
 
-        renderer.DrawLine(new Vector2((float)exitLeftX * scale, (float)exitStartY * scale),
-                         new Vector2((float)exitLeftX * scale, (float)exitEndY * scale), boundaryColor);
-        renderer.DrawLine(new Vector2((float)exitRightX * scale, (float)exitStartY * scale),
-                         new Vector2((float)exitRightX * scale, (float)exitEndY * scale), boundaryColor);
+        // renderer.DrawLine(new Vector2((float)exitLeftX * scale, (float)exitStartY * scale),
+        //                  new Vector2((float)exitLeftX * scale, (float)exitEndY * scale), boundaryColor);
+        // renderer.DrawLine(new Vector2((float)exitRightX * scale, (float)exitStartY * scale),
+        //                  new Vector2((float)exitRightX * scale, (float)exitEndY * scale), boundaryColor);
 
         // === CENTER LINE (dashed) ===
         // Entry center
