@@ -85,11 +85,10 @@ public sealed class LineSegment : TrackSegment
         // Centerline position
         var cx = StartPosition.X + progress * Math.Cos(StartHeading);
         var cy = StartPosition.Y - progress * Math.Sin(StartHeading);
-        // Perpendicular offset (positive n = right of centerline)
-        // For left-hand rule: perpendicular right direction is (sin(heading), cos(heading))
-        var px = n * Math.Sin(StartHeading);
-        var py = n * Math.Cos(StartHeading);
-        return (cx + px, cy - py);
+        // Perpendicular offset (n positive = right of centerline)
+        // For left-hand rule: forward = (cos θ, -sin θ), right = (-sin θ, -cos θ)
+        // So offset = n * (-sin θ, -cos θ)
+        return (cx - n * Math.Sin(StartHeading), cy - n * Math.Cos(StartHeading));
     }
 }
 
@@ -167,11 +166,9 @@ public sealed class ArcSegment : TrackSegment
         var cy = Center.Y + sign * _radius * Math.Cos(heading);
 
         // Perpendicular offset (n positive = right of centerline)
-        // Right direction at this heading is (sin(heading), -cos(heading))
-        var px = n * Math.Sin(heading);
-        var py = -n * Math.Cos(heading);
-
-        return (cx + px, cy + py);
+        // For left-hand rule: forward = (cos θ, -sin θ), right = (-sin θ, -cos θ)
+        // So offset = n * (-sin θ, -cos θ)
+        return (cx - n * Math.Sin(heading), cy - n * Math.Cos(heading));
     }
 }
 

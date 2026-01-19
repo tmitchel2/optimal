@@ -23,11 +23,6 @@ internal sealed class RadiantCornerVisualizer
 
     private readonly TrackGeometry _trackGeometry;
 
-    // Road geometry (from passed-in TrackGeometry)
-    private double CenterlineRadius => _trackGeometry.GetArcRadius();
-    private double EntryLength => _trackGeometry.GetEntryLength();
-    private double TotalLength => _trackGeometry.TotalLength;
-
     private double[][]? _currentStates;
     private double[][]? _currentControls;
     private int _currentIteration;
@@ -203,13 +198,13 @@ internal sealed class RadiantCornerVisualizer
         DrawRoadLayout(renderer, Scale);
 
         // Draw trajectory path (convert curvilinear to Cartesian)
-        // s is derived from frame index: s = (frameIndex / (totalFrames - 1)) * TotalLength
+        // s is derived from frame index: s = (frameIndex / (totalFrames - 1)) * _trackGeometry.TotalLength
         DrawPathTrace(renderer, states, frameIndex, Scale);
 
         // Draw the vehicle (convert curvilinear to Cartesian)
         // State is now [n, θ, v, T_f] - s is computed from frame position
         var state = states[frameIndex];
-        var s = states.Length > 1 ? (frameIndex / (double)(states.Length - 1)) * TotalLength : 0.0;
+        var s = states.Length > 1 ? (frameIndex / (double)(states.Length - 1)) * _trackGeometry.TotalLength : 0.0;
         var n = state[0];
         var theta = state[1];
         var v = state[2];
@@ -226,120 +221,54 @@ internal sealed class RadiantCornerVisualizer
 
     private void DrawRoadLayout(Radiant.Graphics2D.Renderer2D renderer, float scale)
     {
-        // var boundaryColor = Colors.Red500;
         var centerLineColor = new Vector4(1.0f, 1.0f, 1.0f, 0.3f);
-
-        // Road geometry for curvilinear coordinates:
-        // - Entry: s ∈ [0, EntryLength), centerline at y=0, x = s - EntryLength
-        //   Inner edge at y = +RoadHalfWidth (n = -RoadHalfWidth in curvilinear)
-        //   Outer edge at y = -RoadHalfWidth (n = +RoadHalfWidth in curvilinear)
-        //   Wait, let me check the coordinate system...
-        //
-        // From CurvilinearToCartesian for entry: x = s - EntryLength, y = -n
-        // So n > 0 means y < 0 (right side of road when facing east)
-        // Road bounds: |n| <= RoadHalfWidth, so |y| <= RoadHalfWidth
-        //
-        // Entry straight: from x = -EntryLength to x = 0, y ∈ [-RoadHalfWidth, +RoadHalfWidth]
-
-        // === ENTRY STRAIGHT ===
-        // Upper edge (north): y = +RoadHalfWidth
-        // renderer.DrawLine(new Vector2(-(float)EntryLength * scale, (float)RoadHalfWidth * scale),
-        //                  new Vector2(0, (float)RoadHalfWidth * scale), boundaryColor);
-        // Lower edge (south): y = -RoadHalfWidth
-        // renderer.DrawLine(new Vector2(-(float)EntryLength * scale, -(float)RoadHalfWidth * scale),
-        //                  new Vector2(0, -(float)RoadHalfWidth * scale), boundaryColor);
-
-        // === ARC SECTION ===
-        // Arc centerline is at (0,0) start, curves to (CenterlineRadius, -CenterlineRadius)
-        // Inner edge: radius = CenterlineRadius - RoadHalfWidth = 0 (point!)
-        // Outer edge: radius = CenterlineRadius + RoadHalfWidth = 10
-        const int ArcSegments = 30;
-
-        // Inner of curve (at n = +RoadHalfWidth, right of centerline = toward arc center)
-        // This collapses to a point at the apex when CenterlineRadius == RoadHalfWidth
-        // if (Math.Abs(CenterlineRadius - RoadHalfWidth) > 0.1)
-        // {
-        //     for (var i = 0; i < ArcSegments; i++)
-        //     {
-        //         var (ix1, iy1) = GetArcBoundaryPoint(i, ArcSegments, RoadHalfWidth);
-        //         var (ix2, iy2) = GetArcBoundaryPoint(i + 1, ArcSegments, RoadHalfWidth);
-        //         renderer.DrawLine(new Vector2((float)ix1 * scale, (float)iy1 * scale),
-        //                          new Vector2((float)ix2 * scale, (float)iy2 * scale), boundaryColor);
-        //     }
-        // }
-        // else
-        // {
-        //     // Inner of curve is a single point - mark as apex
-        //     var (apexX, apexY) = GetArcBoundaryPoint(ArcSegments / 2, ArcSegments, RoadHalfWidth - 0.01);
-        //     renderer.DrawCircleOutline((float)apexX * scale, (float)apexY * scale, 8, Colors.Amber400, 16);
-        //     renderer.DrawText("APEX", (float)apexX * scale + 12, (float)apexY * scale + 5, 2, Colors.Amber400);
-        // }
-
-        // Outer of curve (at n = -RoadHalfWidth, left of centerline = away from arc center)
-        // for (var i = 0; i < ArcSegments; i++)
-        // {
-        //     var (ox1, oy1) = GetArcBoundaryPoint(i, ArcSegments, -RoadHalfWidth);
-        //     var (ox2, oy2) = GetArcBoundaryPoint(i + 1, ArcSegments, -RoadHalfWidth);
-        //     renderer.DrawLine(new Vector2((float)ox1 * scale, (float)oy1 * scale),
-        //                      new Vector2((float)ox2 * scale, (float)oy2 * scale), boundaryColor);
-        // }
-
-        // === EXIT STRAIGHT ===
-        // From CurvilinearToCartesian for exit: x = CenterlineRadius - n, y = -CenterlineRadius - exitProgress
-        // When heading south, positive n (right of centerline) = west = smaller x
-        // Inner of curve (n = +RoadHalfWidth): x = CenterlineRadius - RoadHalfWidth = 0
-        // Outer of curve (n = -RoadHalfWidth): x = CenterlineRadius + RoadHalfWidth = 10
-        // var exitLeftX = CenterlineRadius - RoadHalfWidth;
-        // var exitRightX = CenterlineRadius + RoadHalfWidth;
-        var exitStartY = -CenterlineRadius;
-        var exitEndY = -CenterlineRadius - 25.0; // Show 25m of exit
-
-        // renderer.DrawLine(new Vector2((float)exitLeftX * scale, (float)exitStartY * scale),
-        //                  new Vector2((float)exitLeftX * scale, (float)exitEndY * scale), boundaryColor);
-        // renderer.DrawLine(new Vector2((float)exitRightX * scale, (float)exitStartY * scale),
-        //                  new Vector2((float)exitRightX * scale, (float)exitEndY * scale), boundaryColor);
-
-        // === CENTER LINE (dashed) ===
-        // Entry center
-        for (var xc = -(float)EntryLength * scale; xc < 0; xc += 20)
-        {
-            renderer.DrawLine(new Vector2(xc, 0), new Vector2(Math.Min(xc + 10, 0), 0), centerLineColor);
-        }
-        // Arc center
-        for (var i = 0; i < ArcSegments; i++)
-        {
-            if (i % 2 == 0)
-            {
-                var (cx1, cy1) = GetArcBoundaryPoint(i, ArcSegments, 0);
-                var (cx2, cy2) = GetArcBoundaryPoint(i + 1, ArcSegments, 0);
-                renderer.DrawLine(new Vector2((float)cx1 * scale, (float)cy1 * scale),
-                                 new Vector2((float)cx2 * scale, (float)cy2 * scale), centerLineColor);
-            }
-        }
-        // Exit center
-        var exitCenterX = CenterlineRadius;
-        for (var yc = (float)exitStartY; yc > (float)exitEndY; yc -= 20.0f / scale)
-        {
-            renderer.DrawLine(new Vector2((float)exitCenterX * scale, yc * scale),
-                             new Vector2((float)exitCenterX * scale, Math.Max(yc - 10.0f / scale, (float)exitEndY) * scale), centerLineColor);
-        }
-
-        // === DEBUG: Draw offset lines at n = -2.5 and n = +2.5 to verify curvilinear coords ===
         var debugLeftColor = new Vector4(0.0f, 1.0f, 1.0f, 0.5f);  // Cyan for n=-2.5
         var debugRightColor = new Vector4(1.0f, 0.5f, 0.0f, 0.5f); // Orange for n=+2.5
+
+        // Draw dashed centerline along the entire track
+        DrawDashedLine(renderer, 0.0, scale, centerLineColor);
+
+        // Draw offset lines at n = -2.5 and n = +2.5 to show track width
         DrawOffsetLine(renderer, -2.5, scale, debugLeftColor);
         DrawOffsetLine(renderer, +2.5, scale, debugRightColor);
     }
 
     /// <summary>
-    /// Draw a line at a fixed n offset along the entire track using CurvilinearToCartesian.
-    /// This verifies the coordinate conversion is correct.
+    /// Draw a dashed line at a fixed n offset along the entire track.
+    /// </summary>
+    private void DrawDashedLine(Radiant.Graphics2D.Renderer2D renderer, double nOffset, float scale, Vector4 color)
+    {
+        const int NumSegments = 100;
+        var totalLength = _trackGeometry.TotalLength;
+
+        for (var i = 0; i < NumSegments - 1; i++)
+        {
+            // Only draw every other segment for dashed effect
+            if (i % 2 != 0)
+            {
+                continue;
+            }
+
+            var s1 = totalLength * i / (NumSegments - 1);
+            var s2 = totalLength * (i + 1) / (NumSegments - 1);
+
+            var (x1, y1) = _trackGeometry.CurvilinearToCartesian(s1, nOffset);
+            var (x2, y2) = _trackGeometry.CurvilinearToCartesian(s2, nOffset);
+
+            renderer.DrawLine(
+                new Vector2((float)x1 * scale, (float)y1 * scale),
+                new Vector2((float)x2 * scale, (float)y2 * scale),
+                color);
+        }
+    }
+
+    /// <summary>
+    /// Draw a solid line at a fixed n offset along the entire track.
     /// </summary>
     private void DrawOffsetLine(Radiant.Graphics2D.Renderer2D renderer, double nOffset, float scale, Vector4 color)
     {
         const int NumPoints = 100;
-        var arcLength = _trackGeometry.GetArcLength();
-        var totalLength = EntryLength + arcLength + 25.0; // Entry + arc + 25m exit
+        var totalLength = _trackGeometry.TotalLength;
 
         for (var i = 0; i < NumPoints - 1; i++)
         {
@@ -356,15 +285,6 @@ internal sealed class RadiantCornerVisualizer
         }
     }
 
-    private (double x, double y) GetArcBoundaryPoint(int segment, int totalSegments, double nOffset)
-    {
-        var arcLength = _trackGeometry.GetArcLength();
-        var entryEnd = EntryLength;
-        var arcProgress = (double)segment / totalSegments;
-        var s = entryEnd + arcProgress * arcLength;
-        return _trackGeometry.CurvilinearToCartesian(s, nOffset);
-    }
-
     private void DrawPathTrace(Radiant.Graphics2D.Renderer2D renderer, double[][] states, int currentFrame, float scale)
     {
         var totalFrames = states.Length;
@@ -373,8 +293,8 @@ internal sealed class RadiantCornerVisualizer
         // State is now [n, θ, v, T_f] - s is computed from frame position
         for (var i = 0; i < currentFrame && i < states.Length - 1; i++)
         {
-            var s1 = totalFrames > 1 ? (i / (double)(totalFrames - 1)) * TotalLength : 0.0;
-            var s2 = totalFrames > 1 ? ((i + 1) / (double)(totalFrames - 1)) * TotalLength : 0.0;
+            var s1 = totalFrames > 1 ? (i / (double)(totalFrames - 1)) * _trackGeometry.TotalLength : 0.0;
+            var s2 = totalFrames > 1 ? ((i + 1) / (double)(totalFrames - 1)) * _trackGeometry.TotalLength : 0.0;
             var (x1, y1) = _trackGeometry.CurvilinearToCartesian(s1, states[i][0]);
             var (x2, y2) = _trackGeometry.CurvilinearToCartesian(s2, states[i + 1][0]);
 
@@ -390,8 +310,8 @@ internal sealed class RadiantCornerVisualizer
         // Draw future path in gray
         for (var i = currentFrame; i < states.Length - 1; i++)
         {
-            var s1 = totalFrames > 1 ? (i / (double)(totalFrames - 1)) * TotalLength : 0.0;
-            var s2 = totalFrames > 1 ? ((i + 1) / (double)(totalFrames - 1)) * TotalLength : 0.0;
+            var s1 = totalFrames > 1 ? (i / (double)(totalFrames - 1)) * _trackGeometry.TotalLength : 0.0;
+            var s2 = totalFrames > 1 ? ((i + 1) / (double)(totalFrames - 1)) * _trackGeometry.TotalLength : 0.0;
             var (x1, y1) = _trackGeometry.CurvilinearToCartesian(s1, states[i][0]);
             var (x2, y2) = _trackGeometry.CurvilinearToCartesian(s2, states[i + 1][0]);
 
@@ -442,7 +362,7 @@ internal sealed class RadiantCornerVisualizer
         renderer.DrawText("START", (float)startX * scale - 30, (float)startY * scale + 20, 2, Colors.Emerald400);
 
         // End marker (s = TotalLength)
-        var (endX, endY) = _trackGeometry.CurvilinearToCartesian(TotalLength, states[^1][0]);
+        var (endX, endY) = _trackGeometry.CurvilinearToCartesian(_trackGeometry.TotalLength, states[^1][0]);
         renderer.DrawCircleFilled((float)endX * scale, (float)endY * scale, 10, Colors.Rose500, 24);
         renderer.DrawText("FINISH", (float)endX * scale - 35, (float)endY * scale - 15, 2, Colors.Rose400);
     }
