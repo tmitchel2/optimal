@@ -221,7 +221,7 @@ namespace Optimal.Control.Optimization.Tests
                 [1.0],
                 [0.5]);
 
-            (double[] value, double[][] gradients) DynamicsWithGradients(double[] x, double[] u, double t)
+            (double[] value, double[][] gradients) DynamicsWithGradients(double[] x, double[] u, double t, double segIdx)
             {
                 var value_ = new[] { u[0] };
                 var gradients_ = new double[2][];
@@ -263,7 +263,7 @@ namespace Optimal.Control.Optimization.Tests
                 [4.0, 2.0],
                 [1.0]);
 
-            (double[] value, double[][] gradients) DynamicsWithGradients(double[] x, double[] u, double t)
+            (double[] value, double[][] gradients) DynamicsWithGradients(double[] x, double[] u, double t, double segIdx)
             {
                 var value_ = new[] { x[1], u[0] };
                 var gradients_ = new double[2][];

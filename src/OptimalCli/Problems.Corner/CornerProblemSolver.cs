@@ -99,7 +99,7 @@ public sealed class CornerProblemSolver : ICommand
                 // Compute s from segment position
                 var segmentIndex = input.SegmentIndex;
                 var segmentCount = input.SegmentCount;
-                var s = segmentCount > 0 ? (segmentIndex / (double)segmentCount) * TotalLength : 0.0;
+                var s = segmentCount > 0 ? (segmentIndex / segmentCount) * TotalLength : 0.0;
 
                 var n = x[0];
                 var theta = x[1];
@@ -107,6 +107,14 @@ public sealed class CornerProblemSolver : ICommand
                 var Tf = x[3];
                 var a = u[0];
                 var omega = u[1];
+
+                // Defensive bounds checking - return zeros for extreme values
+                // This prevents NaN/Inf propagation during optimization exploration
+                if (Math.Abs(n) > 100 || Math.Abs(theta) > 10 || Math.Abs(v) > 1000 || Math.Abs(Tf) > 1000)
+                {
+                    // Return zero dynamics with zero gradients for extreme values
+                    return new DynamicsResult([0.0, 0.0, 0.0, 0.0], [new double[16], new double[8]]);
+                }
 
                 // Physical dynamics using curvilinear coordinates
                 // Note: sdot gradients w.r.t. s are not needed since s is not a state variable
@@ -198,12 +206,47 @@ public sealed class CornerProblemSolver : ICommand
         Console.WriteLine("  Inner optimizer: L-BFGS-B");
         Console.WriteLine();
         Console.WriteLine("Solving...");
+
+        var useLGL = options.Solver == SolverType.LGL;
+
+        // Create initial guess
+        var initialGuess = CreateCenterlineInitialGuess(30, sInit, sFinal, initialVelocity);
+
+        // Headless mode - run synchronously without visualization
+        if (options.Headless)
+        {
+            var innerOptimizer = new LBFGSOptimizer()
+                .WithTolerance(1e-5)
+                .WithMaxIterations(200)
+                .WithVerbose(false);
+
+            ISolver solver = useLGL
+                ? new LegendreGaussLobattoSolver()
+                    .WithOrder(5)
+                    .WithSegments(30)
+                    .WithTolerance(1e-5)
+                    .WithMaxIterations(200)
+                    .WithVerbose(true)
+                    .WithInnerOptimizer(innerOptimizer)
+                : new HermiteSimpsonSolver()
+                    .WithSegments(30)
+                    .WithTolerance(1e-3)
+                    .WithMaxIterations(200)
+                    .WithMeshRefinement(true, 5, 1e-3)
+                    .WithVerbose(true)
+                    .WithInnerOptimizer(innerOptimizer)
+                    .WithInitialPenalty(50.0);
+
+            var headlessResult = solver.Solve(problem, initialGuess);
+            PrintSolutionSummary(headlessResult);
+            return;
+        }
+
+        // Visualization mode
         Console.WriteLine("Opening live visualization window...");
         Console.WriteLine("(Close window when done viewing)");
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
-
-        var useLGL = options.Solver == SolverType.LGL;
 
         // Run the optimizer in a background task
         var optimizationTask = Task.Run(() =>
@@ -225,11 +268,7 @@ public sealed class CornerProblemSolver : ICommand
                         .WithInnerOptimizer(innerOptimizer)
                         .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                         {
-                            var token = RadiantCornerVisualizer.CancellationToken;
-                            if (token.IsCancellationRequested)
-                            {
-                                throw new OperationCanceledException(token);
-                            }
+                            RadiantCornerVisualizer.CancellationToken.ThrowIfCancellationRequested();
                             RadiantCornerVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
                         })
                     : new HermiteSimpsonSolver()
@@ -242,21 +281,9 @@ public sealed class CornerProblemSolver : ICommand
                         .WithInitialPenalty(50.0) // Higher initial penalty to enforce constraints more strongly
                         .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
                         {
-                            if (iteration == 2728)
-                            {
-                                Console.WriteLine("Breakpoint hit at iteration 2728");
-                            }
-
-                            var token = RadiantCornerVisualizer.CancellationToken;
-                            if (token.IsCancellationRequested)
-                            {
-                                throw new OperationCanceledException(token);
-                            }
+                            RadiantCornerVisualizer.CancellationToken.ThrowIfCancellationRequested();
                             RadiantCornerVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
                         });
-
-                // Create centerline initial guess (n=0 throughout)
-                var initialGuess = CreateCenterlineInitialGuess(30, sInit, sFinal, initialVelocity);
 
                 var result = solver.Solve(problem, initialGuess);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
@@ -401,5 +428,30 @@ public sealed class CornerProblemSolver : ICommand
         }
 
         return new InitialGuess(stateTrajectory, controlTrajectory);
+    }
+
+    /// <summary>
+    /// Prints a summary of the solution to the console.
+    /// </summary>
+    private static void PrintSolutionSummary(CollocationResult result)
+    {
+        // Convert final state from curvilinear to Cartesian for display
+        // s is derived from segment position - final segment corresponds to s = TotalLength
+        var finalS = TotalLength;
+        var finalN = result.States[^1][0];
+        var (finalX, finalY) = CornerDynamicsHelpers.CurvilinearToCartesian(finalS, finalN);
+
+        Console.WriteLine("\n" + "=".PadRight(70, '=') + "\n");
+        Console.WriteLine("SOLUTION SUMMARY:");
+        Console.WriteLine($"  Success: {result.Success}");
+        Console.WriteLine($"  Message: {result.Message}");
+        Console.WriteLine($"  Final curvilinear: s={finalS:F3}, n={finalN:F3}");
+        Console.WriteLine($"  Final Cartesian: ({finalX:F3}, {finalY:F3})");
+        Console.WriteLine($"  Final heading: {result.States[^1][1]:F3} rad ({result.States[^1][1] * 180 / Math.PI:F1}°)");
+        Console.WriteLine($"  Final velocity: {result.States[^1][2]:F3} m/s");
+        Console.WriteLine($"  Optimal time T_f: {result.States[^1][3]:F3} seconds");
+        Console.WriteLine($"  Objective value: {result.OptimalCost:F6}");
+        Console.WriteLine($"  Iterations: {result.Iterations}");
+        Console.WriteLine();
     }
 }

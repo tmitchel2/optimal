@@ -173,7 +173,7 @@ namespace Optimal.Control.Optimization
         /// <param name="getControl">Function to extract control from decision vector.</param>
         /// <param name="segmentIndex">Index of the segment.</param>
         /// <param name="stateComponentIndex">Index of the state component.</param>
-        /// <param name="dynamicsWithGradients">Dynamics function that returns (value, gradients).</param>
+        /// <param name="dynamicsWithGradients">Dynamics function that returns (value, gradients). Takes (x, u, t, segmentIdx).</param>
         /// <returns>Gradient of defect constraint with respect to decision vector.</returns>
         public static double[] ComputeDefectGradient(
             ControlProblem problem,
@@ -183,7 +183,7 @@ namespace Optimal.Control.Optimization
             Func<double[], int, double[]> getControl,
             int segmentIndex,
             int stateComponentIndex,
-            Func<double[], double[], double, (double[] value, double[][]? gradients)>? dynamicsWithGradients)
+            Func<double[], double[], double, double, (double[] value, double[][]? gradients)>? dynamicsWithGradients)
         {
             var n = z.Length;
             var gradient = new double[n];
@@ -207,8 +207,8 @@ namespace Optimal.Control.Optimization
             var u_kp1 = getControl(z, k + 1);
 
             // Evaluate dynamics at endpoints first (needed for Hermite interpolation)
-            var (f_k, grad_k) = dynamicsWithGradients(x_k, u_k, t_k);
-            var (f_kp1, grad_kp1) = dynamicsWithGradients(x_kp1, u_kp1, t_kp1);
+            var (f_k, grad_k) = dynamicsWithGradients(x_k, u_k, t_k, k);
+            var (f_kp1, grad_kp1) = dynamicsWithGradients(x_kp1, u_kp1, t_kp1, k + 1);
 
             // Compute midpoint using HERMITE interpolation (must match HermiteSimpsonTranscription)
             // x_mid = (x_k + x_{k+1})/2 + (h/8)(f_k - f_{k+1})
@@ -226,7 +226,7 @@ namespace Optimal.Control.Optimization
             var t_mid = 0.5 * (t_k + t_kp1);
 
             // Evaluate dynamics at midpoint
-            var (f_mid, grad_mid) = dynamicsWithGradients(x_mid, u_mid, t_mid);
+            var (f_mid, grad_mid) = dynamicsWithGradients(x_mid, u_mid, t_mid, k + 0.5);
 
             // Defect for state component i:
             // c_i = x_{k+1,i} - x_{k,i} - h/6 * (f_{k,i} + 4*f_{mid,i} + f_{k+1,i})

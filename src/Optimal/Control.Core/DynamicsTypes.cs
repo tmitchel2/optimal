@@ -31,7 +31,7 @@ namespace Optimal.Control.Core
         /// <summary>
         /// Gets the segment index (0-based). -1 if not applicable.
         /// </summary>
-        public int SegmentIndex { get; init; }
+        public double SegmentIndex { get; init; }
 
         /// <summary>
         /// Gets the total number of segments. -1 if not applicable.
@@ -46,7 +46,7 @@ namespace Optimal.Control.Core
         /// <param name="time">Time.</param>
         /// <param name="segmentIndex">Segment index (0-based), or -1 if not applicable.</param>
         /// <param name="segmentCount">Total number of segments, or -1 if not applicable.</param>
-        public DynamicsInput(double[] state, double[] control, double time, int segmentIndex, int segmentCount)
+        public DynamicsInput(double[] state, double[] control, double time, double segmentIndex, int segmentCount)
         {
             State = state;
             Control = control;

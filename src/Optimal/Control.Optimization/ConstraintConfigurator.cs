@@ -159,9 +159,9 @@ namespace Optimal.Control.Optimization
                 return AutoDiffGradientHelper.ComputeDefectGradient(
                     problem, grid, z, transcription.GetState, transcription.GetControl,
                     segmentIndex, stateComponentIndex,
-                    (x, u, t) =>
+                    (x, u, t, segIdx) =>
                     {
-                        var res = dynamics(new DynamicsInput(x, u, t, segmentIndex, -1));
+                        var res = dynamics(new DynamicsInput(x, u, t, segIdx, grid.Segments));
                         return (res.Value, res.Gradients);
                     });
             }
@@ -186,6 +186,12 @@ namespace Optimal.Control.Optimization
             {
                 var stateIndex = i;
                 var targetValue = problem.InitialState[i];
+
+                if (double.IsNaN(targetValue))
+                {
+                    continue; // Skip free initial state components
+                }
+
                 optimizer.WithEqualityConstraint(z =>
                 {
                     var x = transcription.GetState(z, 0);
