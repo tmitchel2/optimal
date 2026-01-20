@@ -33,10 +33,13 @@ public sealed class CornerProblemSolver : ICommand
     {
         // Initialize track geometry using fluent builder
         // Entry straight (15m) → 90° right turn (radius 5m) → Exit straight (20m)
-        var trackGeometry = TrackGeometry.StartAt(x: -15, y: 0, heading: 0)
-            .AddLine(distance: 15.0)
-            .AddArc(radius: 5.0, angle: Math.PI / 2, turnRight: true)
-            .AddLine(distance: 20.0)
+        var trackGeometry = TrackGeometry
+            .StartAt(x: 0, y: 0, heading: 0)
+            .AddLine(distance: 10.0)
+            .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true)
+            .AddLine(distance: 10.0)
+            .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: false)
+            .AddLine(distance: 10.0)
             .Build();
 
         // Create visualizer with track geometry

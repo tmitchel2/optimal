@@ -111,11 +111,11 @@ public sealed class ArcSegment : TrackSegment
 
         // Compute arc center
         // For left-hand rule: center is perpendicular to heading
-        // Right turn (positive sweep): center is to the right of path (below in y for heading=0)
-        // The perpendicular direction pointing right is (sin(heading), -cos(heading))
+        // Right turn (positive sweep): center is to the right of path
+        // The perpendicular direction pointing right is (-sin(heading), -cos(heading))
         var sign = Math.Sign(_sweepAngle);
         Center = (
-            startPosition.X + sign * _radius * Math.Sin(startHeading),
+            startPosition.X - sign * _radius * Math.Sin(startHeading),
             startPosition.Y - sign * _radius * Math.Cos(startHeading)
         );
     }

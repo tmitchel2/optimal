@@ -20,7 +20,7 @@ internal sealed class RadiantCornerVisualizer
 {
     private const int WindowWidth = 900;
     private const int WindowHeight = 800;
-    private static readonly Vector2 Translation = new(-100, 300);
+    private static readonly Vector2 Translation = new(-300, 300);
 
     private readonly TrackGeometry _trackGeometry;
 
