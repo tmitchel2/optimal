@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -36,21 +36,14 @@ public sealed class CornerProblemSolver : ICommand
         var trackGeometry = TrackGeometry
             .StartAt(x: 0, y: 0, heading: 0)
             .AddLine(distance: 10.0)
-            .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true)
+            .AddArc(radius: 10.0, angle: Math.PI / 1.5, turnRight: true)
             .AddLine(distance: 10.0)
-            .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: false)
+            .AddArc(radius: 10.0, angle: Math.PI / 1.5, turnRight: false)
             .AddLine(distance: 10.0)
             .Build();
 
         // Create visualizer with track geometry
         var visualizer = new RadiantCornerVisualizer(trackGeometry);
-
-        // Debug visualization mode - just show track without optimization
-        if (options.DebugViz)
-        {
-            visualizer.RunDebugVisualization();
-            return;
-        }
 
         Console.WriteLine("=== CORNER PROBLEM (CURVILINEAR COORDINATES) ===");
         Console.WriteLine("Finding optimal racing line through 90° right turn");
@@ -90,12 +83,12 @@ public sealed class CornerProblemSolver : ICommand
             .WithStateSize(4) // [n, θ, v, T_f]
             .WithControlSize(2) // [a, ω]
             .WithTimeHorizon(0.0, 1.0) // Normalized time τ ∈ [0, 1]
-            .WithInitialCondition([double.NaN, 0.0, initialVelocity, double.NaN]) // n=free, heading east, initial velocity, T_f=free (optimized)
-            .WithFinalCondition([double.NaN, Math.PI / 2.0, double.NaN, double.NaN]) // n=free, heading south (θ=+π/2), free v, T_f
+            .WithInitialCondition([double.NaN, trackGeometry.RoadHeading(0), initialVelocity, double.NaN]) // n=free, heading east, initial velocity, T_f=free (optimized)
+            .WithFinalCondition([double.NaN, trackGeometry.RoadHeading(trackGeometry.TotalLength), double.NaN, double.NaN]) // n=free, heading south (θ=+π/2), free v, T_f
             .WithControlBounds([maxDecel, -maxSteerRate], [maxAccel, maxSteerRate])
             .WithStateBounds(
                 [-TrackGeometry.RoadHalfWidth, -Math.PI, 1.0, 0.5],  // Min: n >= -RoadHalfWidth, θ, v >= 1 m/s, T_f >= 0.5s
-                [TrackGeometry.RoadHalfWidth - 0.5, Math.PI, 30.0, 10.0])   // Max: n <= 4.5 (0.5m from apex), θ, v <= 30 m/s, T_f <= 10s
+                [TrackGeometry.RoadHalfWidth, Math.PI, 30.0, 10.0])   // Max: n <= RoadHalfWidth, θ, v <= 30 m/s, T_f <= 10s
             .WithDynamics(input =>
             {
                 var x = input.State;
@@ -198,7 +191,8 @@ public sealed class CornerProblemSolver : ICommand
                 var violation = minTime - tf;  // violation <= 0 when T_f >= 0.5
                 var grads = new[] { 0.0, 0.0, 0.0, -1.0 };
                 return (violation, grads);
-            });
+            })
+            ;
 
         Console.WriteLine("Solver configuration:");
         Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");
@@ -212,6 +206,13 @@ public sealed class CornerProblemSolver : ICommand
 
         // Create initial guess
         var initialGuess = CreateCenterlineInitialGuess(trackGeometry, 30, sInit, sFinal, initialVelocity);
+
+        // Debug visualization mode - just show track without optimization
+        if (options.DebugViz)
+        {
+            visualizer.RunDebugVisualization(initialGuess);
+            return;
+        }
 
         // Headless mode - run synchronously without visualization
         if (options.Headless)
@@ -236,7 +237,8 @@ public sealed class CornerProblemSolver : ICommand
                     .WithMeshRefinement(true, 5, 1e-3)
                     .WithVerbose(true)
                     .WithInnerOptimizer(innerOptimizer)
-                    .WithInitialPenalty(50.0);
+                    // .WithInitialPenalty(50.0)
+                    ;
 
             var headlessResult = solver.Solve(problem, initialGuess);
             PrintSolutionSummary(trackGeometry, headlessResult);
@@ -384,14 +386,14 @@ public sealed class CornerProblemSolver : ICommand
         var tf = totalDistance / velocity;
 
         // Get geometry properties
-        var entryLength = trackGeometry.GetEntryLength();
-        var arcLength = trackGeometry.GetArcLength();
-        var arcRadius = trackGeometry.GetArcRadius();
-        var arcEnd = entryLength + arcLength;
+        // var entryLength = trackGeometry.GetEntryLength();
+        // var arcLength = trackGeometry.GetArcLength();
+        // var arcRadius = trackGeometry.GetArcRadius();
+        // var arcEnd = entryLength + arcLength;
 
         // During arc: dθ_road/ds = +π / (2 × arcLength) = +1/R (left-hand rule: right turn increases θ)
         // So ω = dθ_road/ds × v = +v/R
-        var arcSteeringRate = velocity / arcRadius;
+        // var arcSteeringRate = velocity / arcRadius;
 
         for (var k = 0; k < numNodes; k++)
         {
@@ -412,22 +414,22 @@ public sealed class CornerProblemSolver : ICommand
             // Control: [a, ω]
             // - Acceleration = 0 (constant velocity)
             // - Steering rate = dθ_road/dt to follow road heading
-            double omega;
-            if (s < entryLength)
-            {
-                // Entry straight: no steering needed
-                omega = 0.0;
-            }
-            else if (s < arcEnd)
-            {
-                // Arc: steer at constant rate to follow centerline
-                omega = arcSteeringRate;
-            }
-            else
-            {
-                // Exit straight: no steering needed
-                omega = 0.0;
-            }
+            double omega = trackGeometry.RoadCurvature(s) == 0 ? 0 : velocity / trackGeometry.RoadCurvature(s);
+            // if (s < entryLength)
+            // {
+            //     // Entry straight: no steering needed
+            //     omega = 0.0;
+            // }
+            // else if (s < arcEnd)
+            // {
+            //     // Arc: steer at constant rate to follow centerline
+            //     omega = arcSteeringRate;
+            // }
+            // else
+            // {
+            //     // Exit straight: no steering needed
+            //     omega = 0.0;
+            // }
 
             controlTrajectory[k] = [0.0, omega];
         }

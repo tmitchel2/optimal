@@ -7,6 +7,7 @@
  */
 
 using System.Numerics;
+using Optimal.Control.Core;
 using Radiant;
 
 namespace OptimalCli.Problems.Corner;
@@ -98,22 +99,24 @@ internal sealed class RadiantCornerVisualizer
     /// <summary>
     /// Run visualization in debug mode - shows track and offset lines without optimization.
     /// </summary>
-    public void RunDebugVisualization()
+    public void RunDebugVisualization(InitialGuess initialGuess)
     {
         Console.WriteLine("=== DEBUG VISUALIZATION MODE ===");
         Console.WriteLine("Showing track layout with offset lines at n = -2.5 (cyan) and n = +2.5 (orange)");
         Console.WriteLine("Close window to exit.");
 
         using var app = new RadiantApplication();
-        app.Run("Corner Track Debug View", WindowWidth, WindowHeight, renderer => RenderDebugFrame(renderer), Colors.Slate900);
+        app.Run("Corner Track Debug View", WindowWidth, WindowHeight, renderer => RenderDebugFrame(renderer, initialGuess), Colors.Slate900);
     }
 
-    private void RenderDebugFrame(Radiant.Graphics2D.Renderer2D renderer)
+    private void RenderDebugFrame(Radiant.Graphics2D.Renderer2D renderer, InitialGuess initialGuess)
     {
         const float scale = 15.0f;
 
         // Draw road layout
         DrawRoadLayout(renderer, scale);
+
+        DrawPathTrace(renderer, initialGuess.StateTrajectory, 0, scale);
 
         // Draw debug info
         renderer.DrawText("DEBUG MODE - Track Layout", -400, -370, 2, Colors.Amber400);
