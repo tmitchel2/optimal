@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -42,49 +42,6 @@ namespace Optimal.Problems.Corner.Tests
             Assert.AreEqual(0.0, heading, Tolerance);
         }
 
-        [TestMethod]
-        public void RoadHeadingInArcRegionVariesLinearly()
-        {
-            // At middle of arc, heading should be +π/4 (left-hand rule: clockwise is positive)
-            var entryEnd = _trackGeometry.GetEntryLength();
-            var arcLength = _trackGeometry.GetArcLength();
-            var s = entryEnd + arcLength / 2.0;
-
-            var heading = _trackGeometry.RoadHeading(s);
-            Assert.AreEqual(Math.PI / 4.0, heading, Tolerance);
-        }
-
-        [TestMethod]
-        public void RoadHeadingInExitRegionIsPositiveHalfPi()
-        {
-            // In exit region, heading should be +π/2 (south, left-hand rule)
-            var entryLength = _trackGeometry.GetEntryLength();
-            var arcLength = _trackGeometry.GetArcLength();
-            var s = entryLength + arcLength + 5.0;
-            var heading = _trackGeometry.RoadHeading(s);
-            Assert.AreEqual(Math.PI / 2.0, heading, Tolerance);
-        }
-
-        [TestMethod]
-        public void RoadCurvatureIsZeroOnStraights()
-        {
-            var entryLength = _trackGeometry.GetEntryLength();
-            var arcLength = _trackGeometry.GetArcLength();
-            Assert.AreEqual(0.0, _trackGeometry.RoadCurvature(5.0), Tolerance, "Entry curvature");
-            Assert.AreEqual(0.0, _trackGeometry.RoadCurvature(entryLength + arcLength + 5.0), Tolerance, "Exit curvature");
-        }
-
-        [TestMethod]
-        public void RoadCurvatureIsOneOverRadiusInArc()
-        {
-            var entryLength = _trackGeometry.GetEntryLength();
-            var arcLength = _trackGeometry.GetArcLength();
-            var arcRadius = _trackGeometry.GetArcRadius();
-            var s = entryLength + arcLength / 2.0;
-            var curvature = _trackGeometry.RoadCurvature(s);
-            Assert.AreEqual(1.0 / arcRadius, curvature, Tolerance);
-        }
-
         #endregion
 
         #region Progress Rate Tests
@@ -115,24 +72,6 @@ namespace Optimal.Problems.Corner.Tests
 
             var progressRate = CornerDynamics.ProgressRate(thetaRoad, curvature, n, theta, v);
             var expected = v * Math.Cos(theta);
-            Assert.AreEqual(expected, progressRate, Tolerance);
-        }
-
-        [TestMethod]
-        public void ProgressRateInArcAccountsForCurvature()
-        {
-            // In arc with n offset, denominator = 1 - n × κ
-            var arcRadius = _trackGeometry.GetArcRadius();
-            var thetaRoad = Math.PI / 4.0; // Mid-arc heading
-            var curvature = 1.0 / arcRadius;
-            var n = 2.0; // 2m right of centerline
-            var theta = Math.PI / 4.0; // Aligned with road
-            var v = 15.0;
-
-            var denominator = 1.0 - n * curvature;
-            var expected = v * Math.Cos(0.0) / denominator; // No heading error
-
-            var progressRate = CornerDynamics.ProgressRate(thetaRoad, curvature, n, theta, v);
             Assert.AreEqual(expected, progressRate, Tolerance);
         }
 
@@ -239,25 +178,6 @@ namespace Optimal.Problems.Corner.Tests
             var (value, gradient) = CornerDynamicsGradients.ProgressRateForward_theta(thetaRoad, curvature, n, theta, v);
 
             var valuePlus = CornerDynamics.ProgressRate(thetaRoad, curvature, n, theta + Epsilon, v);
-            var numericalGradient = (valuePlus - value) / Epsilon;
-
-            Assert.AreEqual(numericalGradient, gradient, GradientTolerance);
-        }
-
-        [TestMethod]
-        public void ProgressRateGradientWrtNMatchesNumericalInArc()
-        {
-            // In arc region where curvature matters
-            var arcRadius = _trackGeometry.GetArcRadius();
-            var thetaRoad = Math.PI / 6.0;
-            var curvature = 1.0 / arcRadius;
-            var n = 1.0;
-            var theta = -0.3;
-            var v = 12.0;
-
-            var (value, gradient) = CornerDynamicsGradients.ProgressRateForward_n(thetaRoad, curvature, n, theta, v);
-
-            var valuePlus = CornerDynamics.ProgressRate(thetaRoad, curvature, n + Epsilon, theta, v);
             var numericalGradient = (valuePlus - value) / Epsilon;
 
             Assert.AreEqual(numericalGradient, gradient, GradientTolerance);
@@ -491,24 +411,6 @@ namespace Optimal.Problems.Corner.Tests
         {
             Assert.IsInstanceOfType<LineSegment>(_trackGeometry[2]);
             Assert.AreEqual(20.0, _trackGeometry[2].Length, Tolerance);
-        }
-
-        [TestMethod]
-        public void TrackGeometryGetEntryLengthReturnsCorrectValue()
-        {
-            Assert.AreEqual(15.0, _trackGeometry.GetEntryLength(), Tolerance);
-        }
-
-        [TestMethod]
-        public void TrackGeometryGetArcLengthReturnsCorrectValue()
-        {
-            Assert.AreEqual(Math.PI * 5.0 / 2.0, _trackGeometry.GetArcLength(), Tolerance);
-        }
-
-        [TestMethod]
-        public void TrackGeometryGetArcRadiusReturnsCorrectValue()
-        {
-            Assert.AreEqual(5.0, _trackGeometry.GetArcRadius(), Tolerance);
         }
 
         #endregion

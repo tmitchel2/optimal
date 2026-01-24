@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -252,48 +252,6 @@ public sealed class TrackGeometry
     public (double X, double Y) CurvilinearToCartesian(double s, double n)
     {
         return GetSegmentAt(s).ToCartesian(s, n);
-    }
-
-    /// <summary>
-    /// Get the length of the first line segment (entry length).
-    /// </summary>
-    public double GetEntryLength()
-    {
-        if (_segments.Length > 0 && _segments[0] is LineSegment line)
-        {
-            return line.Length;
-        }
-        return 0.0;
-    }
-
-    /// <summary>
-    /// Get the arc length of the first arc segment.
-    /// </summary>
-    public double GetArcLength()
-    {
-        foreach (var segment in _segments)
-        {
-            if (segment is ArcSegment arc)
-            {
-                return arc.Length;
-            }
-        }
-        return 0.0;
-    }
-
-    /// <summary>
-    /// Get the radius of the first arc segment.
-    /// </summary>
-    public double GetArcRadius()
-    {
-        foreach (var segment in _segments)
-        {
-            if (segment is ArcSegment arc)
-            {
-                return arc.Radius;
-            }
-        }
-        return 0.0;
     }
 
     // === FLUENT BUILDER ===

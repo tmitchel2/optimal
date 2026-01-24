@@ -54,7 +54,7 @@ public sealed class CornerProblemSolver : ICommand
         const double maxAccel = 5.0;      // Maximum acceleration (m/s²)
         const double maxDecel = -8.0;     // Maximum braking (m/s²)
         const double maxSteerRate = 1.0;  // Maximum steering rate (rad/s)
-        const double initialVelocity = 15.0;  // Entry speed (m/s)
+        const double initialVelocity = 1.5;  // Entry speed (m/s)
 
         // Final position: at the end of the exit section
         const double sInit = 0.0;           // Start at beginning of entry
@@ -63,6 +63,7 @@ public sealed class CornerProblemSolver : ICommand
         // Initial T_f guess: Based on variable velocity profile that slows to 5 m/s in the arc.
         // Average velocity ≈ 9 m/s, so T_f ≈ sFinal / v_avg = 42.9 / 9 ≈ 4.8 seconds
         const double tfGuess = 5.0;         // Initial guess for final time
+        const double minTime = 0.01;
 
         Console.WriteLine("Problem setup (curvilinear coordinates):");
         Console.WriteLine($"  Track length: {trackGeometry.TotalLength:F1} m (s derived from segment position)");
@@ -87,7 +88,7 @@ public sealed class CornerProblemSolver : ICommand
             .WithFinalCondition([double.NaN, trackGeometry.RoadHeading(trackGeometry.TotalLength), double.NaN, double.NaN]) // n=free, heading south (θ=+π/2), free v, T_f
             .WithControlBounds([maxDecel, -maxSteerRate], [maxAccel, maxSteerRate])
             .WithStateBounds(
-                [-TrackGeometry.RoadHalfWidth, -Math.PI, 1.0, 0.5],  // Min: n >= -RoadHalfWidth, θ, v >= 1 m/s, T_f >= 0.5s
+                [-TrackGeometry.RoadHalfWidth, -Math.PI, 1.0, minTime],  // Min: n >= -RoadHalfWidth, θ, v >= 1 m/s, T_f >= 0.5s
                 [TrackGeometry.RoadHalfWidth, Math.PI, 30.0, 10.0])   // Max: n <= RoadHalfWidth, θ, v <= 30 m/s, T_f <= 10s
             .WithDynamics(input =>
             {
@@ -176,9 +177,7 @@ public sealed class CornerProblemSolver : ICommand
             .WithPathConstraint((x, _, _) =>
             {
                 var n = x[0];
-                const double apexMargin = 0.5;  // Keep 0.5m away from apex
-                var maxN = TrackGeometry.RoadHalfWidth - apexMargin;
-                var violation = n - maxN;  // violation <= 0 when n <= maxN
+                var violation = n - TrackGeometry.RoadHalfWidth;  // violation <= 0 when n <= maxN
                 var grads = new[] { 1.0, 0.0, 0.0, 0.0 };
                 return (violation, grads);
             })
@@ -187,7 +186,6 @@ public sealed class CornerProblemSolver : ICommand
             .WithPathConstraint((x, _, _) =>
             {
                 var tf = x[3];
-                const double minTime = 0.5;
                 var violation = minTime - tf;  // violation <= 0 when T_f >= 0.5
                 var grads = new[] { 0.0, 0.0, 0.0, -1.0 };
                 return (violation, grads);
@@ -202,8 +200,6 @@ public sealed class CornerProblemSolver : ICommand
         Console.WriteLine();
         Console.WriteLine("Solving...");
 
-        var useLGL = options.Solver == SolverType.LGL;
-
         // Create initial guess
         var initialGuess = CreateCenterlineInitialGuess(trackGeometry, 30, sInit, sFinal, initialVelocity);
 
@@ -211,37 +207,6 @@ public sealed class CornerProblemSolver : ICommand
         if (options.DebugViz)
         {
             visualizer.RunDebugVisualization(initialGuess);
-            return;
-        }
-
-        // Headless mode - run synchronously without visualization
-        if (options.Headless)
-        {
-            var innerOptimizer = new LBFGSOptimizer()
-                .WithTolerance(1e-5)
-                .WithMaxIterations(200)
-                .WithVerbose(false);
-
-            ISolver solver = useLGL
-                ? new LegendreGaussLobattoSolver()
-                    .WithOrder(5)
-                    .WithSegments(30)
-                    .WithTolerance(1e-5)
-                    .WithMaxIterations(200)
-                    .WithVerbose(true)
-                    .WithInnerOptimizer(innerOptimizer)
-                : new HermiteSimpsonSolver()
-                    .WithSegments(30)
-                    .WithTolerance(1e-3)
-                    .WithMaxIterations(200)
-                    .WithMeshRefinement(true, 5, 1e-3)
-                    .WithVerbose(true)
-                    .WithInnerOptimizer(innerOptimizer)
-                    // .WithInitialPenalty(50.0)
-                    ;
-
-            var headlessResult = solver.Solve(problem, initialGuess);
-            PrintSolutionSummary(trackGeometry, headlessResult);
             return;
         }
 
@@ -258,35 +223,22 @@ public sealed class CornerProblemSolver : ICommand
             {
                 var innerOptimizer = new LBFGSOptimizer()
                     .WithTolerance(1e-5)
-                    .WithMaxIterations(200)
+                    .WithMaxIterations(500)
                     .WithVerbose(false);
 
-                ISolver solver = useLGL
-                    ? new LegendreGaussLobattoSolver()
-                        .WithOrder(5)
-                        .WithSegments(30)
-                        .WithTolerance(1e-5)
-                        .WithMaxIterations(200)
-                        .WithVerbose(true)
-                        .WithInnerOptimizer(innerOptimizer)
-                        .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
-                        {
-                            visualizer.CancellationToken.ThrowIfCancellationRequested();
-                            visualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
-                        })
-                    : new HermiteSimpsonSolver()
-                        .WithSegments(30)
-                        .WithTolerance(1e-3)  // Relaxed tolerance
-                        .WithMaxIterations(200)
-                        .WithMeshRefinement(true, 5, 1e-3)  // Relaxed mesh refinement threshold
-                        .WithVerbose(true)
-                        .WithInnerOptimizer(innerOptimizer)
-                        .WithInitialPenalty(50.0) // Higher initial penalty to enforce constraints more strongly
-                        .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
-                        {
-                            visualizer.CancellationToken.ThrowIfCancellationRequested();
-                            visualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
-                        });
+                var solver = new HermiteSimpsonSolver()
+                    .WithSegments(30)
+                    .WithTolerance(1e-3)  // Relaxed tolerance
+                    .WithMaxIterations(200)
+                    .WithMeshRefinement(true, 5, 1e-3)  // Relaxed mesh refinement threshold
+                    .WithVerbose(true)
+                    .WithInnerOptimizer(innerOptimizer)
+                    .WithInitialPenalty(50.0) // Higher initial penalty to enforce constraints more strongly
+                    .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+                    {
+                        visualizer.CancellationToken.ThrowIfCancellationRequested();
+                        visualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+                    });
 
                 var result = solver.Solve(problem, initialGuess);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
@@ -299,8 +251,11 @@ public sealed class CornerProblemSolver : ICommand
             }
         }, visualizer.CancellationToken);
 
-        // Run the visualization window on the main thread
-        visualizer.RunVisualizationWindow();
+        if (!options.Headless)
+        {
+            // Run the visualization window on the main thread
+            visualizer.RunVisualizationWindow();
+        }
 
         // Check if optimization is still running after window closed
         if (!optimizationTask.IsCompleted)
