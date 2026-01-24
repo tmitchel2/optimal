@@ -40,8 +40,6 @@ public sealed class CornerProblemSolver : ICommand
             .AddLine(distance: 10.0)
             .AddArc(radius: 10.0, angle: Math.PI / 1.5, turnRight: false)
             .AddLine(distance: 10.0)
-            // .AddArc(radius: 5.0, angle: Math.PI / 1.5, turnRight: false)
-            // .AddArc(radius: 15.0, angle: Math.PI / 1.5, turnRight: true)
             .Build();
 
         // Create visualizer with track geometry
@@ -193,13 +191,12 @@ public sealed class CornerProblemSolver : ICommand
                 var violation = minTime - tf;  // violation <= 0 when T_f >= 0.5
                 var grads = new[] { 0.0, 0.0, 0.0, -1.0 };
                 return (violation, grads);
-            });
-
-        const int segmentCount = 60;
+            })
+            ;
 
         Console.WriteLine("Solver configuration:");
         Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");
-        Console.WriteLine($"  Segments: {segmentCount}");
+        Console.WriteLine("  Segments: 30");
         Console.WriteLine("  Max iterations: 200");
         Console.WriteLine("  Inner optimizer: L-BFGS-B");
         Console.WriteLine();
@@ -208,7 +205,7 @@ public sealed class CornerProblemSolver : ICommand
         var useLGL = options.Solver == SolverType.LGL;
 
         // Create initial guess
-        var initialGuess = CreateCenterlineInitialGuess(trackGeometry, segmentCount, sInit, sFinal, initialVelocity);
+        var initialGuess = CreateCenterlineInitialGuess(trackGeometry, 30, sInit, sFinal, initialVelocity);
 
         // Debug visualization mode - just show track without optimization
         if (options.DebugViz)
@@ -228,13 +225,13 @@ public sealed class CornerProblemSolver : ICommand
             ISolver solver = useLGL
                 ? new LegendreGaussLobattoSolver()
                     .WithOrder(5)
-                    .WithSegments(segmentCount)
+                    .WithSegments(30)
                     .WithTolerance(1e-5)
                     .WithMaxIterations(200)
                     .WithVerbose(true)
                     .WithInnerOptimizer(innerOptimizer)
                 : new HermiteSimpsonSolver()
-                    .WithSegments(segmentCount)
+                    .WithSegments(30)
                     .WithTolerance(1e-3)
                     .WithMaxIterations(200)
                     .WithMeshRefinement(true, 5, 1e-3)
@@ -261,13 +258,13 @@ public sealed class CornerProblemSolver : ICommand
             {
                 var innerOptimizer = new LBFGSOptimizer()
                     .WithTolerance(1e-5)
-                    .WithMaxIterations(500)
+                    .WithMaxIterations(200)
                     .WithVerbose(false);
 
                 ISolver solver = useLGL
                     ? new LegendreGaussLobattoSolver()
                         .WithOrder(5)
-                        .WithSegments(segmentCount)
+                        .WithSegments(30)
                         .WithTolerance(1e-5)
                         .WithMaxIterations(200)
                         .WithVerbose(true)
@@ -278,10 +275,10 @@ public sealed class CornerProblemSolver : ICommand
                             visualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
                         })
                     : new HermiteSimpsonSolver()
-                        .WithSegments(segmentCount)
-                        .WithTolerance(1e-5)  // Relaxed tolerance
+                        .WithSegments(30)
+                        .WithTolerance(1e-3)  // Relaxed tolerance
                         .WithMaxIterations(200)
-                        .WithMeshRefinement(true, 5, 1e-5)  // Relaxed mesh refinement threshold
+                        .WithMeshRefinement(true, 5, 1e-3)  // Relaxed mesh refinement threshold
                         .WithVerbose(true)
                         .WithInnerOptimizer(innerOptimizer)
                         .WithInitialPenalty(50.0) // Higher initial penalty to enforce constraints more strongly
