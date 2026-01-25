@@ -750,19 +750,20 @@ namespace Optimal.Control.Solvers
                             {
                                 var x = transcription.GetState(z, globalIdx);
                                 var u = transcription.GetControl(z, globalIdx);
-                                var result = pathConstraint(x, u, timePoint);
+                                var input = new PathConstraintInput(x, u, timePoint);
+                                var result = pathConstraint(input);
 
                                 // Compute gradient numerically
                                 double ConstraintValue(double[] zz)
                                 {
                                     var xx = transcription.GetState(zz, globalIdx);
                                     var uu = transcription.GetControl(zz, globalIdx);
-                                    var res = pathConstraint(xx, uu, timePoint);
-                                    return res.value;
+                                    var inp = new PathConstraintInput(xx, uu, timePoint);
+                                    return pathConstraint(inp).Value;
                                 }
 
                                 var gradient = NumericalGradients.ComputeConstraintGradient(ConstraintValue, z);
-                                return (result.value, gradient);
+                                return (result.Value, gradient);
                             });
                         }
                     }

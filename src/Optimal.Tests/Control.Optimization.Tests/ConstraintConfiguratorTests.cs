@@ -215,12 +215,12 @@ namespace Optimal.Control.Optimization.Tests
                     var gradients = new double[2][];
                     return new DynamicsResult(value, gradients);
                 })
-                .WithPathConstraint((x, _, _) =>
+                .WithPathConstraint(input =>
                 {
                     // x[0] <= 2.0 expressed as x[0] - 2.0 <= 0
-                    var value = x[0] - 2.0;
+                    var value = input.State[0] - 2.0;
                     double[]? gradients = null;
-                    return (value, gradients!);
+                    return new PathConstraintResult(value, gradients!);
                 });
 
             var grid = new CollocationGrid(0.0, 1.0, 5);

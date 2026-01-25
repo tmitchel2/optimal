@@ -287,7 +287,7 @@ public sealed class GoddardRocketProblemSolver : ICommand
             .WithDynamics(input => CreateYOptDynamics(input.State, input.Control, D0, beta, c, g0, r0))
             .WithRunningCost(CreateRunningCost)
             .WithTerminalCost(CreateTerminalCost)
-            .WithPathConstraint((x, u, _) => CreatePathConstraint(x, u, mf));
+            .WithPathConstraint(input => CreatePathConstraint(input, mf));
 
         return (problem, new GoddardRocketParams(description, h0, mf));
     }
@@ -349,7 +349,7 @@ public sealed class GoddardRocketProblemSolver : ICommand
             .WithDynamics(input => CreateYOptDynamics(input.State, input.Control, D0, beta, c, g0, r0))
             .WithRunningCost(CreateRunningCost)
             .WithTerminalCost(CreateTerminalCost)
-            .WithPathConstraint((x, u, _) => CreatePathConstraint(x, u, mf));
+            .WithPathConstraint(input => CreatePathConstraint(input, mf));
 
         return (problem, new GoddardRocketParams(description, h0, mf));
     }
@@ -435,10 +435,10 @@ public sealed class GoddardRocketProblemSolver : ICommand
     /// <summary>
     /// Creates the path constraint to prevent thrust when out of fuel.
     /// </summary>
-    private static (double value, double[] gradients) CreatePathConstraint(double[] x, double[] u, double mEmpty)
+    private static PathConstraintResult CreatePathConstraint(PathConstraintInput input, double mEmpty)
     {
-        var m = x[2];
-        var T = u[0];
+        var m = input.State[2];
+        var T = input.Control[0];
 
         // Constraint: -T * (m - mEmpty) <= 0  (equivalent to T * (m - mEmpty) >= 0)
         var constraint = -T * (m - mEmpty);
@@ -450,7 +450,7 @@ public sealed class GoddardRocketProblemSolver : ICommand
         gradients[3] = -(m - mEmpty); // ∂c/∂T = -(m - mEmpty)
         gradients[4] = 0.0;           // ∂c/∂t
 
-        return (constraint, gradients);
+        return new PathConstraintResult(constraint, gradients);
     }
 
     /// <summary>

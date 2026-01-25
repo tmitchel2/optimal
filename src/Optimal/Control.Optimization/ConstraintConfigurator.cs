@@ -122,15 +122,17 @@ namespace Optimal.Control.Optimization
                     {
                         var x = transcription.GetState(z, nodeIndex);
                         var u = transcription.GetControl(z, nodeIndex);
-                        var result = pathConstraint(x, u, timePoint);
+                        var input = new PathConstraintInput(x, u, timePoint);
+                        var result = pathConstraint(input);
                         var gradient = NumericalGradients.ComputeConstraintGradient(
                             zz =>
                             {
                                 var xx = transcription.GetState(zz, nodeIndex);
                                 var uu = transcription.GetControl(zz, nodeIndex);
-                                return pathConstraint(xx, uu, timePoint).value;
+                                var inp = new PathConstraintInput(xx, uu, timePoint);
+                                return pathConstraint(inp).Value;
                             }, z);
-                        return (result.value, gradient);
+                        return (result.Value, gradient);
                     });
                 }
             }

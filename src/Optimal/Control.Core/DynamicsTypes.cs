@@ -197,4 +197,66 @@ namespace Optimal.Control.Core
             Gradients = gradients;
         }
     }
+
+    /// <summary>
+    /// Input arguments for path constraint functions: g(x, u, t) ≤ 0.
+    /// </summary>
+    public readonly struct PathConstraintInput
+    {
+        /// <summary>
+        /// Gets the state vector.
+        /// </summary>
+        public double[] State { get; init; }
+
+        /// <summary>
+        /// Gets the control vector.
+        /// </summary>
+        public double[] Control { get; init; }
+
+        /// <summary>
+        /// Gets the time.
+        /// </summary>
+        public double Time { get; init; }
+
+        /// <summary>
+        /// Creates a new path constraint input.
+        /// </summary>
+        /// <param name="state">State vector.</param>
+        /// <param name="control">Control vector.</param>
+        /// <param name="time">Time.</param>
+        public PathConstraintInput(double[] state, double[] control, double time)
+        {
+            State = state;
+            Control = control;
+            Time = time;
+        }
+    }
+
+    /// <summary>
+    /// Result of a path constraint function: g(x, u, t) ≤ 0.
+    /// </summary>
+    public readonly struct PathConstraintResult
+    {
+        /// <summary>
+        /// Gets the constraint value. The constraint is satisfied when value ≤ 0.
+        /// </summary>
+        public double Value { get; init; }
+
+        /// <summary>
+        /// Gets the gradients: [dg/dx, dg/du, dg/dt].
+        /// Length should be stateDim + controlDim + 1.
+        /// </summary>
+        public double[] Gradients { get; init; }
+
+        /// <summary>
+        /// Creates a new path constraint result.
+        /// </summary>
+        /// <param name="value">Constraint value (satisfied when ≤ 0).</param>
+        /// <param name="gradients">Gradients [dg/dx, dg/du, dg/dt].</param>
+        public PathConstraintResult(double value, double[] gradients)
+        {
+            Value = value;
+            Gradients = gradients;
+        }
+    }
 }

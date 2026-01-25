@@ -57,15 +57,15 @@ namespace Optimal.Control.Solvers.Tests
                     gradients[2] = 0.0;
                     return new RunningCostResult(value, gradients);
                 })
-                .WithPathConstraint((x, _, _) =>
+                .WithPathConstraint(input =>
                 {
                     // x ≤ 0.6  =>  x - 0.6 ≤ 0
-                    var value = x[0] - 0.6;
+                    var value = input.State[0] - 0.6;
                     var gradients = new double[3];
                     gradients[0] = 1.0; // dg/dx
                     gradients[1] = 0.0; // dg/du
                     gradients[2] = 0.0; // dg/dt
-                    return (value, gradients);
+                    return new PathConstraintResult(value, gradients);
                 });
 
             var solver = new HermiteSimpsonSolver()
@@ -126,16 +126,16 @@ namespace Optimal.Control.Solvers.Tests
                     gradients[2] = 0.0;
                     return new RunningCostResult(value, gradients);
                 })
-                .WithPathConstraint((x, _, t) =>
+                .WithPathConstraint(input =>
                 {
                     // For t ≥ 2.5: x ≥ 0.5  =>  0.5 - x ≤ 0
                     // For t < 2.5: no constraint (always satisfied)
-                    var value = (t >= 2.5) ? (0.5 - x[0]) : -1.0;
+                    var value = (input.Time >= 2.5) ? (0.5 - input.State[0]) : -1.0;
                     var gradients = new double[3];
-                    gradients[0] = (t >= 2.5) ? -1.0 : 0.0;
+                    gradients[0] = (input.Time >= 2.5) ? -1.0 : 0.0;
                     gradients[1] = 0.0;
                     gradients[2] = 0.0;
-                    return (value, gradients);
+                    return new PathConstraintResult(value, gradients);
                 });
 
             var solver = new HermiteSimpsonSolver()
@@ -196,23 +196,23 @@ result.States[i][0], $"At t={result.Times[i]:F2}, x={result.States[i][0]:F2} sho
                     var gradients = new double[4];
                     return new RunningCostResult(value, gradients);
                 })
-                .WithPathConstraint((x, _, _) =>
+                .WithPathConstraint(input =>
                 {
                     // v ≤ 0.8  =>  v - 0.8 ≤ 0
-                    var value = x[1] - 0.8;
+                    var value = input.State[1] - 0.8;
                     var gradients = new double[4];
                     gradients[0] = 0.0;
                     gradients[1] = 1.0;
-                    return (value, gradients);
+                    return new PathConstraintResult(value, gradients);
                 })
-                .WithPathConstraint((x, _, _) =>
+                .WithPathConstraint(input =>
                 {
                     // v ≥ -0.8  =>  -0.8 - v ≤ 0
-                    var value = -0.8 - x[1];
+                    var value = -0.8 - input.State[1];
                     var gradients = new double[4];
                     gradients[0] = 0.0;
                     gradients[1] = -1.0;
-                    return (value, gradients);
+                    return new PathConstraintResult(value, gradients);
                 });
 
             var solver = new HermiteSimpsonSolver()
@@ -268,17 +268,17 @@ result.States[i][0], $"At t={result.Times[i]:F2}, x={result.States[i][0]:F2} sho
                     var gradients = new double[3];
                     return new RunningCostResult(value, gradients);
                 })
-                .WithPathConstraint((x, _, _) =>
+                .WithPathConstraint(input =>
                 {
-                    var value = x[0] - 0.7; // x ≤ 0.7
+                    var value = input.State[0] - 0.7; // x ≤ 0.7
                     var gradients = new double[3];
-                    return (value, gradients);
+                    return new PathConstraintResult(value, gradients);
                 })
-                .WithPathConstraint((x, _, _) =>
+                .WithPathConstraint(input =>
                 {
-                    var value = -0.1 - x[0]; // x ≥ -0.1
+                    var value = -0.1 - input.State[0]; // x ≥ -0.1
                     var gradients = new double[3];
-                    return (value, gradients);
+                    return new PathConstraintResult(value, gradients);
                 });
 
             var solver = new HermiteSimpsonSolver()

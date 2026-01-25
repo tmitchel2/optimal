@@ -149,11 +149,11 @@ public sealed class CornerProblemSolver : ICommand
                 .WithMemorySize(10)
                 .WithTolerance(1e-6)
                 .WithMaxIterations(1000)
-                .WithVerbose(false)
+                .WithVerbose(true)
             : new LBFGSOptimizer()
                 .WithTolerance(1e-6)
                 .WithMaxIterations(1000)
-                .WithVerbose(false);
+                .WithVerbose(true);
 
         return new HermiteSimpsonSolver()
             .WithSegments(30)
@@ -207,16 +207,9 @@ public sealed class CornerProblemSolver : ICommand
                 [70.0, 15.0, 15.0, halfWidth, Math.PI / 3, 0.3, 2.0, 60.0])
             .WithDynamics(input => ComputeDynamics(input, trackGeometry))
             .WithRunningCost(input => ComputeRunningCost(input, trackGeometry))
-            .WithPathConstraint((x, u, _) => ComputePowerConstraint(x, u))
-            .WithPathConstraint((x, _, _2) => ComputeCombinedFrictionConstraint(x))
-            .WithPathConstraint((x, _, _) =>
-            {
-                var n = x[3];
-                var violation = Math.Abs(n) - halfWidth;
-                var gradients = new double[10];
-                gradients[3] = n >= 0.0 ? 1.0 : -1.0; // dC/dn
-                return (violation, gradients);
-            });
+            .WithPathConstraint(input => ComputePowerConstraint(input))
+            .WithPathConstraint(input => ComputeCombinedFrictionConstraint(input))
+            .WithPathConstraint(input => ComputeTrackBoundaryConstraint(input, trackGeometry));
     }
 
     private static DynamicsResult ComputeDynamics(DynamicsInput input, TrackGeometry trackGeometry)
@@ -382,10 +375,10 @@ public sealed class CornerProblemSolver : ICommand
         return gradients;
     }
 
-    private static (double value, double[] gradients) ComputePowerConstraint(double[] x, double[] u)
+    private static PathConstraintResult ComputePowerConstraint(PathConstraintInput input)
     {
-        var V = x[IdxV];
-        var T = u[IdxThrust];
+        var V = input.State[IdxV];
+        var T = input.Control[IdxThrust];
 
         // Power constraint: T * Fmax * V - Pmax <= 0
         var value = CornerDynamics.PowerConstraint(T, V, Fmax, Pmax);
@@ -395,13 +388,13 @@ public sealed class CornerProblemSolver : ICommand
         gradients[IdxV] = T * Fmax;      // dC/dV
         gradients[8 + IdxThrust] = Fmax * V;  // dC/dT
 
-        return (value, gradients);
+        return new PathConstraintResult(value, gradients);
     }
 
-    private static (double value, double[] gradients) ComputeCombinedFrictionConstraint(double[] x)
+    private static PathConstraintResult ComputeCombinedFrictionConstraint(PathConstraintInput input)
     {
-        var ax = x[IdxAx];
-        var ay = x[IdxAy];
+        var ax = input.State[IdxAx];
+        var ay = input.State[IdxAy];
 
         // Simplified combined friction circle constraint
         const double axMax = 12.0;
@@ -415,7 +408,16 @@ public sealed class CornerProblemSolver : ICommand
         gradients[IdxAx] = 2.0 * ax / (axMax * axMax);  // dC/dax
         gradients[IdxAy] = 2.0 * ay / (ayMax * ayMax);  // dC/day
 
-        return (value, gradients);
+        return new PathConstraintResult(value, gradients);
+    }
+
+    private static PathConstraintResult ComputeTrackBoundaryConstraint(PathConstraintInput input, TrackGeometry trackGeometry)
+    {
+        var n = input.State[3];
+        var violation = Math.Abs(n) - trackGeometry.HalfWidth;
+        var gradients = new double[10];
+        gradients[3] = n >= 0.0 ? 1.0 : -1.0; // dC/dn
+        return new PathConstraintResult(violation, gradients);
     }
 
     private static InitialGuess CreateInitialGuess(TrackGeometry trackGeometry)
