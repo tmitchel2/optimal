@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -283,8 +283,8 @@ internal sealed class RadiantCornerVisualizer
         DrawDashedLine(renderer, 0.0, scale, centerLineColor);
 
         // Draw road boundaries at +/- RoadHalfWidth
-        DrawOffsetLine(renderer, -TrackGeometry.RoadHalfWidth, scale, boundaryColor);
-        DrawOffsetLine(renderer, TrackGeometry.RoadHalfWidth, scale, boundaryColor);
+        DrawOffsetLine(renderer, -_trackGeometry.HalfWidth, scale, boundaryColor);
+        DrawOffsetLine(renderer, _trackGeometry.HalfWidth, scale, boundaryColor);
     }
 
     /// <summary>

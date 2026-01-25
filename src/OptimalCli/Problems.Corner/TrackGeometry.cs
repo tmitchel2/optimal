@@ -182,12 +182,12 @@ public sealed class TrackGeometry
     /// Half-width of the road (distance from centerline to edge).
     /// This is a constraint parameter, not a geometric property of the track centerline.
     /// </summary>
-    public const double RoadHalfWidth = 5.0;
 
     private readonly TrackSegment[] _segments;
     private readonly double[] _segmentEndS; // Cached for binary search
+    private readonly double _halfWidth;
 
-    internal TrackGeometry(TrackSegment[] segments)
+    internal TrackGeometry(TrackSegment[] segments, double halfWidth)
     {
         _segments = segments;
         _segmentEndS = new double[segments.Length];
@@ -195,6 +195,7 @@ public sealed class TrackGeometry
         {
             _segmentEndS[i] = segments[i].EndS;
         }
+        _halfWidth = halfWidth;
     }
 
     /// <summary>Total length of the track.</summary>
@@ -202,6 +203,8 @@ public sealed class TrackGeometry
 
     /// <summary>Number of segments.</summary>
     public int SegmentCount => _segments.Length;
+
+    public double HalfWidth => _halfWidth;
 
     /// <summary>Get segment by index.</summary>
     public TrackSegment this[int index] => _segments[index];
@@ -337,13 +340,13 @@ public sealed class TrackGeometryBuilder
     /// <summary>
     /// Build the final immutable TrackGeometry.
     /// </summary>
-    public TrackGeometry Build()
+    public TrackGeometry Build(double halfWidth)
     {
         if (_segments.Count == 0)
         {
             throw new InvalidOperationException("Cannot build empty track geometry.");
         }
 
-        return new TrackGeometry([.. _segments]);
+        return new TrackGeometry([.. _segments], halfWidth);
     }
 }

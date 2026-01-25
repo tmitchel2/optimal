@@ -76,7 +76,7 @@ public sealed class CornerProblemSolver : ICommand
             .AddLine(distance: 10.0)
             .AddArc(radius: 10.0, angle: Math.PI / 1.5, turnRight: false)
             .AddLine(distance: 10.0)
-            .Build();
+            .Build(Tw);
 
         var visualizer = new RadiantCornerVisualizer(trackGeometry);
         var problem = CreateProblem(trackGeometry);
@@ -96,6 +96,8 @@ public sealed class CornerProblemSolver : ICommand
                 throw;
             }
         }, visualizer.CancellationToken);
+
+        // visualizer.RunDebugVisualization(initialGuess);
 
         if (!options.Headless)
         {
@@ -139,18 +141,18 @@ public sealed class CornerProblemSolver : ICommand
     private static HermiteSimpsonSolver CreateSolver(RadiantCornerVisualizer visualizer)
     {
         var innerOptimizer = new LBFGSOptimizer()
-            .WithTolerance(1e-5)
-            .WithMaxIterations(500)
+            .WithTolerance(1e-6)
+            .WithMaxIterations(1000)
             .WithVerbose(false);
 
         return new HermiteSimpsonSolver()
             .WithSegments(30)
-            .WithTolerance(1e-4)
-            .WithMaxIterations(300)
-            .WithMeshRefinement(true, 5, 1e-4)
+            .WithTolerance(1e-6)
+            .WithMaxIterations(1000)
+            // .WithMeshRefinement(true, 5, 1e-4)
             .WithVerbose(true)
             .WithInnerOptimizer(innerOptimizer)
-            .WithInitialPenalty(50.0)
+            // .WithInitialPenalty(50.0)
             .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
             {
                 visualizer.CancellationToken.ThrowIfCancellationRequested();
@@ -160,13 +162,13 @@ public sealed class CornerProblemSolver : ICommand
 
     private ControlProblem CreateProblem(TrackGeometry trackGeometry)
     {
+        var halfWidth = trackGeometry.HalfWidth;
         var totalLength = trackGeometry.TotalLength;
-        var roadHalfWidth = TrackGeometry.RoadHalfWidth;
 
         // Initial conditions: starting at rest on centerline, aligned with road
         var initialState = new double[]
         {
-            20.0,  // V: initial speed (m/s)
+            10.0,  // V: initial speed (m/s)
             0.0,   // ax: zero longitudinal acceleration
             0.0,   // ay: zero lateral acceleration
             0.0,   // n: on centerline
@@ -191,12 +193,20 @@ public sealed class CornerProblemSolver : ICommand
             .WithFinalCondition(finalState)
             .WithControlBounds([-0.5, -1.0], [0.5, 1.0])  // steering +/- 0.5 rad, thrust -1 to 1
             .WithStateBounds(
-                [1.0, -15.0, -15.0, -roadHalfWidth, -Math.PI / 3, -0.3, -2.0, 0.0],
-                [70.0, 15.0, 15.0, roadHalfWidth, Math.PI / 3, 0.3, 2.0, 60.0])
+                [1.0, -15.0, -15.0, -halfWidth, -Math.PI / 3, -0.3, -2.0, 0.0],
+                [70.0, 15.0, 15.0, halfWidth, Math.PI / 3, 0.3, 2.0, 60.0])
             .WithDynamics(input => ComputeDynamics(input, trackGeometry))
             .WithRunningCost(input => ComputeRunningCost(input, trackGeometry))
             .WithPathConstraint((x, u, _) => ComputePowerConstraint(x, u))
-            .WithPathConstraint((x, _, _2) => ComputeCombinedFrictionConstraint(x));
+            .WithPathConstraint((x, _, _2) => ComputeCombinedFrictionConstraint(x))
+            .WithPathConstraint((x, _, _) =>
+            {
+                var n = x[3];
+                var violation = Math.Abs(n) - halfWidth;
+                var gradients = new double[10];
+                gradients[3] = n >= 0.0 ? 1.0 : -1.0; // dC/dn
+                return (violation, gradients);
+            });
     }
 
     private static DynamicsResult ComputeDynamics(DynamicsInput input, TrackGeometry trackGeometry)
@@ -413,8 +423,10 @@ public sealed class CornerProblemSolver : ICommand
             var kappa = trackGeometry.RoadCurvature(s);
 
             // Heuristic: offset toward inside of corner
-            var n = -Math.Sign(kappa) * Math.Min(Math.Abs(kappa) * vInit * vInit / 15.0,
-                TrackGeometry.RoadHalfWidth * 0.7);
+            // var n = Math.Sign(kappa) * Math.Min(Math.Abs(kappa) * vInit * vInit / 15.0,
+            //     TrackGeometry.RoadHalfWidth * 0.7);
+
+            var n = 0.0;
 
             // Estimated lateral acceleration for cornering
             var ayEst = vInit * vInit * kappa;
