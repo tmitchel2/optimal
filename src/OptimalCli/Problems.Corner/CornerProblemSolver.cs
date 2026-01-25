@@ -16,23 +16,59 @@ using Optimal.NonLinear.Unconstrained;
 namespace OptimalCli.Problems.Corner;
 
 /// <summary>
-/// Solves the Corner problem: Optimal racing line through a 90° turn using curvilinear coordinates.
-/// State: [n, θ, v, T_f] - lateral deviation, heading, velocity, final time
-/// Control: [a, ω] - acceleration and steering rate
-/// The progress 's' along the track is determined from segment position rather than being a state variable.
-/// Minimize: Time to complete the corner
-/// Constraints: Vehicle must stay within road boundaries (|n| ≤ RoadHalfWidth)
+/// Solves the minimum lap time problem for a racecar using the dymos model.
+///
+/// This is an arc-length parameterized optimal control problem where:
+/// - Independent variable: s (arc length along track centerline)
+/// - Objective: Minimize total elapsed time
+///
+/// State: [V, ax, ay, n, alpha, lambda, Omega, t]
+/// Control: [delta, T]
 /// </summary>
 public sealed class CornerProblemSolver : ICommand
 {
+    // Vehicle parameters (from dymos racecar model)
+    private const double M = 800.0;        // Vehicle mass (kg)
+    private const double VehicleA = 1.404; // CoG to front axle (m)
+    private const double VehicleB = 1.356; // CoG to rear axle (m)
+    private const double L = VehicleA + VehicleB; // Wheelbase (m)
+    private const double Tw = 0.807;       // Half track width (m)
+    private const double H = 0.35;         // CoG height (m)
+    private const double Iz = 1775.0;      // Yaw inertia (kg*m^2)
+    private const double Chi = 0.5;        // Roll stiffness distribution
+    private const double Rho = 1.2;        // Air density (kg/m^3)
+    private const double Mu0 = 1.68;       // Base friction coefficient
+    private const double Kmu = -0.5;       // Tire load sensitivity
+    private const double TauAx = 0.2;      // Longitudinal load transfer time constant (s)
+    private const double TauAy = 0.2;      // Lateral load transfer time constant (s)
+    private const double TauLambda = 0.1;  // Slip angle relaxation time constant (s)
+    private const double ClA = 4.0;        // Downforce coefficient * area (m^2)
+    private const double CdA = 2.0;        // Drag coefficient * area (m^2)
+    private const double CoP = 1.6;        // Center of pressure location (m)
+    private const double Gravity = 9.81;   // Gravity (m/s^2)
+    private const double Pmax = 960000.0;  // Max power (W)
+    private const double Fmax = 12000.0;   // Max thrust force (N)
+
+    // State indices
+    private const int IdxV = 0;
+    private const int IdxAx = 1;
+    private const int IdxAy = 2;
+    private const int IdxN = 3;
+    private const int IdxAlpha = 4;
+    private const int IdxLambda = 5;
+    private const int IdxOmega = 6;
+    private const int IdxT = 7;
+
+    // Control indices
+    private const int IdxDelta = 0;
+    private const int IdxThrust = 1;
+
     public string Name => "corner";
 
-    public string Description => "Optimal racing line through 90° corner with road constraints (curvilinear coordinates)";
+    public string Description => "Optimal racing line";
 
     public void Run(CommandOptions options)
     {
-        // Initialize track geometry using fluent builder
-        // Entry straight (15m) → 90° right turn (radius 5m) → Exit straight (20m)
         var trackGeometry = TrackGeometry
             .StartAt(x: 0, y: 0, heading: 0)
             .AddLine(distance: 10.0)
@@ -42,204 +78,14 @@ public sealed class CornerProblemSolver : ICommand
             .AddLine(distance: 10.0)
             .Build();
 
-        // Create visualizer with track geometry
         var visualizer = new RadiantCornerVisualizer(trackGeometry);
-
-        Console.WriteLine("=== CORNER PROBLEM (CURVILINEAR COORDINATES) ===");
-        Console.WriteLine("Finding optimal racing line through 90° right turn");
-        Console.WriteLine("(Minimum time with free final time optimization)");
-        Console.WriteLine();
-
-        // Vehicle parameters
-        const double maxAccel = 5.0;      // Maximum acceleration (m/s²)
-        const double maxDecel = -8.0;     // Maximum braking (m/s²)
-        const double maxSteerRate = 1.0;  // Maximum steering rate (rad/s)
-        const double initialVelocity = 1.5;  // Entry speed (m/s)
-
-        // Final position: at the end of the exit section
-        const double sInit = 0.0;           // Start at beginning of entry
-        var sFinal = trackGeometry.TotalLength;  // End at exit
-
-        // Initial T_f guess: Based on variable velocity profile that slows to 5 m/s in the arc.
-        // Average velocity ≈ 9 m/s, so T_f ≈ sFinal / v_avg = 42.9 / 9 ≈ 4.8 seconds
-        const double tfGuess = 5.0;         // Initial guess for final time
-        const double minTime = 0.01;
-
-        Console.WriteLine("Problem setup (curvilinear coordinates):");
-        Console.WriteLine($"  Track length: {trackGeometry.TotalLength:F1} m (s derived from segment position)");
-        Console.WriteLine($"  Initial state: n=free, θ=0, v={initialVelocity} m/s");
-        Console.WriteLine("  Final state: n=free, θ=+π/2, v=free");
-        Console.WriteLine($"  Acceleration bounds: [{maxDecel}, {maxAccel}] m/s²");
-        Console.WriteLine($"  Steering rate bounds: [-{maxSteerRate}, {maxSteerRate}] rad/s");
-        Console.WriteLine($"  Final time T_f: free (to be optimized, guess {tfGuess} s)");
-        Console.WriteLine();
-
-        // State: [n, θ, v, T_f] where T_f is the free final time
-        // Control: [a, ω] - acceleration and steering rate
-        // Time is normalized to τ ∈ [0, 1]
-        // Dynamics are scaled: dx/dτ = T_f · (dx/dt)
-        // Progress 's' is derived from segment position: s = (segmentIndex / segmentCount) * TotalLength
-
-        var problem = new ControlProblem()
-            .WithStateSize(4) // [n, θ, v, T_f]
-            .WithControlSize(2) // [a, ω]
-            .WithTimeHorizon(0.0, 1.0) // Normalized time τ ∈ [0, 1]
-            .WithInitialCondition([double.NaN, trackGeometry.RoadHeading(0), initialVelocity, double.NaN]) // n=free, heading east, initial velocity, T_f=free (optimized)
-            .WithFinalCondition([double.NaN, trackGeometry.RoadHeading(trackGeometry.TotalLength), double.NaN, double.NaN]) // n=free, heading south (θ=+π/2), free v, T_f
-            .WithControlBounds([maxDecel, -maxSteerRate], [maxAccel, maxSteerRate])
-            .WithStateBounds(
-                [-TrackGeometry.RoadHalfWidth, -Math.PI, 1.0, minTime],  // Min: n >= -RoadHalfWidth, θ, v >= 1 m/s, T_f >= 0.5s
-                [TrackGeometry.RoadHalfWidth, Math.PI, 30.0, 10.0])   // Max: n <= RoadHalfWidth, θ, v <= 30 m/s, T_f <= 10s
-            .WithDynamics(input =>
-            {
-                var x = input.State;
-                var u = input.Control;
-
-                // Compute s from segment position
-                var segmentIndex = input.SegmentIndex;
-                var segmentCount = input.SegmentCount;
-                var s = segmentCount > 0 ? segmentIndex / segmentCount * trackGeometry.TotalLength : 0.0;
-
-                // Get road geometry at current position
-                var thetaRoad = trackGeometry.RoadHeading(s);
-                var curvature = trackGeometry.RoadCurvature(s);
-
-                var n = x[0];
-                var theta = x[1];
-                var v = x[2];
-                var tf = x[3];
-                var a = u[0];
-                var omega = u[1];
-
-                // Physical dynamics using curvilinear coordinates
-                var (_, sdot_gradients) = CornerDynamicsGradients.ProgressRateReverse(thetaRoad, curvature, n, theta, v);
-                var (ndotPhys, ndot_gradients) = CornerDynamicsGradients.LateralRateReverse(thetaRoad, theta, v);
-                var (thetadotPhys, thetadot_gradients) = CornerDynamicsGradients.ThetaRateReverse(omega);
-                var (vdotPhys, vdot_gradients) = CornerDynamicsGradients.VelocityRateReverse(a);
-
-                // Time-scaled dynamics: dx/dτ = T_f · (dx/dt)
-                var ndot = tf * ndotPhys;
-                var thetadot = tf * thetadotPhys;
-                var vdot = tf * vdotPhys;
-                const double tfdot = 0.0; // T_f is constant over the trajectory
-
-                var value = new[] { ndot, thetadot, vdot, tfdot };
-                var gradients = new double[2][];
-
-                // Gradients w.r.t. state: chain rule ∂(T_f·f)/∂x = T_f·(∂f/∂x), ∂(T_f·f)/∂T_f = f
-                // State order: [n, θ, v, T_f]
-                // ndot_gradients indices are [∂/∂thetaRoad, ∂/∂theta, ∂/∂v], we need [∂/∂n, ∂/∂theta, ∂/∂v]
-                // Since LateralRate doesn't depend on n, ∂ndot/∂n = 0
-                gradients[0] =
-                [
-                    // ∂ṅ/∂[n, θ, v, T_f]
-                    0.0, tf * ndot_gradients[1], tf * ndot_gradients[2], ndotPhys,
-                    // ∂θ̇/∂[n, θ, v, T_f] - thetadot only depends on omega, not state
-                    0.0, 0.0, 0.0, thetadotPhys,
-                    // ∂v̇/∂[n, θ, v, T_f] - vdot only depends on a, not state
-                    0.0, 0.0, 0.0, vdotPhys,
-                    // ∂Ṫf/∂[n, θ, v, T_f] = 0
-                    0.0, 0.0, 0.0, 0.0
-                ];
-
-                // Gradients w.r.t. control: [a, ω]
-                gradients[1] =
-                [
-                    0.0, 0.0,  // ∂ṅ/∂[a, ω] = 0
-                    0.0, tf * thetadot_gradients[0],  // ∂θ̇/∂[a, ω]
-                    tf * vdot_gradients[0], 0.0,  // ∂v̇/∂[a, ω]
-                    0.0, 0.0   // ∂Ṫf/∂[a, ω] = 0
-                ];
-
-                return new DynamicsResult(value, gradients);
-            })
-            .WithTerminalCost(input =>
-            {
-                // Minimize final time T_f
-                var tf = input.State[3];
-                var gradients = new double[5]; // [n, θ, v, T_f, τ]
-                gradients[3] = 1.0; // ∂Φ/∂T_f = 1
-                return new TerminalCostResult(tf, gradients);
-            })
-            // Road boundary constraints
-            // The singularity occurs at n = CenterlineRadius = 5 where denominator 1 - n*κ = 0
-            // This is on the INSIDE of the turn (positive n), so only the right boundary needs a margin
-            // Left boundary (outside of turn): n >= -RoadHalfWidth (no margin needed, no singularity)
-            .WithPathConstraint((x, _, _) =>
-            {
-                var n = x[0];
-                var violation = -TrackGeometry.RoadHalfWidth - n;  // violation <= 0 when n >= -RoadHalfWidth
-                var grads = new[] { -1.0, 0.0, 0.0, 0.0 };
-                return (violation, grads);
-            })
-            // Right boundary (inside of turn): n <= RoadHalfWidth - margin
-            // Use margin of 0.5m to keep away from the apex singularity
-            .WithPathConstraint((x, _, _) =>
-            {
-                var n = x[0];
-                var violation = n - TrackGeometry.RoadHalfWidth;  // violation <= 0 when n <= maxN
-                var grads = new[] { 1.0, 0.0, 0.0, 0.0 };
-                return (violation, grads);
-            })
-            // Time must be positive: T_f >= 0.5  =>  0.5 - T_f <= 0
-            // This is needed because box constraints are only projected after inner optimization
-            .WithPathConstraint((x, _, _) =>
-            {
-                var tf = x[3];
-                var violation = minTime - tf;  // violation <= 0 when T_f >= 0.5
-                var grads = new[] { 0.0, 0.0, 0.0, -1.0 };
-                return (violation, grads);
-            })
-            ;
-
-        Console.WriteLine("Solver configuration:");
-        Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");
-        Console.WriteLine("  Segments: 30");
-        Console.WriteLine("  Max iterations: 200");
-        Console.WriteLine("  Inner optimizer: L-BFGS-B");
-        Console.WriteLine();
-        Console.WriteLine("Solving...");
-
-        // Create initial guess
-        var initialGuess = CreateCenterlineInitialGuess(trackGeometry, 30, sInit, sFinal, initialVelocity);
-
-        // Debug visualization mode - just show track without optimization
-        if (options.DebugViz)
-        {
-            visualizer.RunDebugVisualization(initialGuess);
-            return;
-        }
-
-        // Visualization mode
-        Console.WriteLine("Opening live visualization window...");
-        Console.WriteLine("(Close window when done viewing)");
-        Console.WriteLine("=".PadRight(70, '='));
-        Console.WriteLine();
-
-        // Run the optimizer in a background task
+        var problem = CreateProblem(trackGeometry);
+        var initialGuess = CreateInitialGuess(trackGeometry);
         var optimizationTask = Task.Run(() =>
         {
             try
             {
-                var innerOptimizer = new LBFGSOptimizer()
-                    .WithTolerance(1e-5)
-                    .WithMaxIterations(500)
-                    .WithVerbose(false);
-
-                var solver = new HermiteSimpsonSolver()
-                    .WithSegments(30)
-                    .WithTolerance(1e-3)  // Relaxed tolerance
-                    .WithMaxIterations(200)
-                    .WithMeshRefinement(true, 5, 1e-3)  // Relaxed mesh refinement threshold
-                    .WithVerbose(true)
-                    .WithInnerOptimizer(innerOptimizer)
-                    .WithInitialPenalty(50.0) // Higher initial penalty to enforce constraints more strongly
-                    .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
-                    {
-                        visualizer.CancellationToken.ThrowIfCancellationRequested();
-                        visualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
-                    });
-
+                var solver = CreateSolver(visualizer);
                 var result = solver.Solve(problem, initialGuess);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return result;
@@ -287,133 +133,343 @@ public sealed class CornerProblemSolver : ICommand
             return;
         }
 
-        // Convert final state from curvilinear to Cartesian for display
-        // s is derived from segment position - final segment corresponds to s = TotalLength
-        var finalS = trackGeometry.TotalLength;
-        var finalN = result.States[^1][0];
-        var (finalX, finalY) = trackGeometry.CurvilinearToCartesian(finalS, finalN);
-
-        Console.WriteLine("\n" + "=".PadRight(70, '=') + "\n");
-        Console.WriteLine("SOLUTION SUMMARY:");
-        Console.WriteLine($"  Success: {result.Success}");
-        Console.WriteLine($"  Message: {result.Message}");
-        Console.WriteLine($"  Final curvilinear: s={finalS:F3}, n={finalN:F3}");
-        Console.WriteLine($"  Final Cartesian: ({finalX:F3}, {finalY:F3})");
-        Console.WriteLine($"  Final heading: {result.States[^1][1]:F3} rad ({result.States[^1][1] * 180 / Math.PI:F1}°)");
-        Console.WriteLine($"  Final velocity: {result.States[^1][2]:F3} m/s");
-        Console.WriteLine($"  Optimal time T_f: {result.States[^1][3]:F3} seconds");
-        Console.WriteLine($"  Objective value: {result.OptimalCost:F6}");
-        Console.WriteLine($"  Iterations: {result.Iterations}");
-        Console.WriteLine();
+        PrintResults(result);
     }
 
-    /// <summary>
-    /// Creates an initial guess using a racing line trajectory.
-    /// The vehicle takes the outside line on entry, cuts toward the apex, then exits wide.
-    /// This allows higher speed through the corner compared to the centerline.
-    /// State: [n, θ, v, T_f], Control: [a, ω]
-    /// Note: s is derived from segment position, not stored in state.
-    /// </summary>
-    private static InitialGuess CreateCenterlineInitialGuess(
-        TrackGeometry trackGeometry,
-        int segments,
-        double sInit,
-        double sFinal,
-        double initialVelocity)
+    private static HermiteSimpsonSolver CreateSolver(RadiantCornerVisualizer visualizer)
     {
-        // Simple centerline initial guess:
-        // - Follow exact centerline (n = 0)
-        // - Match road heading exactly (θ = θ_road)
-        // - Constant velocity throughout
-        //
-        // On the centerline with θ = θ_road:
-        // - ṅ = 0 (since sin(0) = 0)
-        // - θ̇ = ω = dθ_road/dt = (dθ_road/ds) × v
+        var innerOptimizer = new LBFGSOptimizer()
+            .WithTolerance(1e-5)
+            .WithMaxIterations(500)
+            .WithVerbose(false);
 
-        var numNodes = segments + 1;
-        var stateTrajectory = new double[numNodes][];
-        var controlTrajectory = new double[numNodes][];
+        return new HermiteSimpsonSolver()
+            .WithSegments(30)
+            .WithTolerance(1e-4)
+            .WithMaxIterations(300)
+            .WithMeshRefinement(true, 5, 1e-4)
+            .WithVerbose(true)
+            .WithInnerOptimizer(innerOptimizer)
+            .WithInitialPenalty(50.0)
+            .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+            {
+                visualizer.CancellationToken.ThrowIfCancellationRequested();
+                visualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+            });
+    }
 
-        var totalDistance = sFinal - sInit;
-        var velocity = initialVelocity;
+    private ControlProblem CreateProblem(TrackGeometry trackGeometry)
+    {
+        var totalLength = trackGeometry.TotalLength;
+        var roadHalfWidth = TrackGeometry.RoadHalfWidth;
 
-        // Time to traverse at constant velocity
-        var tf = totalDistance / velocity;
-
-        // Get geometry properties
-        // var entryLength = trackGeometry.GetEntryLength();
-        // var arcLength = trackGeometry.GetArcLength();
-        // var arcRadius = trackGeometry.GetArcRadius();
-        // var arcEnd = entryLength + arcLength;
-
-        // During arc: dθ_road/ds = +π / (2 × arcLength) = +1/R (left-hand rule: right turn increases θ)
-        // So ω = dθ_road/ds × v = +v/R
-        // var arcSteeringRate = velocity / arcRadius;
-
-        for (var k = 0; k < numNodes; k++)
+        // Initial conditions: starting at rest on centerline, aligned with road
+        var initialState = new double[]
         {
-            var tau = (double)k / segments;
+            20.0,  // V: initial speed (m/s)
+            0.0,   // ax: zero longitudinal acceleration
+            0.0,   // ay: zero lateral acceleration
+            0.0,   // n: on centerline
+            0.0,   // alpha: aligned with road
+            0.0,   // lambda: zero slip angle
+            0.0,   // Omega: zero yaw rate
+            0.0    // t: zero elapsed time
+        };
 
-            // Compute s from segment position (same as dynamics callback)
-            var s = sInit + (tau * totalDistance);
+        // Final conditions: all free (no terminal constraints)
+        var finalState = new double[]
+        {
+            double.NaN, double.NaN, double.NaN, 0.0,
+            0.0, double.NaN, double.NaN, double.NaN
+        };
 
-            // Centerline: n = 0
-            const double n = 0.0;
+        return new ControlProblem()
+            .WithStateSize(8)
+            .WithControlSize(2)
+            .WithTimeHorizon(0.0, totalLength)  // s from 0 to track length
+            .WithInitialCondition(initialState)
+            .WithFinalCondition(finalState)
+            .WithControlBounds([-0.5, -1.0], [0.5, 1.0])  // steering +/- 0.5 rad, thrust -1 to 1
+            .WithStateBounds(
+                [1.0, -15.0, -15.0, -roadHalfWidth, -Math.PI / 3, -0.3, -2.0, 0.0],
+                [70.0, 15.0, 15.0, roadHalfWidth, Math.PI / 3, 0.3, 2.0, 60.0])
+            .WithDynamics(input => ComputeDynamics(input, trackGeometry))
+            .WithRunningCost(input => ComputeRunningCost(input, trackGeometry))
+            .WithPathConstraint((x, u, _) => ComputePowerConstraint(x, u))
+            .WithPathConstraint((x, _, _2) => ComputeCombinedFrictionConstraint(x));
+    }
 
-            // Follow road heading exactly
-            var theta = trackGeometry.RoadHeading(s);
+    private static DynamicsResult ComputeDynamics(DynamicsInput input, TrackGeometry trackGeometry)
+    {
+        var x = input.State;
+        var u = input.Control;
+        var s = input.Time;  // "time" is actually arc length s
 
-            // State: [n, θ, v, Tf]
-            stateTrajectory[k] = [n, theta, velocity, tf];
+        // Extract state variables
+        var V = x[IdxV];
+        var ax = x[IdxAx];
+        var ay = x[IdxAy];
+        var n = x[IdxN];
+        var alpha = x[IdxAlpha];
+        var lambda = x[IdxLambda];
+        var Omega = x[IdxOmega];
 
-            // Control: [a, ω]
-            // - Acceleration = 0 (constant velocity)
-            // - Steering rate = dθ_road/dt to follow road heading
-            double omega = trackGeometry.RoadCurvature(s) == 0 ? 0 : velocity / trackGeometry.RoadCurvature(s);
-            // if (s < entryLength)
-            // {
-            //     // Entry straight: no steering needed
-            //     omega = 0.0;
-            // }
-            // else if (s < arcEnd)
-            // {
-            //     // Arc: steer at constant rate to follow centerline
-            //     omega = arcSteeringRate;
-            // }
-            // else
-            // {
-            //     // Exit straight: no steering needed
-            //     omega = 0.0;
-            // }
+        // Extract control variables
+        var delta = u[IdxDelta];
+        var T = u[IdxThrust];
 
-            controlTrajectory[k] = [0.0, omega];
+        // Get track curvature at current position
+        var kappa = trackGeometry.RoadCurvature(s);
+
+        // Compute state derivatives
+        var dVds = CornerDynamics.SpeedRateS(kappa, n, alpha, V, ax, Rho, CdA, M);
+        var dAxds = CornerDynamics.AxRateS(kappa, n, alpha, V, ax, T, Fmax, M, TauAx);
+        var dAyds = CornerDynamics.AyRateS(kappa, n, alpha, V, ay, Omega, TauAy);
+        var dNds = CornerDynamics.LateralRateS(kappa, n, alpha);
+        var dAlphads = CornerDynamics.AlphaRateS(kappa, n, alpha, V, Omega);
+        var dLambdads = CornerDynamics.LambdaRateS(kappa, n, alpha, V, lambda, Omega, delta, VehicleA, VehicleB, TauLambda);
+        var dOmegads = CornerDynamics.OmegaRateS(kappa, n, alpha, V, Omega, delta, ay, VehicleA, VehicleB, Iz, M);
+        var dTds = CornerDynamics.TimeRateS(kappa, n, alpha, V);
+
+        var value = new[] { dVds, dAxds, dAyds, dNds, dAlphads, dLambdads, dOmegads, dTds };
+
+        // Compute gradients numerically for now (AutoDiff will generate these)
+        // Gradient layout: [0] = df/dx (8x8 flattened = 64 elements), [1] = df/du (8x2 flattened = 16 elements)
+        var gradients = ComputeDynamicsGradientsNumerically(x, u, kappa, trackGeometry, s);
+
+        return new DynamicsResult(value, gradients);
+    }
+
+    private static double[][] ComputeDynamicsGradientsNumerically(double[] x, double[] u, double kappa,
+        TrackGeometry _, double _2)
+    {
+        const double eps = 1e-7;
+        const int stateDim = 8;
+        const int controlDim = 2;
+
+        var stateGradients = new double[stateDim * stateDim];
+        var controlGradients = new double[stateDim * controlDim];
+
+        // Compute base derivatives
+        var f0 = ComputeDerivatives(x, u, kappa);
+
+        // State gradients (df/dx)
+        for (var j = 0; j < stateDim; j++)
+        {
+            var xPerturbed = (double[])x.Clone();
+            xPerturbed[j] += eps;
+            var fPerturbed = ComputeDerivatives(xPerturbed, u, kappa);
+
+            for (var i = 0; i < stateDim; i++)
+            {
+                stateGradients[i * stateDim + j] = (fPerturbed[i] - f0[i]) / eps;
+            }
         }
 
-        return new InitialGuess(stateTrajectory, controlTrajectory);
+        // Control gradients (df/du)
+        for (var j = 0; j < controlDim; j++)
+        {
+            var uPerturbed = (double[])u.Clone();
+            uPerturbed[j] += eps;
+            var fPerturbed = ComputeDerivatives(x, uPerturbed, kappa);
+
+            for (var i = 0; i < stateDim; i++)
+            {
+                controlGradients[i * controlDim + j] = (fPerturbed[i] - f0[i]) / eps;
+            }
+        }
+
+        return [stateGradients, controlGradients];
     }
 
-    /// <summary>
-    /// Prints a summary of the solution to the console.
-    /// </summary>
-    private static void PrintSolutionSummary(TrackGeometry trackGeometry, CollocationResult result)
+    private static double[] ComputeDerivatives(double[] x, double[] u, double kappa)
     {
-        // Convert final state from curvilinear to Cartesian for display
-        // s is derived from segment position - final segment corresponds to s = TotalLength
-        var finalS = trackGeometry.TotalLength;
-        var finalN = result.States[^1][0];
-        var (finalX, finalY) = trackGeometry.CurvilinearToCartesian(finalS, finalN);
+        var V = x[IdxV];
+        var ax = x[IdxAx];
+        var ay = x[IdxAy];
+        var n = x[IdxN];
+        var alpha = x[IdxAlpha];
+        var lambda = x[IdxLambda];
+        var Omega = x[IdxOmega];
 
+        var delta = u[IdxDelta];
+        var T = u[IdxThrust];
+
+        return
+        [
+            CornerDynamics.SpeedRateS(kappa, n, alpha, V, ax, Rho, CdA, M),
+            CornerDynamics.AxRateS(kappa, n, alpha, V, ax, T, Fmax, M, TauAx),
+            CornerDynamics.AyRateS(kappa, n, alpha, V, ay, Omega, TauAy),
+            CornerDynamics.LateralRateS(kappa, n, alpha),
+            CornerDynamics.AlphaRateS(kappa, n, alpha, V, Omega),
+            CornerDynamics.LambdaRateS(kappa, n, alpha, V, lambda, Omega, delta, VehicleA, VehicleB, TauLambda),
+            CornerDynamics.OmegaRateS(kappa, n, alpha, V, Omega, delta, ay, VehicleA, VehicleB, Iz, M),
+            CornerDynamics.TimeRateS(kappa, n, alpha, V)
+        ];
+    }
+
+    private static RunningCostResult ComputeRunningCost(RunningCostInput input, TrackGeometry trackGeometry)
+    {
+        var x = input.State;
+        var s = input.Time;
+
+        var V = x[IdxV];
+        var n = x[IdxN];
+        var alpha = x[IdxAlpha];
+
+        var kappa = trackGeometry.RoadCurvature(s);
+
+        // Running cost = dt/ds (integrates to total time)
+        var cost = CornerDynamics.RunningCostS(kappa, n, alpha, V);
+
+        // Compute gradients numerically
+        var gradients = ComputeRunningCostGradientsNumerically(x, kappa);
+
+        return new RunningCostResult(cost, gradients);
+    }
+
+    private static double[] ComputeRunningCostGradientsNumerically(double[] x, double kappa)
+    {
+        const double eps = 1e-7;
+        const int stateDim = 8;
+        const int controlDim = 2;
+
+        // Gradients: [dL/dx (8), dL/du (2), dL/dt (1)]
+        var gradients = new double[stateDim + controlDim + 1];
+
+        var V = x[IdxV];
+        var n = x[IdxN];
+        var alpha = x[IdxAlpha];
+
+        var L0 = CornerDynamics.RunningCostS(kappa, n, alpha, V);
+
+        // dL/dV
+        var Lp = CornerDynamics.RunningCostS(kappa, n, alpha, V + eps);
+        gradients[IdxV] = (Lp - L0) / eps;
+
+        // dL/dn
+        Lp = CornerDynamics.RunningCostS(kappa, n + eps, alpha, V);
+        gradients[IdxN] = (Lp - L0) / eps;
+
+        // dL/dalpha
+        Lp = CornerDynamics.RunningCostS(kappa, n, alpha + eps, V);
+        gradients[IdxAlpha] = (Lp - L0) / eps;
+
+        // Other state derivatives are zero (ax, ay, lambda, Omega, t don't appear in running cost)
+        // Control derivatives are zero
+        // Time derivative is zero
+
+        return gradients;
+    }
+
+    private static (double value, double[] gradients) ComputePowerConstraint(double[] x, double[] u)
+    {
+        var V = x[IdxV];
+        var T = u[IdxThrust];
+
+        // Power constraint: T * Fmax * V - Pmax <= 0
+        var value = CornerDynamics.PowerConstraint(T, V, Fmax, Pmax);
+
+        // Gradients: [dx (8), du (2)]
+        var gradients = new double[10];
+        gradients[IdxV] = T * Fmax;      // dC/dV
+        gradients[8 + IdxThrust] = Fmax * V;  // dC/dT
+
+        return (value, gradients);
+    }
+
+    private static (double value, double[] gradients) ComputeCombinedFrictionConstraint(double[] x)
+    {
+        var ax = x[IdxAx];
+        var ay = x[IdxAy];
+
+        // Simplified combined friction circle constraint
+        const double axMax = 12.0;
+        const double ayMax = 12.0;
+
+        // (ax/axMax)^2 + (ay/ayMax)^2 - 1 <= 0
+        var value = (ax * ax) / (axMax * axMax) + (ay * ay) / (ayMax * ayMax) - 1.0;
+
+        // Gradients: [dx (8), du (2)]
+        var gradients = new double[10];
+        gradients[IdxAx] = 2.0 * ax / (axMax * axMax);  // dC/dax
+        gradients[IdxAy] = 2.0 * ay / (ayMax * ayMax);  // dC/day
+
+        return (value, gradients);
+    }
+
+    private static InitialGuess CreateInitialGuess(TrackGeometry trackGeometry)
+    {
+        const int numPoints = 31;
+        var totalLength = trackGeometry.TotalLength;
+        const double vInit = 20.0;
+
+        var states = new double[numPoints][];
+        var controls = new double[numPoints][];
+
+        for (var i = 0; i < numPoints; i++)
+        {
+            var s = (double)i / (numPoints - 1) * totalLength;
+            var kappa = trackGeometry.RoadCurvature(s);
+
+            // Heuristic: offset toward inside of corner
+            var n = -Math.Sign(kappa) * Math.Min(Math.Abs(kappa) * vInit * vInit / 15.0,
+                TrackGeometry.RoadHalfWidth * 0.7);
+
+            // Estimated lateral acceleration for cornering
+            var ayEst = vInit * vInit * kappa;
+            ayEst = Math.Clamp(ayEst, -10.0, 10.0);
+
+            // Estimated yaw rate
+            var OmegaEst = vInit * kappa;
+            OmegaEst = Math.Clamp(OmegaEst, -1.5, 1.5);
+
+            // State: [V, ax, ay, n, alpha, lambda, Omega, t]
+            states[i] =
+            [
+                vInit,     // V
+                0.0,       // ax
+                ayEst,     // ay
+                n,         // n
+                0.0,       // alpha (aligned with road)
+                0.0,       // lambda
+                OmegaEst,  // Omega
+                s / vInit  // t (rough time estimate)
+            ];
+
+            // Control: [delta, T]
+            // Steer to approximately match curvature using bicycle model
+            var deltaEst = Math.Atan(kappa * L);
+            deltaEst = Math.Clamp(deltaEst, -0.4, 0.4);
+
+            controls[i] = [deltaEst, 0.2];  // moderate thrust
+        }
+
+        return new InitialGuess(states, controls);
+    }
+
+    private static void PrintResults(CollocationResult result)
+    {
         Console.WriteLine("\n" + "=".PadRight(70, '=') + "\n");
-        Console.WriteLine("SOLUTION SUMMARY:");
+        Console.WriteLine("OPTIMIZATION RESULTS:");
         Console.WriteLine($"  Success: {result.Success}");
         Console.WriteLine($"  Message: {result.Message}");
-        Console.WriteLine($"  Final curvilinear: s={finalS:F3}, n={finalN:F3}");
-        Console.WriteLine($"  Final Cartesian: ({finalX:F3}, {finalY:F3})");
-        Console.WriteLine($"  Final heading: {result.States[^1][1]:F3} rad ({result.States[^1][1] * 180 / Math.PI:F1}°)");
-        Console.WriteLine($"  Final velocity: {result.States[^1][2]:F3} m/s");
-        Console.WriteLine($"  Optimal time T_f: {result.States[^1][3]:F3} seconds");
-        Console.WriteLine($"  Objective value: {result.OptimalCost:F6}");
         Console.WriteLine($"  Iterations: {result.Iterations}");
+        Console.WriteLine($"  Final cost (total time): {result.OptimalCost:F3} s");
+        Console.WriteLine($"  Max defect: {result.MaxDefect:E3}");
+
+        if (result.States.Length > 0)
+        {
+            var finalState = result.States[^1];
+            Console.WriteLine($"\n  Final state:");
+            Console.WriteLine($"    Speed V: {finalState[IdxV]:F2} m/s");
+            Console.WriteLine($"    Longitudinal accel ax: {finalState[IdxAx]:F2} m/s^2");
+            Console.WriteLine($"    Lateral accel ay: {finalState[IdxAy]:F2} m/s^2");
+            Console.WriteLine($"    Lateral offset n: {finalState[IdxN]:F2} m");
+            Console.WriteLine($"    Heading alpha: {finalState[IdxAlpha] * 180 / Math.PI:F2} deg");
+            Console.WriteLine($"    Elapsed time t: {finalState[IdxT]:F3} s");
+        }
+
         Console.WriteLine();
     }
 }
