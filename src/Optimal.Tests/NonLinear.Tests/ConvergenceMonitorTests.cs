@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -32,7 +32,7 @@ namespace Optimal.NonLinear.Tests
 
             Assert.IsTrue(result.HasConverged, "Should converge when gradient is small");
             Assert.AreEqual(StoppingReason.GradientTolerance, result.Reason);
-            Assert.IsTrue(result.GradientNorm < 1e-6, $"Gradient norm {result.GradientNorm} should be < 1e-6");
+            Assert.IsLessThan(1e-6, result.GradientNorm, $"Gradient norm {result.GradientNorm} should be < 1e-6");
         }
 
         [TestMethod]
@@ -60,7 +60,7 @@ namespace Optimal.NonLinear.Tests
 
             Assert.IsTrue(result2.HasConverged, "Should converge when function change is small");
             Assert.AreEqual(StoppingReason.FunctionTolerance, result2.Reason);
-            Assert.IsTrue(result2.FunctionChange < 1e-7, $"Function change {result2.FunctionChange} should be < 1e-7");
+            Assert.IsLessThan(1e-7, result2.FunctionChange, $"Function change {result2.FunctionChange} should be < 1e-7");
         }
 
         [TestMethod]
@@ -89,7 +89,7 @@ namespace Optimal.NonLinear.Tests
 
             Assert.IsTrue(result2.HasConverged, "Should converge when parameter change is small");
             Assert.AreEqual(StoppingReason.ParameterTolerance, result2.Reason);
-            Assert.IsTrue(result2.ParameterChange < 1e-7, $"Parameter change {result2.ParameterChange} should be < 1e-7");
+            Assert.IsLessThan(1e-7, result2.ParameterChange, $"Parameter change {result2.ParameterChange} should be < 1e-7");
         }
 
         [TestMethod]
@@ -114,7 +114,7 @@ namespace Optimal.NonLinear.Tests
 
                 if (i < 5)
                 {
-                    Assert.IsFalse(result.Reason == StoppingReason.MaxIterations, $"Iteration {i} should not hit max iterations yet");
+                    Assert.AreNotEqual(StoppingReason.MaxIterations, result.Reason, $"Iteration {i} should not hit max iterations yet");
                 }
                 else
                 {
@@ -169,9 +169,9 @@ namespace Optimal.NonLinear.Tests
                 // Should eventually detect stall after enough iterations
                 if (result.HasConverged)
                 {
-                    Assert.IsTrue(i >= 6, $"Should detect stall after iteration 6, got {i}");
+                    Assert.IsGreaterThanOrEqualTo(6, i, $"Should detect stall after iteration 6, got {i}");
                     Assert.AreEqual(StoppingReason.FunctionTolerance, result.Reason);
-                    Assert.IsTrue(result.Message.Contains("stalled"), "Message should mention stall");
+                    Assert.Contains("stalled", result.Message, "Message should mention stall");
                     return;
                 }
             }
@@ -195,7 +195,7 @@ namespace Optimal.NonLinear.Tests
             }
 
             var history = monitor.GetHistory();
-            Assert.AreEqual(5, history.Count, "Should have 5 iterations in history");
+            Assert.HasCount(5, history, "Should have 5 iterations in history");
 
             for (var i = 0; i < 5; i++)
             {
@@ -212,11 +212,11 @@ namespace Optimal.NonLinear.Tests
             monitor.CheckConvergence(0, 1, s_testPoint1, 10.0, s_largeGradient);
             monitor.CheckConvergence(1, 2, s_testPoint1, 9.0, s_largeGradient);
 
-            Assert.AreEqual(2, monitor.GetHistory().Count, "Should have 2 entries before reset");
+            Assert.HasCount(2, monitor.GetHistory(), "Should have 2 entries before reset");
 
             monitor.Reset();
 
-            Assert.AreEqual(0, monitor.GetHistory().Count, "History should be empty after reset");
+            Assert.IsEmpty(monitor.GetHistory(), "History should be empty after reset");
         }
 
         [TestMethod]

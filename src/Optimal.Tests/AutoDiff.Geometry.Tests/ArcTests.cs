@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -100,8 +100,8 @@ namespace Optimal.AutoDiff.Geometry.Tests
             var ccwArc = new Arc(start, end, radius, isCounterClockwise: true);
             var cwArc = new Arc(start, end, radius, isCounterClockwise: false);
 
-            Assert.IsTrue(ccwArc.SweepAngle > 0);
-            Assert.IsTrue(cwArc.SweepAngle < 0);
+            Assert.IsGreaterThan(0, ccwArc.SweepAngle);
+            Assert.IsLessThan(0, cwArc.SweepAngle);
             Assert.AreNotEqual(ccwArc.Center, cwArc.Center);
             Assert.AreEqual(Math.Abs(ccwArc.SweepAngle), Math.Abs(cwArc.SweepAngle), Tolerance);
         }
@@ -152,7 +152,6 @@ namespace Optimal.AutoDiff.Geometry.Tests
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentOutOfRangeException))]
         public void GetPointAtParameterThrowsForNegativeParameter()
         {
             var start = new Point2D(0, 0);
@@ -161,11 +160,10 @@ namespace Optimal.AutoDiff.Geometry.Tests
 
             var arc = new Arc(start, end, radius, isCounterClockwise: true);
 
-            arc.GetPointAtParameter(-0.1);
+            Assert.Throws<ArgumentOutOfRangeException>(() => arc.GetPointAtParameter(-0.1));
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentOutOfRangeException))]
         public void GetPointAtParameterThrowsForParameterGreaterThanOne()
         {
             var start = new Point2D(0, 0);
@@ -174,46 +172,42 @@ namespace Optimal.AutoDiff.Geometry.Tests
 
             var arc = new Arc(start, end, radius, isCounterClockwise: true);
 
-            arc.GetPointAtParameter(1.1);
+            Assert.Throws<ArgumentOutOfRangeException>(() => arc.GetPointAtParameter(1.1));
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentException))]
         public void ThrowsWhenRadiusIsNegative()
         {
             var start = new Point2D(0, 0);
             var end = new Point2D(2, 0);
 
-            _ = new Arc(start, end, -1.0);
+            Assert.Throws<ArgumentException>(() => new Arc(start, end, -1.0));
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentException))]
         public void ThrowsWhenRadiusIsZero()
         {
             var start = new Point2D(0, 0);
             var end = new Point2D(2, 0);
 
-            _ = new Arc(start, end, 0.0);
+            Assert.Throws<ArgumentException>(() => new Arc(start, end, 0.0));
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentException))]
         public void ThrowsWhenRadiusIsTooSmall()
         {
             var start = new Point2D(0, 0);
             var end = new Point2D(10, 0);
 
-            _ = new Arc(start, end, 1.0);
+            Assert.Throws<ArgumentException>(() => new Arc(start, end, 1.0));
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentException))]
         public void ThrowsWhenPointsAreIdentical()
         {
             var point = new Point2D(1, 1);
 
-            _ = new Arc(point, point, 1.0);
+            Assert.Throws<ArgumentException>(() => new Arc(point, point, 1.0));
         }
 
         [TestMethod]
@@ -228,8 +222,8 @@ namespace Optimal.AutoDiff.Geometry.Tests
             var str = arc.ToString();
 
             Assert.IsNotNull(str);
-            Assert.IsTrue(str.Contains("Arc"));
-            Assert.IsTrue(str.Contains("CCW"));
+            Assert.Contains("Arc", str);
+            Assert.Contains("CCW", str);
         }
     }
 }

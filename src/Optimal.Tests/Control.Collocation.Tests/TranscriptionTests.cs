@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -174,7 +174,7 @@ namespace Optimal.Control.Collocation.Tests
             var maxDefect = HermiteSimpsonTranscription.MaxDefect(defects);
 
             // Should be zero (or very close) for exact solution
-            Assert.IsTrue(maxDefect < 1e-10, $"Max defect should be near zero, was {maxDefect}");
+            Assert.IsLessThan(1e-10, maxDefect, $"Max defect should be near zero, was {maxDefect}");
         }
 
         [TestMethod]
@@ -209,7 +209,7 @@ namespace Optimal.Control.Collocation.Tests
             var maxDefect = HermiteSimpsonTranscription.MaxDefect(defects);
 
             // Should be very small for exact solution with fine grid
-            Assert.IsTrue(maxDefect < 1e-8, $"Max defect should be near zero, was {maxDefect}");
+            Assert.IsLessThan(1e-8, maxDefect, $"Max defect should be near zero, was {maxDefect}");
         }
 
         [TestMethod]

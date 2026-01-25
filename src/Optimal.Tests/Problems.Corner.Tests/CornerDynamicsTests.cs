@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -28,7 +28,7 @@ namespace Optimal.Problems.Corner.Tests
                 .AddLine(distance: 15.0)
                 .AddArc(radius: 5.0, angle: Math.PI / 2, turnRight: true)
                 .AddLine(distance: 20.0)
-                .Build();
+                .Build(1);
         }
 
         #region Road Geometry Tests
@@ -71,7 +71,7 @@ namespace Optimal.Problems.Corner.Tests
             var timeRate = CornerDynamics.TimeRate(kappa, n, alpha, vValue);
             var expected = 1.0 / (vValue * Math.Cos(alpha));
             Assert.AreEqual(expected, timeRate, Tolerance);
-            Assert.IsTrue(timeRate > 1.0 / vValue, "dt/ds should increase with heading error");
+            Assert.IsGreaterThan(1.0 / vValue, timeRate, "dt/ds should increase with heading error");
         }
 
         #endregion
@@ -102,7 +102,7 @@ namespace Optimal.Problems.Corner.Tests
             // dn/ds = (1 - n*kappa) * tan(alpha) = tan(0.2) > 0
             var expected = Math.Tan(alpha);
             Assert.AreEqual(expected, lateralRate, Tolerance);
-            Assert.IsTrue(lateralRate > 0, "dn/ds should be positive when heading right");
+            Assert.IsGreaterThan(0, lateralRate, "dn/ds should be positive when heading right");
         }
 
         [TestMethod]
@@ -114,7 +114,7 @@ namespace Optimal.Problems.Corner.Tests
             var alpha = -0.2;
 
             var lateralRate = CornerDynamics.LateralRateS(kappa, n, alpha);
-            Assert.IsTrue(lateralRate < 0, "dn/ds should be negative when heading left");
+            Assert.IsLessThan(0, lateralRate, "dn/ds should be negative when heading left");
         }
 
         #endregion
@@ -214,7 +214,7 @@ namespace Optimal.Problems.Corner.Tests
             var fzRR_no_ax = CornerDynamics.NormalForceRR(mass, g, a, b, tw, h, chi, 0.0, 0.0, rho, vValue, clA, coP);
             var fzRR_with_ax = CornerDynamics.NormalForceRR(mass, g, a, b, tw, h, chi, 5.0, 0.0, rho, vValue, clA, coP);
 
-            Assert.IsTrue(fzRR_with_ax > fzRR_no_ax, "Acceleration should increase rear normal force");
+            Assert.IsGreaterThan(fzRR_no_ax, fzRR_with_ax, "Acceleration should increase rear normal force");
         }
 
         #endregion
@@ -273,7 +273,7 @@ namespace Optimal.Problems.Corner.Tests
             var constraint = CornerDynamics.PowerConstraint(thrust, vValue, fmax, pmax);
             var power = thrust * fmax * vValue; // 0.5 * 12000 * 50 = 300000 < 960000
 
-            Assert.IsTrue(constraint < 0, "Power constraint should be negative when within limit");
+            Assert.IsLessThan(0, constraint, "Power constraint should be negative when within limit");
         }
 
         [TestMethod]
@@ -287,7 +287,7 @@ namespace Optimal.Problems.Corner.Tests
             var constraint = CornerDynamics.PowerConstraint(thrust, vValue, fmax, pmax);
             var power = thrust * fmax * vValue; // 1.0 * 12000 * 100 = 1200000 > 960000
 
-            Assert.IsTrue(constraint > 0, "Power constraint should be positive when exceeding limit");
+            Assert.IsGreaterThan(0, constraint, "Power constraint should be positive when exceeding limit");
         }
 
         [TestMethod]

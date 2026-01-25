@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -45,7 +45,7 @@ namespace Optimal.Control.Core.Tests
 
             multiPhase.AddPhase(phase1);
 
-            Assert.AreEqual(1, multiPhase.Phases.Count);
+            Assert.HasCount(1, multiPhase.Phases);
             Assert.AreEqual("Ascent", multiPhase.Phases[0].Name);
         }
 
@@ -60,8 +60,8 @@ namespace Optimal.Control.Core.Tests
             multiPhase.AddPhase(phase1).AddPhase(phase2);
             multiPhase.AddContinuityLinkage(0, 1);
 
-            Assert.AreEqual(2, multiPhase.Phases.Count);
-            Assert.AreEqual(1, multiPhase.Linkages.Count);
+            Assert.HasCount(2, multiPhase.Phases);
+            Assert.HasCount(1, multiPhase.Linkages);
         }
 
         [TestMethod]
@@ -88,7 +88,7 @@ namespace Optimal.Control.Core.Tests
             var result = multiSolver.Solve(multiPhase);
 
             Assert.IsTrue(result.Success, "Should solve two-phase problem");
-            Assert.AreEqual(2, result.PhaseResults.Length);
+            Assert.HasCount(2, result.PhaseResults);
             Assert.IsTrue(result.PhaseResults[0].Success, "Phase 1 should succeed");
             Assert.IsTrue(result.PhaseResults[1].Success, "Phase 2 should succeed");
 
@@ -125,7 +125,7 @@ namespace Optimal.Control.Core.Tests
             var result = multiSolver.Solve(multiPhase);
 
             Assert.IsTrue(result.Success, "Should solve three-phase problem");
-            Assert.AreEqual(3, result.PhaseResults.Length);
+            Assert.HasCount(3, result.PhaseResults);
 
             // Verify all phases succeeded
             for (var i = 0; i < 3; i++)
@@ -247,7 +247,7 @@ namespace Optimal.Control.Core.Tests
             var result = multiSolver.Solve(multiPhase);
 
             Assert.IsTrue(result.Success, "Should solve acceleration-braking problem");
-            Assert.IsTrue(result.MaxLinkageViolation < 0.3, $"Linkage violation should be small, was {result.MaxLinkageViolation}");
+            Assert.IsLessThan(0.3, result.MaxLinkageViolation, $"Linkage violation should be small, was {result.MaxLinkageViolation}");
         }
 
         [TestMethod]
@@ -255,7 +255,7 @@ namespace Optimal.Control.Core.Tests
         {
             var multiPhase = new MultiPhaseControlProblem();
 
-            Assert.ThrowsException<InvalidOperationException>(() => multiPhase.Validate());
+            Assert.Throws<InvalidOperationException>(() => multiPhase.Validate());
         }
 
         [TestMethod]
@@ -272,7 +272,7 @@ namespace Optimal.Control.Core.Tests
 
             multiPhase.AddPhase(phase);
 
-            Assert.ThrowsException<InvalidOperationException>(() => multiPhase.Validate());
+            Assert.Throws<InvalidOperationException>(() => multiPhase.Validate());
         }
 
         [TestMethod]
@@ -290,7 +290,7 @@ namespace Optimal.Control.Core.Tests
                 Type = PhaseLinkageType.Equality
             };
 
-            Assert.ThrowsException<ArgumentException>(() => multiPhase.AddLinkage(linkage));
+            Assert.Throws<ArgumentException>(() => multiPhase.AddLinkage(linkage));
         }
 
         /// <summary>

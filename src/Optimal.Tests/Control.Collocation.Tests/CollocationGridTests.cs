@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -23,7 +23,7 @@ namespace Optimal.Control.Collocation.Tests
             Assert.AreEqual(10.0, grid.FinalTime);
             Assert.AreEqual(10, grid.Segments);
             Assert.AreEqual(1.0, grid.TimeStep);
-            Assert.AreEqual(11, grid.TimePoints.Length);
+            Assert.HasCount(11, grid.TimePoints);
         }
 
         [TestMethod]
@@ -63,15 +63,15 @@ namespace Optimal.Control.Collocation.Tests
         [TestMethod]
         public void ThrowsOnInvalidSegmentCount()
         {
-            Assert.ThrowsException<ArgumentException>(() => new CollocationGrid(0.0, 10.0, 0));
-            Assert.ThrowsException<ArgumentException>(() => new CollocationGrid(0.0, 10.0, -1));
+            Assert.Throws<ArgumentException>(() => new CollocationGrid(0.0, 10.0, 0));
+            Assert.Throws<ArgumentException>(() => new CollocationGrid(0.0, 10.0, -1));
         }
 
         [TestMethod]
         public void ThrowsOnInvalidTimeRange()
         {
-            Assert.ThrowsException<ArgumentException>(() => new CollocationGrid(10.0, 10.0, 10));
-            Assert.ThrowsException<ArgumentException>(() => new CollocationGrid(10.0, 5.0, 10));
+            Assert.Throws<ArgumentException>(() => new CollocationGrid(10.0, 10.0, 10));
+            Assert.Throws<ArgumentException>(() => new CollocationGrid(10.0, 5.0, 10));
         }
 
         [TestMethod]
@@ -79,8 +79,8 @@ namespace Optimal.Control.Collocation.Tests
         {
             var grid = new CollocationGrid(t0: 0.0, tf: 10.0, segments: 10);
 
-            Assert.ThrowsException<ArgumentOutOfRangeException>(() => grid.GetMidpoint(-1));
-            Assert.ThrowsException<ArgumentOutOfRangeException>(() => grid.GetMidpoint(10));
+            Assert.Throws<ArgumentOutOfRangeException>(() => grid.GetMidpoint(-1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => grid.GetMidpoint(10));
         }
     }
 }

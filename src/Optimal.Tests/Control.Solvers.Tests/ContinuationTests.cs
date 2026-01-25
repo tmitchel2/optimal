@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -203,7 +203,7 @@ namespace Optimal.Control.Solvers.Tests
 
             var results = continuation.SolveSequence(problems);
 
-            Assert.AreEqual(3, results.Length);
+            Assert.HasCount(3, results);
             Assert.IsTrue(results[0].Success, "Problem 1 should converge");
             Assert.IsTrue(results[1].Success, "Problem 2 should converge with warm start");
             Assert.IsTrue(results[2].Success, "Problem 3 should converge with warm start");
@@ -288,10 +288,10 @@ namespace Optimal.Control.Solvers.Tests
             var continuation = new ContinuationSolver(baseSolver);
 
             // Invalid parameters outside [0, 1]
-            Assert.ThrowsException<ArgumentException>(() =>
+            Assert.Throws<ArgumentException>(() =>
                 continuation.WithParameters(-0.1, 0.5, 1.0));
 
-            Assert.ThrowsException<ArgumentException>(() =>
+            Assert.Throws<ArgumentException>(() =>
                 continuation.WithParameters(0.0, 0.5, 1.5));
         }
 
@@ -305,10 +305,10 @@ namespace Optimal.Control.Solvers.Tests
             var continuation = new ContinuationSolver(baseSolver);
 
             // Must have at least 2 steps
-            Assert.ThrowsException<ArgumentException>(() =>
+            Assert.Throws<ArgumentException>(() =>
                 continuation.WithLinearSteps(1));
 
-            Assert.ThrowsException<ArgumentException>(() =>
+            Assert.Throws<ArgumentException>(() =>
                 continuation.WithLinearSteps(0));
         }
 
@@ -323,7 +323,7 @@ namespace Optimal.Control.Solvers.Tests
 
             var results = continuation.SolveSequence();
 
-            Assert.AreEqual(0, results.Length);
+            Assert.IsEmpty(results);
         }
     }
 }

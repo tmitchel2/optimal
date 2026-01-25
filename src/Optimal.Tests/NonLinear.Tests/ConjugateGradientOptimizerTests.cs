@@ -36,7 +36,7 @@ namespace Optimal.NonLinear.Tests
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
             Assert.AreEqual(1.0, result.OptimalPoint[1], 1e-2, "y should be near 1");
-            Assert.IsTrue(result.OptimalValue < 1e-3, $"f(x*) should be very small, was {result.OptimalValue}");
+            Assert.IsLessThan(1e-3, result.OptimalValue, $"f(x*) should be very small, was {result.OptimalValue}");
         }
 
         [TestMethod]
@@ -56,7 +56,7 @@ namespace Optimal.NonLinear.Tests
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 3e-2, "x should be near 1");
             Assert.AreEqual(1.0, result.OptimalPoint[1], 3e-2, "y should be near 1");
-            Assert.IsTrue(result.OptimalValue < 1e-3, $"f(x*) should be very small, was {result.OptimalValue}");
+            Assert.IsLessThan(1e-3, result.OptimalValue, $"f(x*) should be very small, was {result.OptimalValue}");
         }
 
         [TestMethod]
@@ -76,7 +76,7 @@ namespace Optimal.NonLinear.Tests
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
             Assert.AreEqual(1.0, result.OptimalPoint[1], 1e-2, "y should be near 1");
-            Assert.IsTrue(result.OptimalValue < 1e-3, $"f(x*) should be very small, was {result.OptimalValue}");
+            Assert.IsLessThan(1e-3, result.OptimalValue, $"f(x*) should be very small, was {result.OptimalValue}");
         }
 
         [TestMethod]
@@ -96,7 +96,7 @@ namespace Optimal.NonLinear.Tests
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(3.0, result.OptimalPoint[0], 1e-2, "x should be near 3");
             Assert.AreEqual(0.5, result.OptimalPoint[1], 1e-2, "y should be near 0.5");
-            Assert.IsTrue(result.OptimalValue < 1e-3, $"f(x*) should be very small, was {result.OptimalValue}");
+            Assert.IsLessThan(1e-3, result.OptimalValue, $"f(x*) should be very small, was {result.OptimalValue}");
         }
 
         [TestMethod]
@@ -118,7 +118,7 @@ namespace Optimal.NonLinear.Tests
             {
                 Assert.AreEqual(1.0, result.OptimalPoint[i], 1.5, $"x[{i}] should be reasonably close to 1");
             }
-            Assert.IsTrue(result.OptimalValue < 0.5, $"f(x*) should be reasonably small, was {result.OptimalValue}");
+            Assert.IsLessThan(0.5, result.OptimalValue, $"f(x*) should be reasonably small, was {result.OptimalValue}");
         }
 
         [TestMethod]
@@ -141,7 +141,7 @@ namespace Optimal.NonLinear.Tests
             {
                 Assert.AreEqual(1.0, result.OptimalPoint[i], 0.28, $"x[{i}] should be near 1");
             }
-            Assert.IsTrue(result.OptimalValue < 1e-1, $"f(x*) should be small, was {result.OptimalValue}");
+            Assert.IsLessThan(1e-1, result.OptimalValue, $"f(x*) should be small, was {result.OptimalValue}");
         }
 
         [TestMethod]
@@ -174,8 +174,8 @@ namespace Optimal.NonLinear.Tests
 
             // CG should be significantly faster - looking for at least 5x speedup
             // (10x is ideal but 5x is a safe conservative target)
-            Assert.IsTrue(cgResult.Iterations < gdResult.Iterations / 5,
-                $"CG ({cgResult.Iterations} iters) should be much faster than GD ({gdResult.Iterations} iters)");
+            Assert.IsLessThan(gdResult.Iterations / 5,
+cgResult.Iterations, $"CG ({cgResult.Iterations} iters) should be much faster than GD ({gdResult.Iterations} iters)");
         }
 
         [TestMethod]

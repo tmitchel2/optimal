@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -75,7 +75,7 @@ namespace Optimal.Control.Solvers.Tests
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
-            Assert.IsTrue(result.MaxDefect < 1e-3, $"Defects should be small, was {result.MaxDefect}");
+            Assert.IsLessThan(1e-3, result.MaxDefect, $"Defects should be small, was {result.MaxDefect}");
 
             // Check boundary conditions
             Assert.AreEqual(0.0, result.States[0][0], 1e-3, "Initial state should be 0");
@@ -146,7 +146,7 @@ namespace Optimal.Control.Solvers.Tests
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
-            Assert.IsTrue(result.MaxDefect < 1e-2, $"Defects should be small, was {result.MaxDefect}");
+            Assert.IsLessThan(1e-2, result.MaxDefect, $"Defects should be small, was {result.MaxDefect}");
 
             // Check boundary conditions
             Assert.AreEqual(0.0, result.States[0][0], 1e-2, "Initial position should be 0");
@@ -208,8 +208,8 @@ namespace Optimal.Control.Solvers.Tests
             // Check controls respect bounds
             foreach (var u in result.Controls)
             {
-                Assert.IsTrue(u[0] >= -1.0 - 1e-6, "Control should be >= -1");
-                Assert.IsTrue(u[0] <= 1.0 + 1e-6, "Control should be <= 1");
+                Assert.IsGreaterThanOrEqualTo(-1.0 - 1e-6, u[0], "Control should be >= -1");
+                Assert.IsLessThanOrEqualTo(1.0 + 1e-6, u[0], "Control should be <= 1");
             }
         }
 
@@ -262,18 +262,18 @@ namespace Optimal.Control.Solvers.Tests
 
             // Verify convergence
             Assert.IsTrue(result.Success, "Solver should converge");
-            Assert.IsTrue(result.MaxDefect < 1e-4, $"Defects should be small, was {result.MaxDefect:E2}");
+            Assert.IsLessThan(1e-4, result.MaxDefect, $"Defects should be small, was {result.MaxDefect:E2}");
 
             // Verify solution matches analytical solution: x(t) = e^(-t)
             var tfinal = 2.0;
             var analyticalFinal = Math.Exp(-tfinal);
             var error = Math.Abs(result.States[result.States.Length - 1][0] - analyticalFinal);
 
-            Assert.IsTrue(error < 0.02, $"Solution error should be small, was {error:E2}");
+            Assert.IsLessThan(0.02, error, $"Solution error should be small, was {error:E2}");
 
             // Verify control is near zero (optimal solution)
             var maxControl = result.Controls.Max(u => Math.Abs(u[0]));
-            Assert.IsTrue(maxControl < 0.1, $"Control should be near zero, max was {maxControl:E2}");
+            Assert.IsLessThan(0.1, maxControl, $"Control should be near zero, max was {maxControl:E2}");
         }
 
         [TestMethod]
@@ -319,7 +319,7 @@ namespace Optimal.Control.Solvers.Tests
             var result = solver.Solve(problem, initialGuess);
 
             Assert.IsTrue(result.Success, "Solver should converge");
-            Assert.IsTrue(result.MaxDefect < 1e-3, $"Defects should be small, was {result.MaxDefect}");
+            Assert.IsLessThan(1e-3, result.MaxDefect, $"Defects should be small, was {result.MaxDefect}");
             Assert.AreEqual(1.0, result.States[result.States.Length - 1][0], 0.1, "Final state should be 1");
         }
 
@@ -374,8 +374,8 @@ namespace Optimal.Control.Solvers.Tests
         {
             var solver = CreateSolver();
 
-            Assert.ThrowsException<ArgumentException>(() => solver.WithSegments(0));
-            Assert.ThrowsException<ArgumentException>(() => solver.WithSegments(-5));
+            Assert.Throws<ArgumentException>(() => solver.WithSegments(0));
+            Assert.Throws<ArgumentException>(() => solver.WithSegments(-5));
         }
 
         [TestMethod]
@@ -383,8 +383,8 @@ namespace Optimal.Control.Solvers.Tests
         {
             var solver = CreateSolver();
 
-            Assert.ThrowsException<ArgumentException>(() => solver.WithTolerance(0.0));
-            Assert.ThrowsException<ArgumentException>(() => solver.WithTolerance(-1e-6));
+            Assert.Throws<ArgumentException>(() => solver.WithTolerance(0.0));
+            Assert.Throws<ArgumentException>(() => solver.WithTolerance(-1e-6));
         }
 
         [TestMethod]

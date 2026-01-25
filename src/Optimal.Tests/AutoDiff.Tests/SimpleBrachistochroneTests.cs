@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -27,8 +27,8 @@ namespace Optimal.AutoDiff.Tests
 
             var time = SimpleBrachistochrone.GetDescentTime(radius, startHeight, endX, segments);
 
-            Assert.IsTrue(time > 0, "Descent time should be positive");
-            Assert.IsTrue(time < 10.0, "Descent time should be reasonable (less than 10 seconds for 100m drop)");
+            Assert.IsGreaterThan(0, time, "Descent time should be positive");
+            Assert.IsLessThan(10.0, time, "Descent time should be reasonable (less than 10 seconds for 100m drop)");
         }
 
         [TestMethod]
@@ -133,7 +133,7 @@ namespace Optimal.AutoDiff.Tests
 
             var (value, gradients) = SimpleBrachistochroneGradients.GetDescentTimeReverse(radius, startHeight, endX, segments);
 
-            Assert.AreEqual(3, gradients.Length, "Should have 3 gradients (radius, startHeight, endX)");
+            Assert.HasCount(3, gradients, "Should have 3 gradients (radius, startHeight, endX)");
 
             // Validate against forward mode
             var (valueForwardR, gradientR) = SimpleBrachistochroneGradients.GetDescentTimeForward_radius(radius, startHeight, endX, segments);

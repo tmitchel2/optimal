@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -25,7 +25,7 @@ namespace Optimal.AutoDiff.Tests
             var (value, gradients) = SimpleTestFunctionsGradients.MultiplyReverse(x, y);
 
             Assert.AreEqual(12.0, value, 1e-10, "Multiply(3, 4) = 12");
-            Assert.AreEqual(2, gradients.Length, "Should have 2 gradients");
+            Assert.HasCount(2, gradients, "Should have 2 gradients");
             Assert.AreEqual(4.0, gradients[0], 1e-10, "∂(x*y)/∂x = y = 4");
             Assert.AreEqual(3.0, gradients[1], 1e-10, "∂(x*y)/∂y = x = 3");
 
@@ -40,7 +40,7 @@ namespace Optimal.AutoDiff.Tests
             var (value, gradients) = SimpleTestFunctionsGradients.AddReverse(x, y);
 
             Assert.AreEqual(12.0, value, 1e-10, "Add(5, 7) = 12");
-            Assert.AreEqual(2, gradients.Length, "Should have 2 gradients");
+            Assert.HasCount(2, gradients, "Should have 2 gradients");
             Assert.AreEqual(1.0, gradients[0], 1e-10, "∂(x+y)/∂x = 1");
             Assert.AreEqual(1.0, gradients[1], 1e-10, "∂(x+y)/∂y = 1");
 
@@ -55,7 +55,7 @@ namespace Optimal.AutoDiff.Tests
             var (value, gradients) = SimpleTestFunctionsGradients.KineticEnergyReverse(mass, velocity);
 
             Assert.AreEqual(25.0, value, 1e-10, "KE = 0.5 * 2 * 5^2 = 25");
-            Assert.AreEqual(2, gradients.Length, "Should have 2 gradients");
+            Assert.HasCount(2, gradients, "Should have 2 gradients");
             Assert.AreEqual(12.5, gradients[0], 1e-10, "∂KE/∂m = 0.5 * v^2 = 12.5");
             Assert.AreEqual(10.0, gradients[1], 1e-10, "∂KE/∂v = m * v = 10");
 
@@ -71,7 +71,7 @@ namespace Optimal.AutoDiff.Tests
 
             var expectedValue = Math.Sin(x) * Math.Exp(y);
             Assert.AreEqual(expectedValue, value, 1e-10, "ComplexFunction(2, 3) = sin(2) * exp(3)");
-            Assert.AreEqual(2, gradients.Length, "Should have 2 gradients");
+            Assert.HasCount(2, gradients, "Should have 2 gradients");
 
             var expectedDx = Math.Cos(x) * Math.Exp(y);
             var expectedDy = Math.Sin(x) * Math.Exp(y);
@@ -105,14 +105,14 @@ namespace Optimal.AutoDiff.Tests
             var (value1, gradients1) = ConditionalFunctionsGradients.MaxReverse(a, b);
 
             Assert.AreEqual(5.0, value1, 1e-10, "Max(5, 3) = 5");
-            Assert.AreEqual(2, gradients1.Length, "Should have 2 gradients");
+            Assert.HasCount(2, gradients1, "Should have 2 gradients");
             Assert.AreEqual(1.0, gradients1[0], 1e-10, "∂Max/∂a = 1 when a > b");
             Assert.AreEqual(0.0, gradients1[1], 1e-10, "∂Max/∂b = 0 when a > b");
 
             var (value2, gradients2) = ConditionalFunctionsGradients.MaxReverse(b, a);
 
             Assert.AreEqual(5.0, value2, 1e-10, "Max(3, 5) = 5");
-            Assert.AreEqual(2, gradients2.Length, "Should have 2 gradients");
+            Assert.HasCount(2, gradients2, "Should have 2 gradients");
             Assert.AreEqual(0.0, gradients2[0], 1e-10, "∂Max/∂a = 0 when a < b");
             Assert.AreEqual(1.0, gradients2[1], 1e-10, "∂Max/∂b = 1 when a < b");
         }
@@ -125,14 +125,14 @@ namespace Optimal.AutoDiff.Tests
             var (value1, gradients1) = ConditionalFunctionsGradients.MinReverse(a, b);
 
             Assert.AreEqual(3.0, value1, 1e-10, "Min(5, 3) = 3");
-            Assert.AreEqual(2, gradients1.Length, "Should have 2 gradients");
+            Assert.HasCount(2, gradients1, "Should have 2 gradients");
             Assert.AreEqual(0.0, gradients1[0], 1e-10, "∂Min/∂a = 0 when a > b");
             Assert.AreEqual(1.0, gradients1[1], 1e-10, "∂Min/∂b = 1 when a > b");
 
             var (value2, gradients2) = ConditionalFunctionsGradients.MinReverse(b, a);
 
             Assert.AreEqual(3.0, value2, 1e-10, "Min(3, 5) = 3");
-            Assert.AreEqual(2, gradients2.Length, "Should have 2 gradients");
+            Assert.HasCount(2, gradients2, "Should have 2 gradients");
             Assert.AreEqual(1.0, gradients2[0], 1e-10, "∂Min/∂a = 1 when a < b");
             Assert.AreEqual(0.0, gradients2[1], 1e-10, "∂Min/∂b = 0 when a < b");
         }
@@ -173,7 +173,7 @@ namespace Optimal.AutoDiff.Tests
             var (value, gradients) = SimpleTestFunctionsGradients.SquareReverse(x);
 
             Assert.AreEqual(9.0, value, 1e-10, "Square(3) = 9");
-            Assert.AreEqual(1, gradients.Length, "Should have 1 gradient");
+            Assert.HasCount(1, gradients, "Should have 1 gradient");
             Assert.AreEqual(6.0, gradients[0], 1e-10, "∂(x²)/∂x = 2x = 6");
 
             // Validate against finite difference

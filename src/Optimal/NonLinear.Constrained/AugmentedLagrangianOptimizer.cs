@@ -132,7 +132,17 @@ namespace Optimal.NonLinear.Constrained
             var n = _x0.Length;
             var x = (double[])_x0.Clone();
 
-            // Project onto box constraints if present
+            // Check if the inner optimizer natively supports box constraints
+            var innerSupportsBoxConstraints = _unconstrainedOptimizer is IBoxConstrainedOptimizer;
+
+            // If inner optimizer supports bounds and we have box constraints, pass them through
+            if (innerSupportsBoxConstraints && _boxConstraints != null)
+            {
+                var boxOptimizer = (IBoxConstrainedOptimizer)_unconstrainedOptimizer;
+                boxOptimizer.WithBounds(_boxConstraints.Lower, _boxConstraints.Upper);
+            }
+
+            // Project onto box constraints if present (needed for initial point and when inner doesn't support bounds)
             if (_boxConstraints != null)
             {
                 x = _boxConstraints.Project(x);
@@ -221,8 +231,8 @@ namespace Optimal.NonLinear.Constrained
                 var subResult = _unconstrainedOptimizer.Minimize(AugmentedLagrangian);
                 x = subResult.OptimalPoint;
 
-                // Project onto box constraints if present
-                if (_boxConstraints != null)
+                // Project onto box constraints if present (skip if inner optimizer handles bounds)
+                if (_boxConstraints != null && !innerSupportsBoxConstraints)
                 {
                     x = _boxConstraints.Project(x);
                 }

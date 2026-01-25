@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -40,8 +40,8 @@ namespace Optimal.Control.Solvers.Tests
         public void WithSegmentsThrowsWhenZeroOrNegative()
         {
             var solver = new MultipleShootingSolver();
-            Assert.ThrowsException<ArgumentException>(() => solver.WithSegments(0));
-            Assert.ThrowsException<ArgumentException>(() => solver.WithSegments(-1));
+            Assert.Throws<ArgumentException>(() => solver.WithSegments(0));
+            Assert.Throws<ArgumentException>(() => solver.WithSegments(-1));
         }
 
         [TestMethod]
@@ -56,8 +56,8 @@ namespace Optimal.Control.Solvers.Tests
         public void WithShootingIntervalsThrowsWhenZeroOrNegative()
         {
             var solver = new MultipleShootingSolver();
-            Assert.ThrowsException<ArgumentException>(() => solver.WithShootingIntervals(0));
-            Assert.ThrowsException<ArgumentException>(() => solver.WithShootingIntervals(-1));
+            Assert.Throws<ArgumentException>(() => solver.WithShootingIntervals(0));
+            Assert.Throws<ArgumentException>(() => solver.WithShootingIntervals(-1));
         }
 
         [TestMethod]
@@ -89,14 +89,14 @@ namespace Optimal.Control.Solvers.Tests
         public void WithInnerOptimizerThrowsWhenNull()
         {
             var solver = new MultipleShootingSolver();
-            Assert.ThrowsException<ArgumentNullException>(() => solver.WithInnerOptimizer(null!));
+            Assert.Throws<ArgumentNullException>(() => solver.WithInnerOptimizer(null!));
         }
 
         [TestMethod]
         public void SolveThrowsWhenProblemIsNull()
         {
             var solver = new MultipleShootingSolver();
-            Assert.ThrowsException<ArgumentNullException>(() => solver.Solve(null!));
+            Assert.Throws<ArgumentNullException>(() => solver.Solve(null!));
         }
 
         [TestMethod]
@@ -110,7 +110,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithFinalCondition(s_oneState1D);
 
             var solver = new MultipleShootingSolver();
-            Assert.ThrowsException<InvalidOperationException>(() => solver.Solve(problem));
+            Assert.Throws<InvalidOperationException>(() => solver.Solve(problem));
         }
 
         [TestMethod]
@@ -253,8 +253,8 @@ namespace Optimal.Control.Solvers.Tests
             Assert.IsTrue(result.Success, $"Solver should converge: {result.Message}");
             foreach (var u in result.Controls)
             {
-                Assert.IsTrue(u[0] >= -1.0 - 1e-6, "Control should be >= -1");
-                Assert.IsTrue(u[0] <= 1.0 + 1e-6, "Control should be <= 1");
+                Assert.IsGreaterThanOrEqualTo(-1.0 - 1e-6, u[0], "Control should be >= -1");
+                Assert.IsLessThanOrEqualTo(1.0 + 1e-6, u[0], "Control should be <= 1");
             }
         }
 
@@ -384,8 +384,8 @@ namespace Optimal.Control.Solvers.Tests
             // Verify times are monotonically increasing
             for (var i = 1; i < result.Times.Length; i++)
             {
-                Assert.IsTrue(result.Times[i] > result.Times[i - 1],
-                    $"Times should be monotonically increasing: t[{i - 1}]={result.Times[i - 1]}, t[{i}]={result.Times[i]}");
+                Assert.IsGreaterThan(result.Times[i - 1],
+result.Times[i], $"Times should be monotonically increasing: t[{i - 1}]={result.Times[i - 1]}, t[{i}]={result.Times[i]}");
             }
 
             // Verify time range
@@ -470,10 +470,10 @@ namespace Optimal.Control.Solvers.Tests
 
             Assert.IsTrue(result.Success);
             Assert.IsNotNull(result.Message);
-            Assert.IsTrue(result.Times.Length > 0);
-            Assert.AreEqual(result.Times.Length, result.States.Length);
-            Assert.AreEqual(result.Times.Length, result.Controls.Length);
-            Assert.IsTrue(result.OptimalCost >= 0);
+            Assert.IsNotEmpty(result.Times);
+            Assert.HasCount(result.Times.Length, result.States);
+            Assert.HasCount(result.Times.Length, result.Controls);
+            Assert.IsGreaterThanOrEqualTo(0, result.OptimalCost);
         }
     }
 }

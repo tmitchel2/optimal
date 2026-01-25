@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -60,7 +60,7 @@ namespace Optimal.NonLinear.Tests
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
             Assert.AreEqual(1.0, result.OptimalPoint[1], 1e-2, "y should be near 1");
-            Assert.IsTrue(result.OptimalValue < 1e-3, $"f(x*) should be very small, was {result.OptimalValue}");
+            Assert.IsLessThan(1e-3, result.OptimalValue, $"f(x*) should be very small, was {result.OptimalValue}");
             // Can converge via gradient, function, or parameter tolerance
             Assert.IsTrue(
                 result.StoppingReason == StoppingReason.GradientTolerance ||
@@ -176,7 +176,7 @@ namespace Optimal.NonLinear.Tests
             );
 
             Assert.IsTrue(result.Success, "Optimization should succeed with function tolerance");
-            Assert.IsTrue(result.OptimalValue < 1e-4, "Function value should be small");
+            Assert.IsLessThan(1e-4, result.OptimalValue, "Function value should be small");
         }
     }
 }

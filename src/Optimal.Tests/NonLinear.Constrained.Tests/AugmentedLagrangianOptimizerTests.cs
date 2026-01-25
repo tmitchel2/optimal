@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -69,8 +69,8 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             // Check constraint is satisfied: x + y = 1
             var constraintValue = result.OptimalPoint[0] + result.OptimalPoint[1] - 1.0;
-            Assert.IsTrue(Math.Abs(constraintValue) < 1e-4,
-                $"Equality constraint should be satisfied: x + y = {result.OptimalPoint[0] + result.OptimalPoint[1]}, expected 1.0");
+            Assert.IsLessThan(1e-4,
+Math.Abs(constraintValue), $"Equality constraint should be satisfied: x + y = {result.OptimalPoint[0] + result.OptimalPoint[1]}, expected 1.0");
 
             // Check we're close to expected solution (0.5, 0.5)
             Assert.AreEqual(0.5, result.OptimalPoint[0], 1e-2, "x should be near 0.5");
@@ -99,8 +99,8 @@ namespace Optimal.NonLinear.Constrained.Tests
             // Check constraint is satisfied: x² + y² ≤ 1
             var circleValue = result.OptimalPoint[0] * result.OptimalPoint[0] +
                              result.OptimalPoint[1] * result.OptimalPoint[1];
-            Assert.IsTrue(circleValue <= 1.0 + 1e-4,
-                $"Inequality constraint should be satisfied: x² + y² = {circleValue}, should be ≤ 1.0");
+            Assert.IsLessThanOrEqualTo(1.0 + 1e-4,
+circleValue, $"Inequality constraint should be satisfied: x² + y² = {circleValue}, should be ≤ 1.0");
 
             // Should be on the boundary (active constraint)
             Assert.AreEqual(1.0, circleValue, 1e-2, "Should be on unit circle boundary");
@@ -134,8 +134,8 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             // Check constraint is satisfied
             var constraintValue = result.OptimalPoint[0] + result.OptimalPoint[1] - 1.0;
-            Assert.IsTrue(Math.Abs(constraintValue) < 1e-4,
-                $"Equality constraint should be satisfied: x + y = {result.OptimalPoint[0] + result.OptimalPoint[1]}");
+            Assert.IsLessThan(1e-4,
+Math.Abs(constraintValue), $"Equality constraint should be satisfied: x + y = {result.OptimalPoint[0] + result.OptimalPoint[1]}");
         }
 
         [TestMethod]
@@ -165,8 +165,8 @@ namespace Optimal.NonLinear.Constrained.Tests
             var circleValue = result.OptimalPoint[0] * result.OptimalPoint[0] +
                              result.OptimalPoint[1] * result.OptimalPoint[1];
 
-            Assert.IsTrue(equalityViolation < 1e-4, $"Equality constraint violated: {equalityViolation}");
-            Assert.IsTrue(circleValue <= 1.0 + 1e-4, $"Inequality constraint violated: {circleValue}");
+            Assert.IsLessThan(1e-4, equalityViolation, $"Equality constraint violated: {equalityViolation}");
+            Assert.IsLessThanOrEqualTo(1.0 + 1e-4, circleValue, $"Inequality constraint violated: {circleValue}");
 
             // With x + y = 1, the solution should be (0.5, 0.5) since
             // 0.5² + 0.5² = 0.5 < 1, so inequality is inactive
@@ -225,8 +225,8 @@ namespace Optimal.NonLinear.Constrained.Tests
                 Assert.IsTrue(result.Success, $"Should succeed with {unconstrainedOpt.GetType().Name}");
 
                 var constraintValue = result.OptimalPoint[0] + result.OptimalPoint[1] - 1.0;
-                Assert.IsTrue(Math.Abs(constraintValue) < 1e-3,
-                    $"Constraint should be satisfied with {unconstrainedOpt.GetType().Name}");
+                Assert.IsLessThan(1e-3,
+Math.Abs(constraintValue), $"Constraint should be satisfied with {unconstrainedOpt.GetType().Name}");
             }
         }
     }

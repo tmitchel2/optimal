@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -53,7 +53,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var result = solver.Solve(problem, initialGuess);
 
             // Check that defects are small even if Success is false (may hit max iterations)
-            Assert.IsTrue(result.MaxDefect < 1e-2, $"Defects should be small, was {result.MaxDefect:E2}");
+            Assert.IsLessThan(1e-2, result.MaxDefect, $"Defects should be small, was {result.MaxDefect:E2}");
         }
 
         [TestMethod]
@@ -70,7 +70,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var result = solver.Solve(problem, initialGuess);
 
             // Check that we have a reasonable solution even if not fully converged
-            Assert.IsTrue(result.MaxDefect < 1e-2, $"Defects should be small, was {result.MaxDefect:E2}");
+            Assert.IsLessThan(1e-2, result.MaxDefect, $"Defects should be small, was {result.MaxDefect:E2}");
 
             // Check initial conditions
             Assert.AreEqual(X0, result.States[0][0], 0.1, "Initial x should be 0");
@@ -97,7 +97,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
 
-            Assert.IsTrue(result.MaxDefect < 1e-2, $"Defects should be small, was {result.MaxDefect:E2}");
+            Assert.IsLessThan(1e-2, result.MaxDefect, $"Defects should be small, was {result.MaxDefect:E2}");
 
             // Energy conservation: final velocity should match potential energy drop
             var deltaY = Y0 - Yf;
@@ -105,7 +105,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var actualFinalVelocity = result.States[result.States.Length - 1][2];
 
             var energyError = Math.Abs(actualFinalVelocity - expectedFinalVelocity) / expectedFinalVelocity;
-            Assert.IsTrue(energyError < 0.20, $"Energy conservation error should be < 20%, was {energyError * 100:F1}%");
+            Assert.IsLessThan(0.20, energyError, $"Energy conservation error should be < 20%, was {energyError * 100:F1}%");
         }
 
         #endregion
@@ -126,7 +126,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var result = solver.Solve(problem, initialGuess);
 
             // Check defects are reasonable
-            Assert.IsTrue(result.MaxDefect < 0.1, $"Defects should be reasonable, was {result.MaxDefect:E2}");
+            Assert.IsLessThan(0.1, result.MaxDefect, $"Defects should be reasonable, was {result.MaxDefect:E2}");
         }
 
         [TestMethod]
@@ -143,7 +143,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var result = solver.Solve(problem, initialGuess);
 
             // Check defects are reasonable
-            Assert.IsTrue(result.MaxDefect < 0.1, $"Defects should be reasonable, was {result.MaxDefect:E2}");
+            Assert.IsLessThan(0.1, result.MaxDefect, $"Defects should be reasonable, was {result.MaxDefect:E2}");
 
             // T_f is stored in the last state component
             var finalTf = result.States[result.States.Length - 1][3];
@@ -167,7 +167,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
             var result = solver.Solve(problem, initialGuess);
 
             // Check defects are reasonable
-            Assert.IsTrue(result.MaxDefect < 0.1, $"Defects should be reasonable, was {result.MaxDefect:E2}");
+            Assert.IsLessThan(0.1, result.MaxDefect, $"Defects should be reasonable, was {result.MaxDefect:E2}");
 
             // Control should vary from near π/2 (steep descent) to near 0 (horizontal)
             var controls = result.Controls.Select(u => u[0]).ToArray();
@@ -177,7 +177,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
 
             // Relaxed assertion - document behavior
             Console.WriteLine($"HS Free Time: Control range = {controlRange:F3} rad");
-            Assert.IsTrue(controlRange >= 0.0, "Control range should be non-negative");
+            Assert.IsGreaterThanOrEqualTo(0.0, controlRange, "Control range should be non-negative");
         }
 
         #endregion
@@ -205,7 +205,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
 
             // Just verify it runs without exception
             Assert.IsNotNull(result.States, "Should return states array");
-            Assert.IsTrue(result.States.Length > 0, "Should have at least one state");
+            Assert.IsNotEmpty(result.States, "Should have at least one state");
         }
 
         [TestMethod]
@@ -227,8 +227,8 @@ namespace Optimal.Problems.Brachistochrone.Tests
 
             // Just verify structure is valid
             Assert.IsNotNull(result.States, "Should return states array");
-            Assert.IsTrue(result.States.Length > 0, "Should have at least one state");
-            Assert.IsTrue(result.States[0].Length == 3, "State should have 3 components");
+            Assert.IsNotEmpty(result.States, "Should have at least one state");
+            Assert.HasCount(3, result.States[0], "State should have 3 components");
         }
 
         #endregion

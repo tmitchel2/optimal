@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -54,7 +54,7 @@ namespace Optimal.Control.Indirect.Tests
             var solver = new PontryaginSolver();
             Func<double[], double[], double[], double, double[]> optimalControl = (_, _, _, _) => [0.0];
 
-            Assert.ThrowsException<ArgumentNullException>(() =>
+            Assert.Throws<ArgumentNullException>(() =>
                 solver.Solve(null!, optimalControl, s_initialCostates1D));
         }
 
@@ -64,7 +64,7 @@ namespace Optimal.Control.Indirect.Tests
             var problem = CreateSimpleProblem();
             var solver = new PontryaginSolver();
 
-            Assert.ThrowsException<ArgumentNullException>(() =>
+            Assert.Throws<ArgumentNullException>(() =>
                 solver.Solve(problem, null!, s_initialCostates1D));
         }
 
@@ -75,7 +75,7 @@ namespace Optimal.Control.Indirect.Tests
             var solver = new PontryaginSolver();
             Func<double[], double[], double[], double, double[]> optimalControl = (_, lambda, _, _) => [lambda[0]];
 
-            Assert.ThrowsException<ArgumentNullException>(() =>
+            Assert.Throws<ArgumentNullException>(() =>
                 solver.Solve(problem, optimalControl, null!));
         }
 
@@ -125,9 +125,9 @@ namespace Optimal.Control.Indirect.Tests
             var result = solver.Solve(problem, optimalControl, s_initialCostates1D);
 
             Assert.IsNotNull(result);
-            Assert.IsTrue(result.Times.Length > 0);
-            Assert.AreEqual(result.Times.Length, result.States.Length);
-            Assert.AreEqual(result.Times.Length, result.Controls.Length);
+            Assert.IsNotEmpty(result.Times);
+            Assert.HasCount(result.Times.Length, result.States);
+            Assert.HasCount(result.Times.Length, result.Controls);
         }
 
         [TestMethod]
@@ -180,7 +180,7 @@ namespace Optimal.Control.Indirect.Tests
             var result = solver.Solve(problem, optimalControl, s_initialCostates1D);
 
             Assert.IsNotNull(result);
-            Assert.IsTrue(result.Times.Length > 0);
+            Assert.IsNotEmpty(result.Times);
         }
 
         [TestMethod]
@@ -226,7 +226,7 @@ namespace Optimal.Control.Indirect.Tests
             var result = solver.Solve(problem, optimalControl, s_initialCostates2D);
 
             Assert.IsNotNull(result);
-            Assert.IsTrue(result.Times.Length > 0);
+            Assert.IsNotEmpty(result.Times);
         }
 
         [TestMethod]
@@ -269,8 +269,8 @@ namespace Optimal.Control.Indirect.Tests
 
             for (var i = 1; i < result.Times.Length; i++)
             {
-                Assert.IsTrue(result.Times[i] > result.Times[i - 1],
-                    $"Times should be monotonically increasing: t[{i - 1}]={result.Times[i - 1]}, t[{i}]={result.Times[i]}");
+                Assert.IsGreaterThan(result.Times[i - 1],
+result.Times[i], $"Times should be monotonically increasing: t[{i - 1}]={result.Times[i - 1]}, t[{i}]={result.Times[i]}");
             }
         }
 

@@ -22,9 +22,9 @@ namespace Optimal.Control.Solvers.Tests
         {
             var solver = CreateSolver();
 
-            Assert.ThrowsException<ArgumentException>(() => solver.WithOrder(1));
-            Assert.ThrowsException<ArgumentException>(() => solver.WithOrder(0));
-            Assert.ThrowsException<ArgumentException>(() => solver.WithOrder(-1));
+            Assert.Throws<ArgumentException>(() => solver.WithOrder(1));
+            Assert.Throws<ArgumentException>(() => solver.WithOrder(0));
+            Assert.Throws<ArgumentException>(() => solver.WithOrder(-1));
         }
 
         protected override ISolver CreateSolver()

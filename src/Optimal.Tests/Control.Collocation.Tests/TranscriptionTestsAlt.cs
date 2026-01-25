@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -53,9 +53,9 @@ namespace Optimal.Control.Collocation.Tests
             var problem = new ControlProblem().WithStateSize(2).WithControlSize(1);
             var grid = new CollocationGrid(0.0, 10.0, 5);
 
-            Assert.ThrowsException<ArgumentException>(() =>
+            Assert.Throws<ArgumentException>(() =>
                 new LegendreGaussLobattoTranscription(problem, grid, order: 1));
-            Assert.ThrowsException<ArgumentException>(() =>
+            Assert.Throws<ArgumentException>(() =>
                 new LegendreGaussLobattoTranscription(problem, grid, order: 0));
         }
 
@@ -114,8 +114,8 @@ namespace Optimal.Control.Collocation.Tests
 
             var z = new double[transcription.DecisionVectorSize];
 
-            Assert.ThrowsException<ArgumentOutOfRangeException>(() => transcription.GetState(z, -1));
-            Assert.ThrowsException<ArgumentOutOfRangeException>(() => transcription.GetState(z, transcription.TotalPoints));
+            Assert.Throws<ArgumentOutOfRangeException>(() => transcription.GetState(z, -1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => transcription.GetState(z, transcription.TotalPoints));
         }
 
         [TestMethod]
@@ -128,7 +128,7 @@ namespace Optimal.Control.Collocation.Tests
             var z = new double[transcription.DecisionVectorSize];
             var wrongState = new[] { 1.0, 2.0, 3.0 }; // 3 elements instead of 2
 
-            Assert.ThrowsException<ArgumentException>(() => transcription.SetState(z, 0, wrongState));
+            Assert.Throws<ArgumentException>(() => transcription.SetState(z, 0, wrongState));
         }
 
         [TestMethod]
@@ -174,7 +174,7 @@ namespace Optimal.Control.Collocation.Tests
             var maxDefect = LegendreGaussLobattoTranscription.MaxDefect(defects);
 
             // Should be very small for exact linear solution
-            Assert.IsTrue(maxDefect < 1e-10, $"Max defect should be near zero, was {maxDefect}");
+            Assert.IsLessThan(1e-10, maxDefect, $"Max defect should be near zero, was {maxDefect}");
         }
 
         [TestMethod]
@@ -219,7 +219,7 @@ namespace Optimal.Control.Collocation.Tests
 
             // LGL with order 5 should exactly represent polynomials up to degree 4
             // Our solution is degree 2, so defects should be essentially zero
-            Assert.IsTrue(maxDefect < 1e-10, $"Max defect should be near zero for polynomial solution, was {maxDefect}");
+            Assert.IsLessThan(1e-10, maxDefect, $"Max defect should be near zero for polynomial solution, was {maxDefect}");
         }
 
         [TestMethod]
@@ -245,10 +245,10 @@ namespace Optimal.Control.Collocation.Tests
             var maxDefectOrder7 = TestExponentialDecay(problem, grid, order: 7, DynamicsEvaluator);
 
             // Higher orders should give progressively better approximations
-            Assert.IsTrue(maxDefectOrder5 < maxDefectOrder3,
-                $"Order 5 defect ({maxDefectOrder5}) should be less than order 3 ({maxDefectOrder3})");
-            Assert.IsTrue(maxDefectOrder7 < maxDefectOrder5,
-                $"Order 7 defect ({maxDefectOrder7}) should be less than order 5 ({maxDefectOrder5})");
+            Assert.IsLessThan(maxDefectOrder3,
+maxDefectOrder5, $"Order 5 defect ({maxDefectOrder5}) should be less than order 3 ({maxDefectOrder3})");
+            Assert.IsLessThan(maxDefectOrder5,
+maxDefectOrder7, $"Order 7 defect ({maxDefectOrder7}) should be less than order 5 ({maxDefectOrder5})");
         }
 
         private static double TestExponentialDecay(
@@ -488,7 +488,7 @@ namespace Optimal.Control.Collocation.Tests
 
             // Null terminal cost evaluator
             var cost2 = transcription.ComputeTotalCost(z, (_, _, _) => 5.0, null);
-            Assert.IsTrue(cost2 > 0); // Should have some running cost
+            Assert.IsGreaterThan(0, cost2); // Should have some running cost
 
             // Both null
             var cost3 = transcription.ComputeTotalCost(z, null, null);

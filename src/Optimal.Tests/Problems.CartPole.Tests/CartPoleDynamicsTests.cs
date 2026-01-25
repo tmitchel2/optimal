@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -102,7 +102,7 @@ namespace Optimal.Problems.CartPole.Tests
             var xddot2 = OptimalCli.Problems.CartPole.CartPoleDynamics.XddotRate(x, xdot, theta, thetadot, F2, M, m, L, g);
 
             // Assert
-            Assert.IsTrue(xddot2 > xddot1, "Positive force should increase cart acceleration");
+            Assert.IsGreaterThan(xddot1, xddot2, "Positive force should increase cart acceleration");
         }
 
         [TestMethod]
@@ -140,7 +140,7 @@ namespace Optimal.Problems.CartPole.Tests
             // Assert
             Assert.AreNotEqual(xddot1, xddot2, "Pole angular velocity should affect cart acceleration");
             // With positive thetadot and positive theta (leaning right), centrifugal force pushes cart right
-            Assert.IsTrue(xddot2 > xddot1, "Positive angular velocity should increase cart acceleration in direction of lean");
+            Assert.IsGreaterThan(xddot1, xddot2, "Positive angular velocity should increase cart acceleration in direction of lean");
         }
 
         [TestMethod]
@@ -252,7 +252,7 @@ namespace Optimal.Problems.CartPole.Tests
 
             // Assert
             // When pole leans right (positive theta), gravity creates positive torque (falls right)
-            Assert.IsTrue(thetaddot > 0, "Pole should accelerate in direction of lean (positive angular acceleration for positive angle)");
+            Assert.IsGreaterThan(0, thetaddot, "Pole should accelerate in direction of lean (positive angular acceleration for positive angle)");
         }
 
         [TestMethod]
@@ -270,7 +270,7 @@ namespace Optimal.Problems.CartPole.Tests
 
             // Assert
             // When pole leans left (negative theta), gravity creates negative torque (falls left)
-            Assert.IsTrue(thetaddot < 0, "Pole should accelerate in direction of lean (negative angular acceleration for negative angle)");
+            Assert.IsLessThan(0, thetaddot, "Pole should accelerate in direction of lean (negative angular acceleration for negative angle)");
         }
 
         [TestMethod]
@@ -310,7 +310,7 @@ namespace Optimal.Problems.CartPole.Tests
             // Assert
             Assert.AreNotEqual(thetaddot1, thetaddot2, "Cart force should affect pole angular acceleration");
             // Positive force (cart accelerates right) creates negative angular acceleration (resists rightward lean)
-            Assert.IsTrue(thetaddot2 < thetaddot1, "Positive cart force should reduce angular acceleration in same direction");
+            Assert.IsLessThan(thetaddot1, thetaddot2, "Positive cart force should reduce angular acceleration in same direction");
         }
 
         // ========== RUNNING COST TESTS ==========
@@ -346,10 +346,10 @@ namespace Optimal.Problems.CartPole.Tests
 
             // Assert
             Assert.AreEqual(0.0, cost0, Tolerance);
-            Assert.IsTrue(costX > cost0, "Cost should increase with cart position deviation");
-            Assert.IsTrue(costXdot > cost0, "Cost should increase with cart velocity deviation");
-            Assert.IsTrue(costTheta > cost0, "Cost should increase with pole angle deviation");
-            Assert.IsTrue(costThetadot > cost0, "Cost should increase with pole angular velocity deviation");
+            Assert.IsGreaterThan(cost0, costX, "Cost should increase with cart position deviation");
+            Assert.IsGreaterThan(cost0, costXdot, "Cost should increase with cart velocity deviation");
+            Assert.IsGreaterThan(cost0, costTheta, "Cost should increase with pole angle deviation");
+            Assert.IsGreaterThan(cost0, costThetadot, "Cost should increase with pole angular velocity deviation");
         }
 
         [TestMethod]
@@ -388,7 +388,7 @@ namespace Optimal.Problems.CartPole.Tests
 
             // Assert
             Assert.AreEqual(0.0, cost1, Tolerance, "Cost should be zero with no control");
-            Assert.IsTrue(cost2 > cost1, "Cost should increase with control effort");
+            Assert.IsGreaterThan(cost1, cost2, "Cost should increase with control effort");
             Assert.AreEqual(0.5 * F2 * F2, cost2, Tolerance, "Control cost should be 0.5·F²");
         }
 
@@ -445,9 +445,9 @@ namespace Optimal.Problems.CartPole.Tests
             var costThetadot = OptimalCli.Problems.CartPole.CartPoleDynamics.RunningCost(0.0, 0.0, 0.0, deviation, F);
 
             // Assert: Pole angle should have highest penalty
-            Assert.IsTrue(costTheta > costX, "Pole angle deviation should be penalized more than cart position");
-            Assert.IsTrue(costTheta > costXdot, "Pole angle deviation should be penalized more than cart velocity");
-            Assert.IsTrue(costTheta > costThetadot, "Pole angle deviation should be penalized more than angular velocity");
+            Assert.IsGreaterThan(costX, costTheta, "Pole angle deviation should be penalized more than cart position");
+            Assert.IsGreaterThan(costXdot, costTheta, "Pole angle deviation should be penalized more than cart velocity");
+            Assert.IsGreaterThan(costThetadot, costTheta, "Pole angle deviation should be penalized more than angular velocity");
         }
     }
 }

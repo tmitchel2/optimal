@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -33,7 +33,7 @@ namespace Optimal.Problems.Corner.Tests
             var track = TrackGeometry
                 .StartAt(x: 0, y: 0, heading: 0)
                 .AddLine(distance: 0.001) // Need at least one segment to build
-                .Build();
+                .Build(1);
 
             // The first segment should start at (0, 0)
             Assert.AreEqual(0.0, track[0].StartPosition.X, Tolerance, "Start X");
@@ -53,7 +53,7 @@ namespace Optimal.Problems.Corner.Tests
             var track = TrackGeometry
                 .StartAt(x: 0, y: 0, heading: 0)
                 .AddLine(distance: 10.0)
-                .Build();
+                .Build(1);
 
             var segment = track[0];
 
@@ -86,7 +86,7 @@ namespace Optimal.Problems.Corner.Tests
                 .StartAt(x: 0, y: 0, heading: 0)
                 .AddLine(distance: 10.0)
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true)
-                .Build();
+                .Build(1);
 
             // Line segment (segment 0)
             var line = track[0];
@@ -127,7 +127,7 @@ namespace Optimal.Problems.Corner.Tests
                 .AddLine(distance: 10.0)
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true)
                 .AddLine(distance: 10.0)
-                .Build();
+                .Build(1);
 
             // Second line (segment 2)
             var line2 = track[2];
@@ -165,7 +165,7 @@ namespace Optimal.Problems.Corner.Tests
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true)
                 .AddLine(distance: 10.0)
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true)
-                .Build();
+                .Build(1);
 
             // Second arc (segment 3)
             var arc2 = (ArcSegment)track[3];
@@ -204,7 +204,7 @@ namespace Optimal.Problems.Corner.Tests
                 .AddLine(distance: 10.0)
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true)
                 .AddLine(distance: 10.0)
-                .Build();
+                .Build(1);
 
             Assert.AreEqual(5, track.SegmentCount, "Segment count");
 
@@ -234,7 +234,7 @@ namespace Optimal.Problems.Corner.Tests
             var track = TrackGeometry
                 .StartAt(x: 0, y: 0, heading: 0)
                 .AddLine(distance: 10.0)
-                .Build();
+                .Build(1);
 
             var pos = track.CurvilinearToCartesian(s: 0, n: 0);
             Assert.AreEqual(0.0, pos.X, Tolerance, "X at s=0");
@@ -247,7 +247,7 @@ namespace Optimal.Problems.Corner.Tests
             var track = TrackGeometry
                 .StartAt(x: 0, y: 0, heading: 0)
                 .AddLine(distance: 10.0)
-                .Build();
+                .Build(1);
 
             var pos = track.CurvilinearToCartesian(s: 5, n: 0);
             Assert.AreEqual(5.0, pos.X, Tolerance, "X at s=5");
@@ -260,7 +260,7 @@ namespace Optimal.Problems.Corner.Tests
             var track = TrackGeometry
                 .StartAt(x: 0, y: 0, heading: 0)
                 .AddLine(distance: 10.0)
-                .Build();
+                .Build(1);
 
             var pos = track.CurvilinearToCartesian(s: 10, n: 0);
             Assert.AreEqual(10.0, pos.X, Tolerance, "X at s=10");
@@ -274,7 +274,7 @@ namespace Optimal.Problems.Corner.Tests
             var track = TrackGeometry
                 .StartAt(x: 0, y: 0, heading: 0)
                 .AddLine(distance: 10.0)
-                .Build();
+                .Build(1);
 
             // At s=5, n=2 (2m to the right/south)
             var pos = track.CurvilinearToCartesian(s: 5, n: 2);
@@ -289,7 +289,7 @@ namespace Optimal.Problems.Corner.Tests
                 .StartAt(x: 0, y: 0, heading: 0)
                 .AddLine(distance: 10.0)
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true)
-                .Build();
+                .Build(1);
 
             // Arc starts at s=10, has length = 10 * π/2 ≈ 15.708
             // Midpoint of arc: s = 10 + (π/2 * 10) / 2 = 10 + 5π/2 ≈ 17.854
@@ -316,7 +316,7 @@ namespace Optimal.Problems.Corner.Tests
                 .StartAt(x: 0, y: 0, heading: 0)
                 .AddLine(distance: 10.0)
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true)
-                .Build();
+                .Build(1);
 
             // Arc ends at s = 10 + π/2 * 10 = 10 + 5π
             var arcEndS = 10.0 + (Math.PI / 2) * 10.0;
@@ -334,7 +334,7 @@ namespace Optimal.Problems.Corner.Tests
                 .AddLine(distance: 10.0)
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true)
                 .AddLine(distance: 10.0)
-                .Build();
+                .Build(1);
 
             // Second line starts at (20, -10), heading south (π/2)
             // Arc ends at s = 10 + 5π
@@ -355,7 +355,7 @@ namespace Optimal.Problems.Corner.Tests
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true) // 20,-10
                 .AddLine(distance: 10.0) // 20,-20
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true) // 10,-30
-                .Build();
+                .Build(1);
 
             // Second arc starts at (20, -20), heading south (π/2)
             // Arc center at (10, -20) - WEST of start
@@ -376,7 +376,7 @@ namespace Optimal.Problems.Corner.Tests
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true) // 20,-10
                 .AddLine(distance: 10.0) // 20,-20
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true) // 10,-30
-                .Build();
+                .Build(1);
 
             // Second arc starts at (20, -20), heading south (π/2)
             // Arc center at (10, -20) - WEST of start
@@ -397,7 +397,7 @@ namespace Optimal.Problems.Corner.Tests
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true) // 20,-10
                 .AddLine(distance: 10.0) // 20,-20
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true) // 10,-30
-                .Build();
+                .Build(1);
 
             // Second arc starts at (20, -20), heading south (π/2)
             // Arc center at (10, -20) - WEST of start
@@ -419,7 +419,7 @@ namespace Optimal.Problems.Corner.Tests
                 .AddLine(distance: 10.0)
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true)
                 .AddLine(distance: 10.0)
-                .Build();
+                .Build(1);
 
             // End of full track: (0, -30)
             var pos = track.CurvilinearToCartesian(s: track.TotalLength, n: 0);
@@ -442,7 +442,7 @@ namespace Optimal.Problems.Corner.Tests
                 .AddLine(distance: 10.0)
                 .AddArc(radius: 10.0, angle: Math.PI / 2, turnRight: true)
                 .AddLine(distance: 10.0)
-                .Build();
+                .Build(1);
 
             // Total = 10 + π*10/2 + 10 + π*10/2 + 10 = 30 + 10π
             var expected = 30.0 + 10.0 * Math.PI;

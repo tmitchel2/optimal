@@ -90,7 +90,7 @@ namespace Optimal.Problems.Goddard.Tests
             var vrate2 = OptimalCli.Problems.Goddard.GoddardRocketDynamics.VelocityRate(h, v, m, T2, g, Dc, c, h0);
 
             // Assert
-            Assert.IsTrue(vrate2 > vrate1, "Higher thrust should produce higher acceleration");
+            Assert.IsGreaterThan(vrate1, vrate2, "Higher thrust should produce higher acceleration");
             Assert.AreEqual(T2 / m - g, vrate2, Tolerance, "Acceleration should equal (T/m - g) when drag is zero");
         }
 
@@ -109,7 +109,7 @@ namespace Optimal.Problems.Goddard.Tests
             var vrate2 = OptimalCli.Problems.Goddard.GoddardRocketDynamics.VelocityRate(h, v2, m, T, g, Dc, c, h0);
 
             // Assert
-            Assert.IsTrue(vrate2 < vrate1, "Higher velocity should produce more drag, reducing acceleration");
+            Assert.IsLessThan(vrate1, vrate2, "Higher velocity should produce more drag, reducing acceleration");
         }
 
         [TestMethod]
@@ -127,7 +127,7 @@ namespace Optimal.Problems.Goddard.Tests
             var vrate2 = OptimalCli.Problems.Goddard.GoddardRocketDynamics.VelocityRate(h2, v, m, T, g, Dc, c, h0);
 
             // Assert
-            Assert.IsTrue(vrate2 > vrate1, "Drag should decrease with altitude, so acceleration should increase");
+            Assert.IsGreaterThan(vrate1, vrate2, "Drag should decrease with altitude, so acceleration should increase");
 
             // Drag force at h1: Dc * v^2 * exp(0) = Dc * v^2
             // Drag force at h2: Dc * v^2 * exp(-1) ≈ 0.368 * Dc * v^2
@@ -150,7 +150,7 @@ namespace Optimal.Problems.Goddard.Tests
             var mrate = OptimalCli.Problems.Goddard.GoddardRocketDynamics.MassRate(h, v, m, T, g, Dc, c, h0);
 
             // Assert
-            Assert.IsTrue(mrate < 0, "Mass should decrease when thrusting (fuel consumption)");
+            Assert.IsLessThan(0, mrate, "Mass should decrease when thrusting (fuel consumption)");
             Assert.AreEqual(-T / c, mrate, Tolerance, "Mass rate should equal -T/c");
         }
 
@@ -233,7 +233,7 @@ namespace Optimal.Problems.Goddard.Tests
             var cost2 = OptimalCli.Problems.Goddard.GoddardRocketDynamics.TerminalCost(h2, v, m);
 
             // Assert
-            Assert.IsTrue(cost2 < cost1, "Higher altitude should give lower (more negative) cost");
+            Assert.IsLessThan(cost1, cost2, "Higher altitude should give lower (more negative) cost");
         }
 
         [TestMethod]
@@ -397,7 +397,7 @@ namespace Optimal.Problems.Goddard.Tests
             // TDD: This test will initially FAIL due to AutoDiff intermediate variable issue
             // Expected behavior: ∂v̇/∂h = (Dc·v²/(m·h0))·exp(-h/h0)
             // This gradient represents how drag changes with altitude (exponential atmosphere)
-            
+
             // Arrange
             var h = 100.0;
             var v = 2.0;
@@ -414,17 +414,17 @@ namespace Optimal.Problems.Goddard.Tests
                 h);
 
             // Assert - AutoDiff must match numerical gradient
-            Assert.AreEqual(numericalGrad, autoDiffGrad, 1e-5, 
+            Assert.AreEqual(numericalGrad, autoDiffGrad, 1e-5,
                 $"∂v̇/∂h: AutoDiff gradient {autoDiffGrad} should match numerical gradient {numericalGrad}");
 
             // Assert - Analytical formula verification
             var expectedGrad = (Dc * v * v / (m * h0)) * System.Math.Exp(-h / h0);
-            Assert.AreEqual(expectedGrad, autoDiffGrad, 1e-8, 
+            Assert.AreEqual(expectedGrad, autoDiffGrad, 1e-8,
                 $"∂v̇/∂h should match analytical formula: (Dc·v²/(m·h0))·exp(-h/h0)");
-            
+
             // Assert - Physical interpretation: gradient should be positive (less drag at higher altitude means more acceleration)
-            Assert.IsTrue(autoDiffGrad > 0, 
-                "∂v̇/∂h should be positive: higher altitude → less drag → more acceleration");
+            Assert.IsGreaterThan(0,
+autoDiffGrad, "∂v̇/∂h should be positive: higher altitude → less drag → more acceleration");
         }
 
         [TestMethod]
@@ -433,7 +433,7 @@ namespace Optimal.Problems.Goddard.Tests
             // TDD: This test will initially FAIL due to AutoDiff intermediate variable issue
             // Expected behavior: ∂v̇/∂v = -2·Dc·v·exp(-h/h0)/m
             // This gradient represents drag's velocity dependence (quadratic drag)
-            
+
             // Arrange
             var h = 100.0;
             var v = 2.0;
@@ -450,17 +450,17 @@ namespace Optimal.Problems.Goddard.Tests
                 v);
 
             // Assert - AutoDiff must match numerical gradient
-            Assert.AreEqual(numericalGrad, autoDiffGrad, 1e-5, 
+            Assert.AreEqual(numericalGrad, autoDiffGrad, 1e-5,
                 $"∂v̇/∂v: AutoDiff gradient {autoDiffGrad} should match numerical gradient {numericalGrad}");
 
             // Assert - Analytical formula verification
             var expectedGrad = -2.0 * Dc * v * System.Math.Exp(-h / h0) / m;
-            Assert.AreEqual(expectedGrad, autoDiffGrad, 1e-8, 
+            Assert.AreEqual(expectedGrad, autoDiffGrad, 1e-8,
                 $"∂v̇/∂v should match analytical formula: -2·Dc·v·exp(-h/h0)/m");
-            
+
             // Assert - Physical interpretation: gradient should be negative (drag opposes motion)
-            Assert.IsTrue(autoDiffGrad < 0, 
-                "∂v̇/∂v should be negative: higher velocity → more drag → less acceleration (drag opposes motion)");
+            Assert.IsLessThan(0,
+autoDiffGrad, "∂v̇/∂v should be negative: higher velocity → more drag → less acceleration (drag opposes motion)");
         }
 
         [TestMethod]
@@ -468,7 +468,7 @@ namespace Optimal.Problems.Goddard.Tests
         {
             // TDD: Verify the drag gradient has quadratic velocity dependence
             // This test specifically validates that ∂v̇/∂v is proportional to v (from v² in drag)
-            
+
             // Arrange - Test at two different velocities
             var h = 100.0;
             var v1 = 1.0;
@@ -485,7 +485,7 @@ namespace Optimal.Problems.Goddard.Tests
 
             // Assert - Doubling velocity should double the gradient magnitude (linear in v due to d(v²)/dv = 2v)
             var ratio = autoDiffGrad2 / autoDiffGrad1;
-            Assert.AreEqual(2.0, ratio, 0.01, 
+            Assert.AreEqual(2.0, ratio, 0.01,
                 $"∂v̇/∂v should scale linearly with velocity: ratio should be 2.0, got {ratio}");
         }
 
@@ -494,7 +494,7 @@ namespace Optimal.Problems.Goddard.Tests
         {
             // TDD: Verify gradient decays exponentially with altitude (atmosphere model)
             // At scale height h0, gradient should be 1/e of ground level value
-            
+
             // Arrange
             var h1 = 0.0;      // Ground level
             var h2 = h0;       // One scale height (500m)
@@ -512,7 +512,7 @@ namespace Optimal.Problems.Goddard.Tests
             // Assert - At one scale height, gradient should be exp(-1) ≈ 0.368 times ground value
             var ratio = autoDiffGrad2 / autoDiffGrad1;
             var expectedRatio = System.Math.Exp(-1.0);
-            Assert.AreEqual(expectedRatio, ratio, 0.01, 
+            Assert.AreEqual(expectedRatio, ratio, 0.01,
                 $"At scale height h0, gradient should be exp(-1) ≈ 0.368 of ground value, got {ratio}");
         }
 

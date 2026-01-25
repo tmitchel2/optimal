@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -327,7 +327,7 @@ namespace Optimal.Control.Optimization.Tests
 
             var gradient = ObjectiveFunctionFactory.ComputeObjectiveGradient(problem, grid, transcription, z);
 
-            Assert.AreEqual(z.Length, gradient.Length);
+            Assert.HasCount(z.Length, gradient);
         }
 
         [TestMethod]
@@ -365,7 +365,7 @@ namespace Optimal.Control.Optimization.Tests
 
             var gradient = ObjectiveFunctionFactory.ComputeObjectiveGradient(problem, grid, transcription, z);
 
-            Assert.AreEqual(z.Length, gradient.Length);
+            Assert.HasCount(z.Length, gradient);
             // Gradient should be non-zero for control variables
         }
     }

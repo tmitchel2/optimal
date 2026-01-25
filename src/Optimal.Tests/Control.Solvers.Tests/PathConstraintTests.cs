@@ -79,12 +79,12 @@ namespace Optimal.Control.Solvers.Tests
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
-            Assert.IsTrue(result.MaxDefect < 1e-2, $"Defects should be small, was {result.MaxDefect}");
+            Assert.IsLessThan(1e-2, result.MaxDefect, $"Defects should be small, was {result.MaxDefect}");
 
             // Check path constraint is satisfied at all points
             foreach (var state in result.States)
             {
-                Assert.IsTrue(state[0] <= 0.6 + 0.1, $"State {state[0]} should be ≤ 0.6 (with tolerance)");
+                Assert.IsLessThanOrEqualTo(0.6 + 0.1, state[0], $"State {state[0]} should be ≤ 0.6 (with tolerance)");
             }
 
             // Check boundary conditions
@@ -155,8 +155,8 @@ namespace Optimal.Control.Solvers.Tests
             {
                 if (result.Times[i] >= 2.5)
                 {
-                    Assert.IsTrue(result.States[i][0] >= 0.5 - 0.15,
-                        $"At t={result.Times[i]:F2}, x={result.States[i][0]:F2} should be ≥ 0.5 (obstacle constraint)");
+                    Assert.IsGreaterThanOrEqualTo(0.5 - 0.15,
+result.States[i][0], $"At t={result.Times[i]:F2}, x={result.States[i][0]:F2} should be ≥ 0.5 (obstacle constraint)");
                 }
             }
 
@@ -231,8 +231,8 @@ namespace Optimal.Control.Solvers.Tests
             foreach (var state in result.States)
             {
                 var velocity = state[1];
-                Assert.IsTrue(velocity <= 0.8 + 0.15, $"Velocity {velocity:F2} should be ≤ 0.8");
-                Assert.IsTrue(velocity >= -0.8 - 0.15, $"Velocity {velocity:F2} should be ≥ -0.8");
+                Assert.IsLessThanOrEqualTo(0.8 + 0.15, velocity, $"Velocity {velocity:F2} should be ≤ 0.8");
+                Assert.IsGreaterThanOrEqualTo(-0.8 - 0.15, velocity, $"Velocity {velocity:F2} should be ≥ -0.8");
             }
 
             // Check boundary conditions
@@ -293,8 +293,8 @@ namespace Optimal.Control.Solvers.Tests
 
             foreach (var state in result.States)
             {
-                Assert.IsTrue(state[0] >= -0.1 - 0.1, "Lower constraint");
-                Assert.IsTrue(state[0] <= 0.7 + 0.1, "Upper constraint");
+                Assert.IsGreaterThanOrEqualTo(-0.1 - 0.1, state[0], "Lower constraint");
+                Assert.IsLessThanOrEqualTo(0.7 + 0.1, state[0], "Upper constraint");
             }
         }
     }

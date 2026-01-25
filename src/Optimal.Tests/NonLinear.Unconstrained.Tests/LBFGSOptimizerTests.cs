@@ -35,7 +35,7 @@ namespace Optimal.NonLinear.Unconstrained.Tests
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-3, "x should be near 1");
             Assert.AreEqual(1.0, result.OptimalPoint[1], 1e-3, "y should be near 1");
-            Assert.IsTrue(result.OptimalValue < 1e-6, $"f(x*) should be very small, was {result.OptimalValue}");
+            Assert.IsLessThan(1e-6, result.OptimalValue, $"f(x*) should be very small, was {result.OptimalValue}");
         }
 
         [TestMethod]
@@ -54,7 +54,7 @@ namespace Optimal.NonLinear.Unconstrained.Tests
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-3, "x should be near 1");
             Assert.AreEqual(3.0, result.OptimalPoint[1], 1e-3, "y should be near 3");
-            Assert.IsTrue(result.OptimalValue < 1e-6, $"f(x*) should be very small, was {result.OptimalValue}");
+            Assert.IsLessThan(1e-6, result.OptimalValue, $"f(x*) should be very small, was {result.OptimalValue}");
         }
 
         [TestMethod]
@@ -76,7 +76,7 @@ namespace Optimal.NonLinear.Unconstrained.Tests
             {
                 Assert.AreEqual(1.0, result.OptimalPoint[i], 1e-1, $"x[{i}] should be near 1");
             }
-            Assert.IsTrue(result.OptimalValue < 1e-2, $"f(x*) should be small, was {result.OptimalValue}");
+            Assert.IsLessThan(1e-2, result.OptimalValue, $"f(x*) should be small, was {result.OptimalValue}");
         }
 
         [TestMethod]
@@ -94,7 +94,7 @@ namespace Optimal.NonLinear.Unconstrained.Tests
             var result = optimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
-            Assert.IsTrue(result.Iterations < 1000, $"Should converge in < 1000 iterations, took {result.Iterations}");
+            Assert.IsLessThan(1000, result.Iterations, $"Should converge in < 1000 iterations, took {result.Iterations}");
 
             // Check that we're close to optimum
             for (var i = 0; i < 100; i++)
@@ -102,7 +102,7 @@ namespace Optimal.NonLinear.Unconstrained.Tests
                 Assert.AreEqual(1.0, result.OptimalPoint[i], 0.2, $"x[{i}] should be reasonably close to 1");
             }
 
-            Assert.IsTrue(result.OptimalValue < 1.0, $"f(x*) should be reasonably small, was {result.OptimalValue}");
+            Assert.IsLessThan(1.0, result.OptimalValue, $"f(x*) should be reasonably small, was {result.OptimalValue}");
         }
 
         [TestMethod]
@@ -132,8 +132,8 @@ namespace Optimal.NonLinear.Unconstrained.Tests
             Assert.IsTrue(cgResult.Success, "CG optimization should succeed");
 
             // L-BFGS should be faster (fewer iterations)
-            Assert.IsTrue(lbfgsResult.Iterations < cgResult.Iterations,
-                $"L-BFGS ({lbfgsResult.Iterations} iters) should be faster than CG ({cgResult.Iterations} iters)");
+            Assert.IsLessThan(cgResult.Iterations,
+lbfgsResult.Iterations, $"L-BFGS ({lbfgsResult.Iterations} iters) should be faster than CG ({cgResult.Iterations} iters)");
         }
 
         [TestMethod]
@@ -207,7 +207,7 @@ namespace Optimal.NonLinear.Unconstrained.Tests
                 );
 
                 Assert.IsTrue(result.Success, $"Should succeed with memory size {m}");
-                Assert.IsTrue(result.OptimalValue < 1e-3, $"Should find good solution with memory size {m}");
+                Assert.IsLessThan(1e-3, result.OptimalValue, $"Should find good solution with memory size {m}");
             }
         }
 

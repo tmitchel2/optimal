@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -17,15 +17,15 @@ namespace Optimal.Control.Collocation.Tests
         [TestMethod]
         public void GetPointsAndWeightsThrowsForInvalidOrder()
         {
-            Assert.ThrowsException<ArgumentException>(() => LegendreGaussLobatto.GetPointsAndWeights(1));
-            Assert.ThrowsException<ArgumentException>(() => LegendreGaussLobatto.GetPointsAndWeights(0));
-            Assert.ThrowsException<ArgumentException>(() => LegendreGaussLobatto.GetPointsAndWeights(-1));
+            Assert.Throws<ArgumentException>(() => LegendreGaussLobatto.GetPointsAndWeights(1));
+            Assert.Throws<ArgumentException>(() => LegendreGaussLobatto.GetPointsAndWeights(0));
+            Assert.Throws<ArgumentException>(() => LegendreGaussLobatto.GetPointsAndWeights(-1));
         }
 
         [TestMethod]
         public void GetDifferentiationMatrixThrowsForInvalidOrder()
         {
-            Assert.ThrowsException<ArgumentException>(() => LegendreGaussLobatto.GetDifferentiationMatrix(1));
+            Assert.Throws<ArgumentException>(() => LegendreGaussLobatto.GetDifferentiationMatrix(1));
         }
 
         [TestMethod]
@@ -35,7 +35,7 @@ namespace Optimal.Control.Collocation.Tests
             {
                 var (points, _) = LegendreGaussLobatto.GetPointsAndWeights(order);
 
-                Assert.AreEqual(order, points.Length, $"Order {order} should have {order} points");
+                Assert.HasCount(order, points, $"Order {order} should have {order} points");
 
                 foreach (var point in points)
                 {
@@ -84,8 +84,8 @@ namespace Optimal.Control.Collocation.Tests
 
                 for (var i = 1; i < order; i++)
                 {
-                    Assert.IsTrue(points[i] > points[i - 1],
-                        $"Points should be monotonically increasing for order {order}");
+                    Assert.IsGreaterThan(points[i - 1],
+points[i], $"Points should be monotonically increasing for order {order}");
                 }
             }
         }
@@ -117,8 +117,8 @@ namespace Optimal.Control.Collocation.Tests
 
                 foreach (var weight in weights)
                 {
-                    Assert.IsTrue(weight > 0,
-                        $"All weights should be positive for order {order}, got {weight}");
+                    Assert.IsGreaterThan(0,
+weight, $"All weights should be positive for order {order}, got {weight}");
                 }
             }
         }

@@ -22,7 +22,7 @@ namespace Optimal.NonLinear.Constraints.Tests
             var lower = new[] { 0.0, 0.0 };
             var upper = new[] { 1.0, 1.0, 1.0 };
 
-            Assert.ThrowsException<ArgumentException>(() => new BoxConstraints(lower, upper));
+            Assert.Throws<ArgumentException>(() => new BoxConstraints(lower, upper));
         }
 
         [TestMethod]

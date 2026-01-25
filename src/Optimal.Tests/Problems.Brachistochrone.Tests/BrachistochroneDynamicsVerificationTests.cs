@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -350,8 +350,8 @@ namespace Optimal.Problems.Brachistochrone.Tests
             Assert.AreEqual(Gravity * Math.Sin(theta), value[2], 1e-10, "v̇ value");
 
             // Verify gradient structure
-            Assert.AreEqual(9, stateGradients.Length, "State gradient should be 3x3=9 elements");
-            Assert.AreEqual(3, controlGradients.Length, "Control gradient should be 3x1=3 elements");
+            Assert.HasCount(9, stateGradients, "State gradient should be 3x3=9 elements");
+            Assert.HasCount(3, controlGradients, "Control gradient should be 3x1=3 elements");
 
             // Verify key gradient values
             Assert.AreEqual(Math.Cos(theta), stateGradients[2], GradientTolerance, "∂ẋ/∂v = cos(θ)");
@@ -411,8 +411,8 @@ namespace Optimal.Problems.Brachistochrone.Tests
             Assert.AreEqual(0.0, value[3], 1e-10, "Ṫf should be 0");
 
             // Verify gradient structure
-            Assert.AreEqual(16, stateGradients.Length, "State gradient should be 4x4=16 elements");
-            Assert.AreEqual(4, controlGradients.Length, "Control gradient should be 4x1=4 elements");
+            Assert.HasCount(16, stateGradients, "State gradient should be 4x4=16 elements");
+            Assert.HasCount(4, controlGradients, "Control gradient should be 4x1=4 elements");
 
             // Verify key gradient values (∂f/∂Tf = f_physical)
             Assert.AreEqual(xratePhys, stateGradients[3], GradientTolerance, "∂ẋ_scaled/∂Tf = ẋ_physical");

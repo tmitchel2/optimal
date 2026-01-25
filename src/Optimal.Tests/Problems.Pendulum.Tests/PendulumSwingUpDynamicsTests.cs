@@ -118,7 +118,7 @@ namespace Optimal.Problems.Pendulum.Tests
             var angularAccel2 = OptimalCli.Problems.Pendulum.PendulumSwingUpDynamics.AngularVelocityRate(theta, thetadot, u2, g, L, m);
 
             // Assert
-            Assert.IsTrue(angularAccel2 > angularAccel1, "Positive torque should increase angular acceleration");
+            Assert.IsGreaterThan(angularAccel1, angularAccel2, "Positive torque should increase angular acceleration");
             var expectedIncrease = u2 / (m * L * L);
             Assert.AreEqual(expectedIncrease, angularAccel2 - angularAccel1, 1e-8, "Torque contribution should be u/(m·L²)");
         }
@@ -137,7 +137,7 @@ namespace Optimal.Problems.Pendulum.Tests
             var angularAccel2 = OptimalCli.Problems.Pendulum.PendulumSwingUpDynamics.AngularVelocityRate(theta, thetadot, u2, g, L, m);
 
             // Assert
-            Assert.IsTrue(angularAccel2 < angularAccel1, "Negative torque should decrease angular acceleration");
+            Assert.IsLessThan(angularAccel1, angularAccel2, "Negative torque should decrease angular acceleration");
         }
 
         [TestMethod]
@@ -154,8 +154,8 @@ namespace Optimal.Problems.Pendulum.Tests
             var angularAccel2 = OptimalCli.Problems.Pendulum.PendulumSwingUpDynamics.AngularVelocityRate(theta2, thetadot, u, g, L, m);
 
             // Assert
-            Assert.IsTrue(angularAccel1 < 0, "For positive angle, gravity should pull back toward equilibrium (negative acceleration)");
-            Assert.IsTrue(angularAccel2 > 0, "For negative angle, gravity should pull back toward equilibrium (positive acceleration)");
+            Assert.IsLessThan(0, angularAccel1, "For positive angle, gravity should pull back toward equilibrium (negative acceleration)");
+            Assert.IsGreaterThan(0, angularAccel2, "For negative angle, gravity should pull back toward equilibrium (positive acceleration)");
             Assert.AreEqual(-angularAccel1, angularAccel2, 1e-8, "Gravitational effect should be symmetric about equilibrium");
         }
 

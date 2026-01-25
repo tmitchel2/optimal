@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -36,7 +36,7 @@ namespace Optimal.Control.Collocation.Tests
 
             var shouldRefine = refinement.IdentifySegmentsForRefinement(defects, stateDim);
 
-            Assert.AreEqual(4, shouldRefine.Length);
+            Assert.HasCount(4, shouldRefine);
             Assert.IsFalse(shouldRefine[0], "Segment 0 should not be refined");
             Assert.IsTrue(shouldRefine[1], "Segment 1 should be refined");
             Assert.IsFalse(shouldRefine[2], "Segment 2 should not be refined");
@@ -57,7 +57,7 @@ namespace Optimal.Control.Collocation.Tests
             // Refine segments 1 and 3: adds 2 nodes
             // New: 6 segments, 7 nodes
             Assert.AreEqual(6, newGrid.Segments);
-            Assert.AreEqual(7, newGrid.TimePoints.Length);
+            Assert.HasCount(7, newGrid.TimePoints);
         }
 
         [TestMethod]
@@ -117,7 +117,7 @@ namespace Optimal.Control.Collocation.Tests
 
             // Verify solution
             Assert.IsTrue(result.Success, "Should converge with mesh refinement");
-            Assert.IsTrue(result.MaxDefect < 5e-3, $"Defects should be small, was {result.MaxDefect}");
+            Assert.IsLessThan(5e-3, result.MaxDefect, $"Defects should be small, was {result.MaxDefect}");
 
             // Check boundary conditions
             Assert.AreEqual(0.0, result.States[0][0], 0.05, "Initial state");
@@ -125,7 +125,7 @@ namespace Optimal.Control.Collocation.Tests
 
             // Grid should have been refined (more than 5 segments)
             // Note: May not always refine if initial guess is good enough
-            Assert.IsTrue(result.Times.Length >= 6, $"Grid uses {result.Times.Length} nodes");
+            Assert.IsGreaterThanOrEqualTo(6, result.Times.Length, $"Grid uses {result.Times.Length} nodes");
         }
 
         [TestMethod]
@@ -180,8 +180,8 @@ namespace Optimal.Control.Collocation.Tests
 
             // Refinement may or may not improve (depends on convergence behavior)
             // Just verify both solutions are reasonable
-            Assert.IsTrue(resultRefined.MaxDefect < 1.0, "Refined defect should be reasonable");
-            Assert.IsTrue(resultCoarse.MaxDefect < 1.0, "Coarse defect should be reasonable");
+            Assert.IsLessThan(1.0, resultRefined.MaxDefect, "Refined defect should be reasonable");
+            Assert.IsLessThan(1.0, resultCoarse.MaxDefect, "Coarse defect should be reasonable");
         }
 
         [TestMethod]

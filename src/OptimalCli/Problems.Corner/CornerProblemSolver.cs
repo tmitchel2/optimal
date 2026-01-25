@@ -11,6 +11,7 @@
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
+using Optimal.NonLinear.Constrained;
 using Optimal.NonLinear.Unconstrained;
 
 namespace OptimalCli.Problems.Corner;
@@ -138,18 +139,27 @@ public sealed class CornerProblemSolver : ICommand
         PrintResults(result);
     }
 
-    private static HermiteSimpsonSolver CreateSolver(RadiantCornerVisualizer visualizer)
+    private static HermiteSimpsonSolver CreateSolver(RadiantCornerVisualizer visualizer, bool useLBFGSB = true)
     {
-        var innerOptimizer = new LBFGSOptimizer()
-            .WithTolerance(1e-6)
-            .WithMaxIterations(1000)
-            .WithVerbose(false);
+        // Use L-BFGS-B for native box constraint support, or standard L-BFGS
+        // L-BFGS-B handles bounds internally, which can be more efficient for
+        // bound-constrained problems like optimal control
+        var innerOptimizer = useLBFGSB
+            ? new LBFGSBOptimizer()
+                .WithMemorySize(10)
+                .WithTolerance(1e-6)
+                .WithMaxIterations(1000)
+                .WithVerbose(false)
+            : new LBFGSOptimizer()
+                .WithTolerance(1e-6)
+                .WithMaxIterations(1000)
+                .WithVerbose(false);
 
         return new HermiteSimpsonSolver()
             .WithSegments(30)
             .WithTolerance(1e-6)
             .WithMaxIterations(1000)
-            // .WithMeshRefinement(true, 5, 1e-4)
+            .WithMeshRefinement(true, 5, 1e-6)
             .WithVerbose(true)
             .WithInnerOptimizer(innerOptimizer)
             // .WithInitialPenalty(50.0)

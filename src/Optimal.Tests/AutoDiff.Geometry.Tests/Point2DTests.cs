@@ -75,8 +75,8 @@ namespace Optimal.AutoDiff.Geometry.Tests
 
             var str = point.ToString();
 
-            Assert.IsTrue(str.Contains("3.5"));
-            Assert.IsTrue(str.Contains("4.2"));
+            Assert.Contains("3.5", str);
+            Assert.Contains("4.2", str);
         }
 
         [TestMethod]

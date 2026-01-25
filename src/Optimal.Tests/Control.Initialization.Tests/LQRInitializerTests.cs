@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -32,7 +32,7 @@ namespace Optimal.Control.Initialization.Tests
             var grid = new CollocationGrid(0.0, 1.0, 5);
             var nominal = (states: new[] { s_zeroState1D }, controls: new[] { s_zeroState1D });
 
-            Assert.ThrowsException<ArgumentNullException>(() =>
+            Assert.Throws<ArgumentNullException>(() =>
                 LQRInitializer.GenerateInitialGuess(null!, grid, nominal, s_Q1D, s_R1D));
         }
 
@@ -42,7 +42,7 @@ namespace Optimal.Control.Initialization.Tests
             var problem = CreateSimpleProblem();
             var nominal = (states: new[] { s_zeroState1D }, controls: new[] { s_zeroState1D });
 
-            Assert.ThrowsException<ArgumentNullException>(() =>
+            Assert.Throws<ArgumentNullException>(() =>
                 LQRInitializer.GenerateInitialGuess(problem, null!, nominal, s_Q1D, s_R1D));
         }
 
@@ -56,7 +56,7 @@ namespace Optimal.Control.Initialization.Tests
             var result = LQRInitializer.GenerateInitialGuess(problem, grid, nominal, s_Q1D, s_R1D);
 
             Assert.IsNotNull(result);
-            Assert.IsTrue(result.Length > 0);
+            Assert.IsNotEmpty(result);
         }
 
         [TestMethod]
@@ -85,7 +85,7 @@ namespace Optimal.Control.Initialization.Tests
             var result = LQRInitializer.GenerateInitialGuess(problem, grid, nominal, s_Q2D, s_R1D);
 
             Assert.IsNotNull(result);
-            Assert.IsTrue(result.Length > 0);
+            Assert.IsNotEmpty(result);
         }
 
         [TestMethod]
@@ -96,10 +96,10 @@ namespace Optimal.Control.Initialization.Tests
 
             var (states, controls) = LQRInitializer.CreateNominalTrajectory(problem, grid);
 
-            Assert.AreEqual(11, states.Length); // segments + 1
-            Assert.AreEqual(11, controls.Length);
-            Assert.AreEqual(1, states[0].Length); // 1D state
-            Assert.AreEqual(1, controls[0].Length); // 1D control
+            Assert.HasCount(11, states); // segments + 1
+            Assert.HasCount(11, controls);
+            Assert.HasCount(1, states[0]); // 1D state
+            Assert.HasCount(1, controls[0]); // 1D control
         }
 
         [TestMethod]
@@ -190,7 +190,7 @@ namespace Optimal.Control.Initialization.Tests
             var result = LQRInitializer.GenerateInitialGuess(problem, grid, nominal, s_Q1D, s_R1D);
 
             Assert.IsNotNull(result);
-            Assert.IsTrue(result.Length > 0);
+            Assert.IsNotEmpty(result);
         }
 
         [TestMethod]
@@ -220,7 +220,7 @@ namespace Optimal.Control.Initialization.Tests
             var result = LQRInitializer.GenerateInitialGuess(problem, grid, nominal, Q, R);
 
             Assert.IsNotNull(result);
-            Assert.IsTrue(result.Length > 0);
+            Assert.IsNotEmpty(result);
         }
 
         [TestMethod]
@@ -262,7 +262,7 @@ namespace Optimal.Control.Initialization.Tests
 
             // For HermiteSimpson: (nStates + nControls) * (segments + 1)
             // With 5 segments, 1 state, 1 control: (1 + 1) * 6 = 12
-            Assert.AreEqual(12, result.Length);
+            Assert.HasCount(12, result);
         }
 
         private static ControlProblem CreateSimpleProblem()
@@ -417,8 +417,8 @@ namespace Optimal.Control.Initialization.Tests
             // u ≈ K * 0.5 ≈ 4.236 * 0.5 ≈ 2.118 (positive, pushing toward target)
 
             // At minimum, verify the gain is substantial (not the near-zero heuristic)
-            Assert.IsTrue(Math.Abs(control) > 0.5,
-                $"Control magnitude {Math.Abs(control)} should be substantial for unstable system (expected K ≈ {expectedK})");
+            Assert.IsGreaterThan(0.5,
+Math.Abs(control), $"Control magnitude {Math.Abs(control)} should be substantial for unstable system (expected K ≈ {expectedK})");
         }
 
         [TestMethod]
@@ -464,8 +464,8 @@ namespace Optimal.Control.Initialization.Tests
 
             // Control should be trying to drive the system toward zero
             // From position 1, velocity 0, we need negative acceleration
-            Assert.IsTrue(control0 < 0,
-                $"Initial control {control0} should be negative to decelerate toward target");
+            Assert.IsLessThan(0,
+control0, $"Initial control {control0} should be negative to decelerate toward target");
         }
     }
 }

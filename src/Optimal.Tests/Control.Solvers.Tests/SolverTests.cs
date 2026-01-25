@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -83,7 +83,7 @@ namespace Optimal.Control.Solvers.Tests
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
-            Assert.IsTrue(result.MaxDefect < 1e-3, $"Defects should be small, was {result.MaxDefect}");
+            Assert.IsLessThan(1e-3, result.MaxDefect, $"Defects should be small, was {result.MaxDefect}");
 
             // Check boundary conditions
             Assert.AreEqual(0.0, result.States[0][0], 1e-3, "Initial state should be 0");
@@ -152,7 +152,7 @@ namespace Optimal.Control.Solvers.Tests
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
-            Assert.IsTrue(result.MaxDefect < 1e-2, $"Defects should be small, was {result.MaxDefect}");
+            Assert.IsLessThan(1e-2, result.MaxDefect, $"Defects should be small, was {result.MaxDefect}");
 
             // Check boundary conditions
             Assert.AreEqual(0.0, result.States[0][0], 1e-2, "Initial position should be 0");
@@ -213,8 +213,8 @@ namespace Optimal.Control.Solvers.Tests
             // Check controls respect bounds
             foreach (var u in result.Controls)
             {
-                Assert.IsTrue(u[0] >= -1.0 - 1e-6, "Control should be >= -1");
-                Assert.IsTrue(u[0] <= 1.0 + 1e-6, "Control should be <= 1");
+                Assert.IsGreaterThanOrEqualTo(-1.0 - 1e-6, u[0], "Control should be >= -1");
+                Assert.IsLessThanOrEqualTo(1.0 + 1e-6, u[0], "Control should be <= 1");
             }
         }
 
@@ -254,7 +254,7 @@ namespace Optimal.Control.Solvers.Tests
             var result = solver.Solve(problem, initialGuess);
 
             Assert.IsTrue(result.Success, "Solver should converge");
-            Assert.IsTrue(result.MaxDefect < 1e-2, "Defects should be small");
+            Assert.IsLessThan(1e-2, result.MaxDefect, "Defects should be small");
         }
 
         [TestMethod]
@@ -267,7 +267,7 @@ namespace Optimal.Control.Solvers.Tests
             var solver = CreateSolver()
                 .WithSegments(10);
 
-            Assert.ThrowsException<InvalidOperationException>(() =>
+            Assert.Throws<InvalidOperationException>(() =>
             {
                 var guess = CreateInitialGuess(problem, 10);
                 solver.Solve(problem, guess);

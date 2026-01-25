@@ -286,10 +286,10 @@ namespace Optimal.Control.Collocation.Tests
 
             var grid = new CollocationGrid(0.0, 5.0, 5);
 
-            Assert.ThrowsException<ArgumentOutOfRangeException>(() =>
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
                 WarmStart.BlendSolutions(result, result, -0.1, grid));
 
-            Assert.ThrowsException<ArgumentOutOfRangeException>(() =>
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
                 WarmStart.BlendSolutions(result, result, 1.1, grid));
         }
 

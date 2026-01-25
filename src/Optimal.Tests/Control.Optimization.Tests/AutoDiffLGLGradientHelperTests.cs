@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -531,8 +531,7 @@ namespace Optimal.Control.Optimization.Tests
             Console.WriteLine($"Numerical gradient of defect[0] w.r.t. control: {gradWrtControl}");
 
             // The gradient should be non-zero (approximately -T_f = -2.0)
-            Assert.IsTrue(Math.Abs(gradWrtControl) > 0.1,
-                $"Control should affect defect, got gradient = {gradWrtControl}");
+            Assert.IsGreaterThan(0.1, Math.Abs(gradWrtControl), $"Control should affect defect, got gradient = {gradWrtControl}");
         }
 
         #endregion

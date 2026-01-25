@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -22,7 +22,7 @@ namespace Optimal.Control.Optimization.Tests
 
             var gradient = NumericalGradients.ComputeGradient(f, x);
 
-            Assert.AreEqual(3, gradient.Length);
+            Assert.HasCount(3, gradient);
         }
 
         [TestMethod]
@@ -62,7 +62,7 @@ namespace Optimal.Control.Optimization.Tests
 
             var gradient = NumericalGradients.ComputeGradient(f, x);
 
-            Assert.AreEqual(1, gradient.Length);
+            Assert.HasCount(1, gradient);
             Assert.AreEqual(10.0, gradient[0], 1e-6);
         }
 
@@ -98,7 +98,7 @@ namespace Optimal.Control.Optimization.Tests
             var constraintGradient = NumericalGradients.ComputeConstraintGradient(f, x);
             var regularGradient = NumericalGradients.ComputeGradient(f, x);
 
-            Assert.AreEqual(regularGradient.Length, constraintGradient.Length);
+            Assert.HasCount(regularGradient.Length, constraintGradient);
             for (var i = 0; i < regularGradient.Length; i++)
             {
                 Assert.AreEqual(regularGradient[i], constraintGradient[i], 1e-10);

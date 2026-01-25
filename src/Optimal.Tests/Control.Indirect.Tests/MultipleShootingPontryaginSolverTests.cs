@@ -58,7 +58,7 @@ namespace Optimal.Control.Indirect.Tests
             var solver = new MultipleShootingPontryaginSolver();
             Func<double[], double[], double[], double, double[]> optimalControl = (_, _, _, _) => [0.0];
 
-            Assert.ThrowsException<ArgumentNullException>(() =>
+            Assert.Throws<ArgumentNullException>(() =>
                 solver.Solve(null!, optimalControl, s_initialCostates1D));
         }
 
@@ -68,7 +68,7 @@ namespace Optimal.Control.Indirect.Tests
             var problem = CreateSimpleProblem();
             var solver = new MultipleShootingPontryaginSolver();
 
-            Assert.ThrowsException<ArgumentNullException>(() =>
+            Assert.Throws<ArgumentNullException>(() =>
                 solver.Solve(problem, null!, s_initialCostates1D));
         }
 

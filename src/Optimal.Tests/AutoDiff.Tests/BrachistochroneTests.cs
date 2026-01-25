@@ -21,8 +21,8 @@ namespace Optimal.AutoDiff.Tests
 
             var duration = Brachistochrone.GetDuration(radius);
 
-            Assert.IsTrue(duration.TotalSeconds > 0, "Duration should be positive");
-            Assert.IsTrue(duration.TotalSeconds < 100, "Duration should be reasonable");
+            Assert.IsGreaterThan(0, duration.TotalSeconds, "Duration should be positive");
+            Assert.IsLessThan(100, duration.TotalSeconds, "Duration should be reasonable");
             Console.WriteLine($"Duration for radius {radius}: {duration.TotalSeconds:F3} seconds");
         }
 
@@ -48,7 +48,7 @@ namespace Optimal.AutoDiff.Tests
 
             var duration = Brachistochrone.GetDuration(radius);
 
-            Assert.IsTrue(duration.TotalSeconds > 0);
+            Assert.IsGreaterThan(0, duration.TotalSeconds);
             Console.WriteLine($"Duration for radius {radius:F2} (near minimum): {duration.TotalSeconds:F3} seconds");
         }
     }

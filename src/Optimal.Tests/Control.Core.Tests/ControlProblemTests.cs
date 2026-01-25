@@ -58,24 +58,24 @@ namespace Optimal.Control.Core.Tests
         public void ThrowsOnInvalidStateDimension()
         {
             var problem = new ControlProblem();
-            Assert.ThrowsException<ArgumentException>(() => problem.WithStateSize(0));
-            Assert.ThrowsException<ArgumentException>(() => problem.WithStateSize(-1));
+            Assert.Throws<ArgumentException>(() => problem.WithStateSize(0));
+            Assert.Throws<ArgumentException>(() => problem.WithStateSize(-1));
         }
 
         [TestMethod]
         public void ThrowsOnInvalidControlDimension()
         {
             var problem = new ControlProblem();
-            Assert.ThrowsException<ArgumentException>(() => problem.WithControlSize(0));
-            Assert.ThrowsException<ArgumentException>(() => problem.WithControlSize(-1));
+            Assert.Throws<ArgumentException>(() => problem.WithControlSize(0));
+            Assert.Throws<ArgumentException>(() => problem.WithControlSize(-1));
         }
 
         [TestMethod]
         public void ThrowsOnInvalidTimeHorizon()
         {
             var problem = new ControlProblem();
-            Assert.ThrowsException<ArgumentException>(() => problem.WithTimeHorizon(10.0, 10.0));
-            Assert.ThrowsException<ArgumentException>(() => problem.WithTimeHorizon(10.0, 5.0));
+            Assert.Throws<ArgumentException>(() => problem.WithTimeHorizon(10.0, 10.0));
+            Assert.Throws<ArgumentException>(() => problem.WithTimeHorizon(10.0, 5.0));
         }
     }
 }

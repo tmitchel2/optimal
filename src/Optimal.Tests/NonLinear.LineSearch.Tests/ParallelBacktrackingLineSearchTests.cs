@@ -35,12 +35,12 @@ namespace Optimal.NonLinear.LineSearch.Tests
                 direction,
                 1.0);
 
-            Assert.IsTrue(alpha > 0, $"Step size should be positive, was {alpha}");
-            Assert.IsTrue(alpha <= 1.0, $"Step size should not exceed initial, was {alpha}");
+            Assert.IsGreaterThan(0, alpha, $"Step size should be positive, was {alpha}");
+            Assert.IsLessThanOrEqualTo(1.0, alpha, $"Step size should not exceed initial, was {alpha}");
 
             var xNew = new double[] { x[0] + alpha * direction[0], x[1] + alpha * direction[1] };
             var (fNew, _) = TestObjectiveFunctionsGradients.QuadraticReverse(xNew[0], xNew[1]);
-            Assert.IsTrue(fNew < fx, $"Function should decrease: {fx} -> {fNew}");
+            Assert.IsLessThan(fx, fNew, $"Function should decrease: {fx} -> {fNew}");
         }
 
         [TestMethod]
@@ -60,11 +60,11 @@ namespace Optimal.NonLinear.LineSearch.Tests
                 direction,
                 1.0);
 
-            Assert.IsTrue(alpha > 0, $"Step size should be positive, was {alpha}");
+            Assert.IsGreaterThan(0, alpha, $"Step size should be positive, was {alpha}");
 
             var xNew = new double[] { x[0] + alpha * direction[0], x[1] + alpha * direction[1] };
             var (fNew, _) = TestObjectiveFunctionsGradients.RosenbrockReverse(xNew[0], xNew[1]);
-            Assert.IsTrue(fNew < fx, $"Function should decrease: {fx} -> {fNew}");
+            Assert.IsLessThan(fx, fNew, $"Function should decrease: {fx} -> {fNew}");
         }
 
         [TestMethod]
@@ -134,7 +134,7 @@ namespace Optimal.NonLinear.LineSearch.Tests
                 direction,
                 1.0);
 
-            Assert.IsTrue(alpha > 0, $"Step size should be positive even when parallelization disabled, was {alpha}");
+            Assert.IsGreaterThan(0, alpha, $"Step size should be positive even when parallelization disabled, was {alpha}");
         }
 
         [TestMethod]
@@ -154,7 +154,7 @@ namespace Optimal.NonLinear.LineSearch.Tests
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-3, "x should be near 1");
             Assert.AreEqual(1.0, result.OptimalPoint[1], 1e-3, "y should be near 1");
-            Assert.IsTrue(result.OptimalValue < 1e-6, $"f(x*) should be very small, was {result.OptimalValue}");
+            Assert.IsLessThan(1e-6, result.OptimalValue, $"f(x*) should be very small, was {result.OptimalValue}");
         }
 
         [TestMethod]
@@ -179,7 +179,7 @@ namespace Optimal.NonLinear.LineSearch.Tests
                     direction,
                     1.0);
 
-                Assert.IsTrue(alpha > 0, $"Step size should be positive for batch size {batchSize}");
+                Assert.IsGreaterThan(0, alpha, $"Step size should be positive for batch size {batchSize}");
 
                 if (expectedAlpha.HasValue)
                 {
