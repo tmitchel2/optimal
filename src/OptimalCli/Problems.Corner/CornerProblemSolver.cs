@@ -205,9 +205,9 @@ public sealed class CornerProblemSolver : ICommand
             .WithStateBounds(
                 [1.0, -15.0, -15.0, -halfWidth, -Math.PI / 3, -0.3, -2.0, 0.0],
                 [70.0, 15.0, 15.0, halfWidth, Math.PI / 3, 0.3, 2.0, 60.0])
-            .WithDynamics(input => ComputeDynamics(input, trackGeometry))
-            .WithRunningCost(input => ComputeRunningCost(input, trackGeometry))
-            .WithPathConstraint(input => ComputePowerConstraint(input))
+            .WithDynamics(input => ComputeDynamicsAnalytical(input, trackGeometry))
+            .WithRunningCost(input => ComputeRunningCostAnalytical(input, trackGeometry))
+            .WithPathConstraint(input => ComputePowerConstraintAnalytical(input))
             .WithPathConstraint(input => ComputeCombinedFrictionConstraint(input))
             .WithPathConstraint(input => ComputeTrackBoundaryConstraint(input, trackGeometry));
     }
@@ -321,6 +321,120 @@ public sealed class CornerProblemSolver : ICommand
         ];
     }
 
+    private static DynamicsResult ComputeDynamicsAnalytical(DynamicsInput input, TrackGeometry trackGeometry)
+    {
+        var x = input.State;
+        var u = input.Control;
+        var s = input.Time;  // "time" is actually arc length s
+
+        // Extract state variables
+        var V = x[IdxV];
+        var ax = x[IdxAx];
+        var ay = x[IdxAy];
+        var n = x[IdxN];
+        var alpha = x[IdxAlpha];
+        var lambda = x[IdxLambda];
+        var Omega = x[IdxOmega];
+
+        // Extract control variables
+        var delta = u[IdxDelta];
+        var T = u[IdxThrust];
+
+        // Get track curvature at current position
+        var kappa = trackGeometry.RoadCurvature(s);
+
+        // Call generated Reverse methods to get values and gradients
+        // Each returns (value, gradients[]) where gradients are in parameter order
+
+        // SpeedRateSReverse params: [kappa, n, alpha, V, ax, rho, CdA, M]
+        var (dVds, dVds_grad) = CornerDynamicsGradients.SpeedRateSReverse(kappa, n, alpha, V, ax, Rho, CdA, M);
+
+        // AxRateSReverse params: [kappa, n, alpha, V, ax, T, Fmax, M, tau_ax]
+        var (dAxds, dAxds_grad) = CornerDynamicsGradients.AxRateSReverse(kappa, n, alpha, V, ax, T, Fmax, M, TauAx);
+
+        // AyRateSReverse params: [kappa, n, alpha, V, ay, Omega, tau_ay]
+        var (dAyds, dAyds_grad) = CornerDynamicsGradients.AyRateSReverse(kappa, n, alpha, V, ay, Omega, TauAy);
+
+        // LateralRateSReverse params: [kappa, n, alpha]
+        var (dNds, dNds_grad) = CornerDynamicsGradients.LateralRateSReverse(kappa, n, alpha);
+
+        // AlphaRateSReverse params: [kappa, n, alpha, V, Omega]
+        var (dAlphads, dAlphads_grad) = CornerDynamicsGradients.AlphaRateSReverse(kappa, n, alpha, V, Omega);
+
+        // LambdaRateSReverse params: [kappa, n, alpha, V, lambda, Omega, delta, a, b, tau_lambda]
+        var (dLambdads, dLambdads_grad) = CornerDynamicsGradients.LambdaRateSReverse(kappa, n, alpha, V, lambda, Omega, delta, VehicleA, VehicleB, TauLambda);
+
+        // OmegaRateSReverse params: [kappa, n, alpha, V, Omega, delta, ay, a, b, Iz, M]
+        var (dOmegads, dOmegads_grad) = CornerDynamicsGradients.OmegaRateSReverse(kappa, n, alpha, V, Omega, delta, ay, VehicleA, VehicleB, Iz, M);
+
+        // TimeRateSReverse params: [kappa, n, alpha, V]
+        var (dTds, dTds_grad) = CornerDynamicsGradients.TimeRateSReverse(kappa, n, alpha, V);
+
+        var value = new[] { dVds, dAxds, dAyds, dNds, dAlphads, dLambdads, dOmegads, dTds };
+
+        // Build Jacobians by mapping gradients from parameter order to state/control order
+        // State: [V(0), ax(1), ay(2), n(3), alpha(4), lambda(5), Omega(6), t(7)]
+        // Control: [delta(0), T(1)]
+        const int stateDim = 8;
+        const int controlDim = 2;
+
+        var stateGradients = new double[stateDim * stateDim];   // 8x8 = 64 elements, row-major
+        var controlGradients = new double[stateDim * controlDim]; // 8x2 = 16 elements, row-major
+
+        // Row 0: d(dVds)/d[state,control] - SpeedRateS params: [kappa(0), n(1), alpha(2), V(3), ax(4), rho, CdA, M]
+        stateGradients[0 * stateDim + IdxV] = dVds_grad[3];      // d/dV
+        stateGradients[0 * stateDim + IdxAx] = dVds_grad[4];     // d/dax
+        stateGradients[0 * stateDim + IdxN] = dVds_grad[1];      // d/dn
+        stateGradients[0 * stateDim + IdxAlpha] = dVds_grad[2];  // d/dalpha
+
+        // Row 1: d(dAxds)/d[state,control] - AxRateS params: [kappa(0), n(1), alpha(2), V(3), ax(4), T(5), Fmax, M, tau_ax]
+        stateGradients[1 * stateDim + IdxV] = dAxds_grad[3];      // d/dV
+        stateGradients[1 * stateDim + IdxAx] = dAxds_grad[4];     // d/dax
+        stateGradients[1 * stateDim + IdxN] = dAxds_grad[1];      // d/dn
+        stateGradients[1 * stateDim + IdxAlpha] = dAxds_grad[2];  // d/dalpha
+        controlGradients[1 * controlDim + IdxThrust] = dAxds_grad[5];  // d/dT
+
+        // Row 2: d(dAyds)/d[state,control] - AyRateS params: [kappa(0), n(1), alpha(2), V(3), ay(4), Omega(5), tau_ay]
+        stateGradients[2 * stateDim + IdxV] = dAyds_grad[3];      // d/dV
+        stateGradients[2 * stateDim + IdxAy] = dAyds_grad[4];     // d/day
+        stateGradients[2 * stateDim + IdxN] = dAyds_grad[1];      // d/dn
+        stateGradients[2 * stateDim + IdxAlpha] = dAyds_grad[2];  // d/dalpha
+        stateGradients[2 * stateDim + IdxOmega] = dAyds_grad[5];  // d/dOmega
+
+        // Row 3: d(dNds)/d[state,control] - LateralRateS params: [kappa(0), n(1), alpha(2)]
+        stateGradients[3 * stateDim + IdxN] = dNds_grad[1];       // d/dn
+        stateGradients[3 * stateDim + IdxAlpha] = dNds_grad[2];   // d/dalpha
+
+        // Row 4: d(dAlphads)/d[state,control] - AlphaRateS params: [kappa(0), n(1), alpha(2), V(3), Omega(4)]
+        stateGradients[4 * stateDim + IdxV] = dAlphads_grad[3];      // d/dV
+        stateGradients[4 * stateDim + IdxN] = dAlphads_grad[1];      // d/dn
+        stateGradients[4 * stateDim + IdxAlpha] = dAlphads_grad[2];  // d/dalpha
+        stateGradients[4 * stateDim + IdxOmega] = dAlphads_grad[4];  // d/dOmega
+
+        // Row 5: d(dLambdads)/d[state,control] - LambdaRateS params: [kappa(0), n(1), alpha(2), V(3), lambda(4), Omega(5), delta(6), a, b, tau_lambda]
+        stateGradients[5 * stateDim + IdxV] = dLambdads_grad[3];       // d/dV
+        stateGradients[5 * stateDim + IdxN] = dLambdads_grad[1];       // d/dn
+        stateGradients[5 * stateDim + IdxAlpha] = dLambdads_grad[2];   // d/dalpha
+        stateGradients[5 * stateDim + IdxLambda] = dLambdads_grad[4];  // d/dlambda
+        stateGradients[5 * stateDim + IdxOmega] = dLambdads_grad[5];   // d/dOmega
+        controlGradients[5 * controlDim + IdxDelta] = dLambdads_grad[6];  // d/ddelta
+
+        // Row 6: d(dOmegads)/d[state,control] - OmegaRateS params: [kappa(0), n(1), alpha(2), V(3), Omega(4), delta(5), ay(6), a, b, Iz, M]
+        stateGradients[6 * stateDim + IdxV] = dOmegads_grad[3];       // d/dV
+        stateGradients[6 * stateDim + IdxAy] = dOmegads_grad[6];      // d/day
+        stateGradients[6 * stateDim + IdxN] = dOmegads_grad[1];       // d/dn
+        stateGradients[6 * stateDim + IdxAlpha] = dOmegads_grad[2];   // d/dalpha
+        stateGradients[6 * stateDim + IdxOmega] = dOmegads_grad[4];   // d/dOmega
+        controlGradients[6 * controlDim + IdxDelta] = dOmegads_grad[5];  // d/ddelta
+
+        // Row 7: d(dTds)/d[state,control] - TimeRateS params: [kappa(0), n(1), alpha(2), V(3)]
+        stateGradients[7 * stateDim + IdxV] = dTds_grad[3];      // d/dV
+        stateGradients[7 * stateDim + IdxN] = dTds_grad[1];      // d/dn
+        stateGradients[7 * stateDim + IdxAlpha] = dTds_grad[2];  // d/dalpha
+
+        return new DynamicsResult(value, [stateGradients, controlGradients]);
+    }
+
     private static RunningCostResult ComputeRunningCost(RunningCostInput input, TrackGeometry trackGeometry)
     {
         var x = input.State;
@@ -375,6 +489,31 @@ public sealed class CornerProblemSolver : ICommand
         return gradients;
     }
 
+    private static RunningCostResult ComputeRunningCostAnalytical(RunningCostInput input, TrackGeometry trackGeometry)
+    {
+        var x = input.State;
+        var s = input.Time;
+
+        var V = x[IdxV];
+        var n = x[IdxN];
+        var alpha = x[IdxAlpha];
+
+        var kappa = trackGeometry.RoadCurvature(s);
+
+        // Use generated analytical gradients
+        // RunningCostSReverse parameters: [kappa, n, alpha, V]
+        var (cost, costGrad) = CornerDynamicsGradients.RunningCostSReverse(kappa, n, alpha, V);
+
+        // Gradients: [dL/dx (8), dL/du (2), dL/dt (1)]
+        var gradients = new double[11];
+        gradients[IdxV] = costGrad[3];      // dL/dV (index 3 in parameter order)
+        gradients[IdxN] = costGrad[1];      // dL/dn (index 1 in parameter order)
+        gradients[IdxAlpha] = costGrad[2];  // dL/dalpha (index 2 in parameter order)
+        // Other state, control, and time derivatives are zero
+
+        return new RunningCostResult(cost, gradients);
+    }
+
     private static PathConstraintResult ComputePowerConstraint(PathConstraintInput input)
     {
         var V = input.State[IdxV];
@@ -387,6 +526,23 @@ public sealed class CornerProblemSolver : ICommand
         var gradients = new double[10];
         gradients[IdxV] = T * Fmax;      // dC/dV
         gradients[8 + IdxThrust] = Fmax * V;  // dC/dT
+
+        return new PathConstraintResult(value, gradients);
+    }
+
+    private static PathConstraintResult ComputePowerConstraintAnalytical(PathConstraintInput input)
+    {
+        var V = input.State[IdxV];
+        var T = input.Control[IdxThrust];
+
+        // Use generated analytical gradients
+        // PowerConstraintReverse parameters: [T, V, Fmax, Pmax]
+        var (value, constraintGrad) = CornerDynamicsGradients.PowerConstraintReverse(T, V, Fmax, Pmax);
+
+        // Gradients: [dx (8), du (2)]
+        var gradients = new double[10];
+        gradients[IdxV] = constraintGrad[1];       // dC/dV (index 1 in parameter order)
+        gradients[8 + IdxThrust] = constraintGrad[0];  // dC/dT (index 0 in parameter order)
 
         return new PathConstraintResult(value, gradients);
     }
