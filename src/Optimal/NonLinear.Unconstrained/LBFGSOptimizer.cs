@@ -159,6 +159,46 @@ namespace Optimal.NonLinear.Unconstrained
             var (value, gradient) = objective(x);
             functionEvaluations++;
 
+            // Check for numerical errors at initial point
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return new OptimizerResult
+                {
+                    OptimalPoint = x,
+                    OptimalValue = value,
+                    FinalGradient = gradient,
+                    Iterations = 0,
+                    FunctionEvaluations = functionEvaluations,
+                    StoppingReason = StoppingReason.NumericalError,
+                    Success = false,
+                    Message = "Numerical error: initial objective evaluation returned NaN or Infinity",
+                    GradientNorm = double.NaN,
+                    FunctionChange = 0.0,
+                    ParameterChange = 0.0
+                };
+            }
+
+            for (var i = 0; i < n; i++)
+            {
+                if (double.IsNaN(gradient[i]) || double.IsInfinity(gradient[i]))
+                {
+                    return new OptimizerResult
+                    {
+                        OptimalPoint = x,
+                        OptimalValue = value,
+                        FinalGradient = gradient,
+                        Iterations = 0,
+                        FunctionEvaluations = functionEvaluations,
+                        StoppingReason = StoppingReason.NumericalError,
+                        Success = false,
+                        Message = "Numerical error: initial gradient contains NaN or Infinity",
+                        GradientNorm = double.NaN,
+                        FunctionChange = 0.0,
+                        ParameterChange = 0.0
+                    };
+                }
+            }
+
             if (_verbose)
             {
                 var gradNormSq = 0.0;
@@ -255,6 +295,46 @@ namespace Optimal.NonLinear.Unconstrained
                 // Evaluate at new point
                 (value, gradient) = objective(x);
                 functionEvaluations++;
+
+                // Check for numerical errors
+                if (double.IsNaN(value) || double.IsInfinity(value))
+                {
+                    return new OptimizerResult
+                    {
+                        OptimalPoint = xPrev,
+                        OptimalValue = value,
+                        FinalGradient = gradient,
+                        Iterations = iter + 1,
+                        FunctionEvaluations = functionEvaluations,
+                        StoppingReason = StoppingReason.NumericalError,
+                        Success = false,
+                        Message = "Numerical error: objective function returned NaN or Infinity",
+                        GradientNorm = double.NaN,
+                        FunctionChange = 0.0,
+                        ParameterChange = 0.0
+                    };
+                }
+
+                for (var i = 0; i < n; i++)
+                {
+                    if (double.IsNaN(gradient[i]) || double.IsInfinity(gradient[i]))
+                    {
+                        return new OptimizerResult
+                        {
+                            OptimalPoint = xPrev,
+                            OptimalValue = value,
+                            FinalGradient = gradient,
+                            Iterations = iter + 1,
+                            FunctionEvaluations = functionEvaluations,
+                            StoppingReason = StoppingReason.NumericalError,
+                            Success = false,
+                            Message = "Numerical error: gradient contains NaN or Infinity",
+                            GradientNorm = double.NaN,
+                            FunctionChange = 0.0,
+                            ParameterChange = 0.0
+                        };
+                    }
+                }
 
                 if (_verbose && (iter % 10 == 0 || iter < 5))
                 {

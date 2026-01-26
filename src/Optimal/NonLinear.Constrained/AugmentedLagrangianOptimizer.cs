@@ -168,6 +168,21 @@ namespace Optimal.NonLinear.Constrained
                 {
                     // Evaluate objective
                     var (fValue, fGrad) = objective(xAug);
+
+                    // Check for numerical errors in objective
+                    if (double.IsNaN(fValue) || double.IsInfinity(fValue))
+                    {
+                        return (double.PositiveInfinity, fGrad);
+                    }
+
+                    for (var j = 0; j < n; j++)
+                    {
+                        if (double.IsNaN(fGrad[j]) || double.IsInfinity(fGrad[j]))
+                        {
+                            return (double.PositiveInfinity, fGrad);
+                        }
+                    }
+
                     var augValue = fValue;
                     var augGrad = (double[])fGrad.Clone();
 
@@ -229,6 +244,26 @@ namespace Optimal.NonLinear.Constrained
                 // _unconstrainedOptimizer.WithMaxIterations(1000);
 
                 var subResult = _unconstrainedOptimizer.Minimize(AugmentedLagrangian);
+
+                // Check if inner optimizer encountered numerical error
+                if (subResult.StoppingReason == StoppingReason.NumericalError)
+                {
+                    return new OptimizerResult
+                    {
+                        OptimalPoint = x,
+                        OptimalValue = double.NaN,
+                        FinalGradient = Array.Empty<double>(),
+                        Iterations = outerIter + 1,
+                        FunctionEvaluations = totalFunctionEvaluations + subResult.FunctionEvaluations,
+                        StoppingReason = StoppingReason.NumericalError,
+                        Success = false,
+                        Message = "Numerical error in inner optimizer: " + subResult.Message,
+                        GradientNorm = double.NaN,
+                        FunctionChange = 0.0,
+                        ParameterChange = 0.0
+                    };
+                }
+
                 x = subResult.OptimalPoint;
 
                 // Project onto box constraints if present (skip if inner optimizer handles bounds)
@@ -279,6 +314,47 @@ namespace Optimal.NonLinear.Constrained
                         Console.WriteLine($"Augmented Lagrangian Converged: max constraint violation {maxViolation:E3} < {_constraintTolerance:E3}");
                     }
                     var (finalValue, finalGrad) = objective(x);
+
+                    // Check for numerical errors
+                    if (double.IsNaN(finalValue) || double.IsInfinity(finalValue))
+                    {
+                        return new OptimizerResult
+                        {
+                            OptimalPoint = x,
+                            OptimalValue = finalValue,
+                            FinalGradient = finalGrad,
+                            Iterations = outerIter + 1,
+                            FunctionEvaluations = totalFunctionEvaluations,
+                            StoppingReason = StoppingReason.NumericalError,
+                            Success = false,
+                            Message = "Numerical error: objective function returned NaN or Infinity",
+                            GradientNorm = double.NaN,
+                            FunctionChange = 0.0,
+                            ParameterChange = 0.0
+                        };
+                    }
+
+                    for (var j = 0; j < n; j++)
+                    {
+                        if (double.IsNaN(finalGrad[j]) || double.IsInfinity(finalGrad[j]))
+                        {
+                            return new OptimizerResult
+                            {
+                                OptimalPoint = x,
+                                OptimalValue = finalValue,
+                                FinalGradient = finalGrad,
+                                Iterations = outerIter + 1,
+                                FunctionEvaluations = totalFunctionEvaluations,
+                                StoppingReason = StoppingReason.NumericalError,
+                                Success = false,
+                                Message = "Numerical error: gradient contains NaN or Infinity",
+                                GradientNorm = double.NaN,
+                                FunctionChange = 0.0,
+                                ParameterChange = 0.0
+                            };
+                        }
+                    }
+
                     var gradNorm = ComputeNorm(finalGrad);
                     return new OptimizerResult
                     {
@@ -333,6 +409,47 @@ namespace Optimal.NonLinear.Constrained
 
             // Maximum iterations reached
             var (endValue, endGrad) = objective(x);
+
+            // Check for numerical errors
+            if (double.IsNaN(endValue) || double.IsInfinity(endValue))
+            {
+                return new OptimizerResult
+                {
+                    OptimalPoint = x,
+                    OptimalValue = endValue,
+                    FinalGradient = endGrad,
+                    Iterations = _maxIterations,
+                    FunctionEvaluations = totalFunctionEvaluations,
+                    StoppingReason = StoppingReason.NumericalError,
+                    Success = false,
+                    Message = "Numerical error: objective function returned NaN or Infinity",
+                    GradientNorm = double.NaN,
+                    FunctionChange = 0.0,
+                    ParameterChange = 0.0
+                };
+            }
+
+            for (var j = 0; j < n; j++)
+            {
+                if (double.IsNaN(endGrad[j]) || double.IsInfinity(endGrad[j]))
+                {
+                    return new OptimizerResult
+                    {
+                        OptimalPoint = x,
+                        OptimalValue = endValue,
+                        FinalGradient = endGrad,
+                        Iterations = _maxIterations,
+                        FunctionEvaluations = totalFunctionEvaluations,
+                        StoppingReason = StoppingReason.NumericalError,
+                        Success = false,
+                        Message = "Numerical error: gradient contains NaN or Infinity",
+                        GradientNorm = double.NaN,
+                        FunctionChange = 0.0,
+                        ParameterChange = 0.0
+                    };
+                }
+            }
+
             var endGradNorm = ComputeNorm(endGrad);
             return new OptimizerResult
             {

@@ -139,6 +139,46 @@ namespace Optimal.NonLinear
                 var (value, gradient) = objective(x);
                 functionEvaluations++;
 
+                // Check for numerical errors
+                if (double.IsNaN(value) || double.IsInfinity(value))
+                {
+                    return new OptimizerResult
+                    {
+                        OptimalPoint = x,
+                        OptimalValue = value,
+                        FinalGradient = gradient,
+                        Iterations = iter + 1,
+                        FunctionEvaluations = functionEvaluations,
+                        StoppingReason = StoppingReason.NumericalError,
+                        Success = false,
+                        Message = "Numerical error: objective function returned NaN or Infinity",
+                        GradientNorm = double.NaN,
+                        FunctionChange = 0.0,
+                        ParameterChange = 0.0
+                    };
+                }
+
+                for (var i = 0; i < n; i++)
+                {
+                    if (double.IsNaN(gradient[i]) || double.IsInfinity(gradient[i]))
+                    {
+                        return new OptimizerResult
+                        {
+                            OptimalPoint = x,
+                            OptimalValue = value,
+                            FinalGradient = gradient,
+                            Iterations = iter + 1,
+                            FunctionEvaluations = functionEvaluations,
+                            StoppingReason = StoppingReason.NumericalError,
+                            Success = false,
+                            Message = "Numerical error: gradient contains NaN or Infinity",
+                            GradientNorm = double.NaN,
+                            FunctionChange = 0.0,
+                            ParameterChange = 0.0
+                        };
+                    }
+                }
+
                 // Check convergence
                 var convergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
 
@@ -209,6 +249,46 @@ namespace Optimal.NonLinear
             // Maximum iterations reached - do one final evaluation
             var finalEval = objective(x);
             functionEvaluations++;
+
+            // Check for numerical errors
+            if (double.IsNaN(finalEval.value) || double.IsInfinity(finalEval.value))
+            {
+                return new OptimizerResult
+                {
+                    OptimalPoint = x,
+                    OptimalValue = finalEval.value,
+                    FinalGradient = finalEval.gradient,
+                    Iterations = _maxIterations,
+                    FunctionEvaluations = functionEvaluations,
+                    StoppingReason = StoppingReason.NumericalError,
+                    Success = false,
+                    Message = "Numerical error: objective function returned NaN or Infinity",
+                    GradientNorm = double.NaN,
+                    FunctionChange = 0.0,
+                    ParameterChange = 0.0
+                };
+            }
+
+            for (var i = 0; i < n; i++)
+            {
+                if (double.IsNaN(finalEval.gradient[i]) || double.IsInfinity(finalEval.gradient[i]))
+                {
+                    return new OptimizerResult
+                    {
+                        OptimalPoint = x,
+                        OptimalValue = finalEval.value,
+                        FinalGradient = finalEval.gradient,
+                        Iterations = _maxIterations,
+                        FunctionEvaluations = functionEvaluations,
+                        StoppingReason = StoppingReason.NumericalError,
+                        Success = false,
+                        Message = "Numerical error: gradient contains NaN or Infinity",
+                        GradientNorm = double.NaN,
+                        FunctionChange = 0.0,
+                        ParameterChange = 0.0
+                    };
+                }
+            }
 
             var finalConvergence = monitor.CheckConvergence(_maxIterations, functionEvaluations, x, finalEval.value, finalEval.gradient);
 
