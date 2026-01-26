@@ -11,6 +11,7 @@ using System.Linq;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Optimization;
+using Optimal.Control.Scaling;
 using Optimal.NonLinear;
 using Optimal.NonLinear.Constrained;
 using Optimal.NonLinear.Unconstrained;
@@ -38,6 +39,8 @@ namespace Optimal.Control.Solvers
         private bool _enableParallelization = true;
         private ProgressCallback? _progressCallback;
         private double _initialPenalty = 1.0;
+        private bool _autoScaling;
+        private VariableScaling? _scaling;
 
         /// <inheritdoc/>
         ISolver ISolver.WithSegments(int segments) => WithSegments(segments);
@@ -181,6 +184,35 @@ namespace Optimal.Control.Solvers
         }
 
         /// <summary>
+        /// Enables automatic variable scaling based on problem bounds.
+        /// Scales all state and control variables to [-1, 1] for improved conditioning.
+        /// </summary>
+        /// <param name="enable">True to enable auto-scaling (default: true).</param>
+        /// <returns>This solver instance for method chaining.</returns>
+        public HermiteSimpsonSolver WithAutoScaling(bool enable = true)
+        {
+            _autoScaling = enable;
+            if (enable)
+            {
+                _scaling = null; // Clear any custom scaling
+            }
+
+            return this;
+        }
+
+        /// <summary>
+        /// Sets custom variable scaling parameters.
+        /// </summary>
+        /// <param name="scaling">The scaling parameters to use.</param>
+        /// <returns>This solver instance for method chaining.</returns>
+        public HermiteSimpsonSolver WithScaling(VariableScaling scaling)
+        {
+            _scaling = scaling ?? throw new ArgumentNullException(nameof(scaling));
+            _autoScaling = false;
+            return this;
+        }
+
+        /// <summary>
         /// Solves the optimal control problem.
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
@@ -196,6 +228,13 @@ namespace Optimal.Control.Solvers
                 throw new InvalidOperationException("Problem must have dynamics defined.");
             }
 
+            // Determine if scaling should be applied
+            var scaling = GetScaling(problem);
+            if (scaling != null)
+            {
+                return SolveWithScaling(problem, initialGuess, scaling);
+            }
+
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _segments);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _enableParallelization);
             var z0 = transcription.ToDecisionVector(initialGuess);
@@ -206,6 +245,101 @@ namespace Optimal.Control.Solvers
             }
 
             return SolveOnFixedGrid(problem, _segments, z0);
+        }
+
+        private VariableScaling? GetScaling(ControlProblem problem)
+        {
+            if (_scaling != null)
+            {
+                return _scaling;
+            }
+
+            if (!_autoScaling)
+            {
+                return null;
+            }
+
+            // Auto-scaling requires bounds to be defined
+            if (problem.StateLowerBounds == null || problem.StateUpperBounds == null ||
+                problem.ControlLowerBounds == null || problem.ControlUpperBounds == null)
+            {
+                if (_verbose)
+                {
+                    Console.WriteLine("Auto-scaling disabled: bounds not fully specified");
+                }
+
+                return null;
+            }
+
+            return VariableScaling.FromBounds(
+                problem.StateLowerBounds,
+                problem.StateUpperBounds,
+                problem.ControlLowerBounds,
+                problem.ControlUpperBounds);
+        }
+
+        private CollocationResult SolveWithScaling(ControlProblem problem, InitialGuess initialGuess, VariableScaling scaling)
+        {
+            if (_verbose)
+            {
+                Console.WriteLine("Solving with variable scaling enabled");
+                LogScalingInfo(scaling);
+            }
+
+            // Create scaled problem
+            var scaledProblem = new ScaledControlProblem(problem, scaling);
+            var scaledControlProblem = scaledProblem.ToControlProblem();
+
+            // Scale initial guess
+            var scaledGuess = scaledProblem.ScaleInitialGuess(initialGuess);
+
+            // Create transcription for scaled problem
+            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _segments);
+            var transcription = new ParallelHermiteSimpsonTranscription(scaledControlProblem, grid, _enableParallelization);
+            var z0 = transcription.ToDecisionVector(scaledGuess);
+
+            // Solve in scaled space
+            CollocationResult scaledResult;
+            if (_enableMeshRefinement)
+            {
+                scaledResult = SolveWithMeshRefinement(scaledControlProblem, z0);
+            }
+            else
+            {
+                scaledResult = SolveOnFixedGrid(scaledControlProblem, _segments, z0);
+            }
+
+            // Unscale the solution
+            return UnscaleResult(scaledResult, scaledProblem);
+        }
+
+        private static CollocationResult UnscaleResult(CollocationResult scaledResult, ScaledControlProblem scaledProblem)
+        {
+            // Always unscale states and controls, even if solver didn't converge
+            // so that the returned trajectories are in original coordinates
+            var unscaledStates = scaledProblem.UnscaleStates(scaledResult.States);
+            var unscaledControls = scaledProblem.UnscaleControls(scaledResult.Controls);
+
+            return new CollocationResult
+            {
+                Success = scaledResult.Success,
+                Message = scaledResult.Message,
+                Times = scaledResult.Times,
+                States = unscaledStates,
+                Controls = unscaledControls,
+                OptimalCost = scaledResult.OptimalCost,
+                Iterations = scaledResult.Iterations,
+                MaxDefect = scaledResult.MaxDefect,
+                GradientNorm = scaledResult.GradientNorm
+            };
+        }
+
+        private static void LogScalingInfo(VariableScaling scaling)
+        {
+            Console.WriteLine($"  State scales: [{string.Join(", ", scaling.StateScales.Select(s => s.ToString("G4", System.Globalization.CultureInfo.InvariantCulture)))}]");
+            Console.WriteLine($"  State centers: [{string.Join(", ", scaling.StateCenters.Select(c => c.ToString("G4", System.Globalization.CultureInfo.InvariantCulture)))}]");
+            Console.WriteLine($"  Control scales: [{string.Join(", ", scaling.ControlScales.Select(s => s.ToString("G4", System.Globalization.CultureInfo.InvariantCulture)))}]");
+            Console.WriteLine($"  Control centers: [{string.Join(", ", scaling.ControlCenters.Select(c => c.ToString("G4", System.Globalization.CultureInfo.InvariantCulture)))}]");
         }
 
         /// <summary>

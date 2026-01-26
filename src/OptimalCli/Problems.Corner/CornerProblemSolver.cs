@@ -147,22 +147,23 @@ public sealed class CornerProblemSolver : ICommand
         var innerOptimizer = useLBFGSB
             ? new LBFGSBOptimizer()
                 .WithMemorySize(10)
-                .WithTolerance(1e-6)
-                .WithMaxIterations(1000)
-                .WithVerbose(true)
+                .WithTolerance(1e-2)
+                .WithMaxIterations(300)
+                .WithVerbose(false)
             : new LBFGSOptimizer()
-                .WithTolerance(1e-6)
-                .WithMaxIterations(1000)
-                .WithVerbose(true);
+                .WithTolerance(1e-2)
+                .WithMaxIterations(300)
+                .WithVerbose(false);
 
         return new HermiteSimpsonSolver()
             .WithSegments(30)
-            .WithTolerance(1e-6)
-            .WithMaxIterations(1000)
-            .WithMeshRefinement(true, 5, 1e-6)
+            .WithTolerance(1e-1)
+            .WithMaxIterations(500)
+            .WithMeshRefinement(true, 5, 1e-1)
             .WithVerbose(true)
             .WithInnerOptimizer(innerOptimizer)
-            // .WithInitialPenalty(50.0)
+            .WithInitialPenalty(50.0)
+            .WithAutoScaling()
             .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
             {
                 visualizer.CancellationToken.ThrowIfCancellationRequested();
