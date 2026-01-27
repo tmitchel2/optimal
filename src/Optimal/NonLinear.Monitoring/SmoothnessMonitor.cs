@@ -22,8 +22,12 @@ namespace Optimal.NonLinear.Monitoring
         private LineSearchTrace? _currentTrace;
 
         // Detection thresholds
-        private const double C0DetectionThreshold = 1e-4;
-        private const double C1DetectionThreshold = 1e-3;
+        // C0 threshold set to catch step function discontinuities (error ~0.5) while
+        // avoiding false positives on smooth quadratics in optimizer line searches.
+        private const double C0DetectionThreshold = 0.4;
+        // C1 threshold set to catch gradient discontinuities in |x| (error ~0.5) while
+        // allowing smooth functions with linear gradients (error ~0).
+        private const double C1DetectionThreshold = 0.3;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SmoothnessMonitor"/> class.

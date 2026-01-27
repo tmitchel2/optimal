@@ -7,6 +7,7 @@
  */
 
 using Optimal.Control.Collocation;
+using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Core
@@ -78,5 +79,19 @@ namespace Optimal.Control.Core
         /// <param name="callback">Progress callback function.</param>
         /// <returns>This solver instance for method chaining.</returns>
         ISolver WithProgressCallback(ProgressCallback? callback);
+
+        /// <summary>
+        /// Sets an optimization monitor for gradient verification and smoothness monitoring.
+        /// </summary>
+        /// <param name="monitor">The monitor to use.</param>
+        /// <returns>This solver instance for method chaining.</returns>
+        ISolver WithOptimisationMonitor(OptimisationMonitor monitor);
+
+        /// <summary>
+        /// Gets the optimization monitor report after solving.
+        /// Returns null if no monitor was configured.
+        /// </summary>
+        /// <returns>The monitoring report, or null if monitoring was not enabled.</returns>
+        OptimisationMonitorReport? GetMonitorReport();
     }
 }

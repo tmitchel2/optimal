@@ -12,6 +12,7 @@ using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
 using Optimal.NonLinear.Constrained;
+using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.Unconstrained;
 
 namespace OptimalCli.Problems.Corner;
@@ -82,11 +83,17 @@ public sealed class CornerProblemSolver : ICommand
         var visualizer = new RadiantCornerVisualizer(trackGeometry);
         var problem = CreateProblem(trackGeometry);
         var initialGuess = CreateInitialGuess(trackGeometry);
+
+        // Create optimization monitor for gradient verification and smoothness monitoring
+        var monitor = new OptimisationMonitor()
+            .WithGradientVerification(testStep: 1e-6)
+            .WithSmoothnessMonitoring();
+
         var optimizationTask = Task.Run(() =>
         {
             try
             {
-                var solver = CreateSolver(visualizer);
+                var solver = CreateSolver(visualizer, monitor);
                 var result = solver.Solve(problem, initialGuess);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return result;
@@ -137,9 +144,47 @@ public sealed class CornerProblemSolver : ICommand
         }
 
         PrintResults(result);
+        PrintMonitorReport(monitor);
     }
 
-    private static HermiteSimpsonSolver CreateSolver(RadiantCornerVisualizer visualizer, bool useLBFGSB = true)
+    private static void PrintMonitorReport(OptimisationMonitor monitor)
+    {
+        var report = monitor.GenerateReport();
+
+        Console.WriteLine("\n" + "-".PadRight(70, '-'));
+        Console.WriteLine("OPTIMIZATION MONITOR REPORT:");
+        Console.WriteLine($"  {report.Summary}");
+
+        if (report.BadGradientSuspected)
+        {
+            Console.WriteLine($"\n  WARNING: Bad gradient detected!");
+            Console.WriteLine($"    Function index: {report.BadGradientFunctionIndex} (-1 = objective)");
+            Console.WriteLine($"    Variable index: {report.BadGradientVariableIndex}");
+            if (report.ObjectiveGradientResult != null)
+            {
+                Console.WriteLine($"    Max relative error: {report.ObjectiveGradientResult.MaxRelativeError:E3}");
+            }
+        }
+
+        if (report.NonC0Suspected)
+        {
+            Console.WriteLine($"\n  WARNING: C0 discontinuity suspected!");
+            Console.WriteLine($"    Violations detected: {report.SmoothnessResult?.C0Violations.Count ?? 0}");
+        }
+
+        if (report.NonC1Suspected)
+        {
+            Console.WriteLine($"\n  WARNING: C1 non-smoothness suspected!");
+            Console.WriteLine($"    Violations detected: {report.SmoothnessResult?.C1Violations.Count ?? 0}");
+        }
+
+        Console.WriteLine($"\n  Monitor function evaluations: {report.MonitorFunctionEvaluations}");
+    }
+
+    private static HermiteSimpsonSolver CreateSolver(
+        RadiantCornerVisualizer visualizer,
+        OptimisationMonitor monitor,
+        bool useLBFGSB = true)
     {
         // Use L-BFGS-B for native box constraint support, or standard L-BFGS
         // L-BFGS-B handles bounds internally, which can be more efficient for
@@ -164,6 +209,7 @@ public sealed class CornerProblemSolver : ICommand
             .WithInnerOptimizer(innerOptimizer)
             .WithInitialPenalty(50.0)
             .WithAutoScaling()
+            .WithOptimisationMonitor(monitor)
             .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
             {
                 visualizer.CancellationToken.ThrowIfCancellationRequested();

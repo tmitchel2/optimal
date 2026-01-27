@@ -14,6 +14,7 @@ using Optimal.Control.Optimization;
 using Optimal.Control.Scaling;
 using Optimal.NonLinear;
 using Optimal.NonLinear.Constrained;
+using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers
@@ -41,6 +42,7 @@ namespace Optimal.Control.Solvers
         private double _initialPenalty = 1.0;
         private bool _autoScaling;
         private VariableScaling? _scaling;
+        private OptimisationMonitor? _monitor;
 
         /// <inheritdoc/>
         ISolver ISolver.WithSegments(int segments) => WithSegments(segments);
@@ -63,6 +65,12 @@ namespace Optimal.Control.Solvers
 
         /// <inheritdoc/>
         ISolver ISolver.WithProgressCallback(ProgressCallback? callback) => WithProgressCallback(callback);
+
+        /// <inheritdoc/>
+        ISolver ISolver.WithOptimisationMonitor(OptimisationMonitor monitor) => WithOptimisationMonitor(monitor);
+
+        /// <inheritdoc/>
+        OptimisationMonitorReport? ISolver.GetMonitorReport() => GetMonitorReport();
 
         /// <summary>
         /// Sets the number of collocation segments.
@@ -210,6 +218,27 @@ namespace Optimal.Control.Solvers
             _scaling = scaling ?? throw new ArgumentNullException(nameof(scaling));
             _autoScaling = false;
             return this;
+        }
+
+        /// <summary>
+        /// Sets an optimization monitor for gradient verification and smoothness monitoring.
+        /// </summary>
+        /// <param name="monitor">The monitor to use.</param>
+        /// <returns>This solver instance for method chaining.</returns>
+        public HermiteSimpsonSolver WithOptimisationMonitor(OptimisationMonitor monitor)
+        {
+            _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
+            return this;
+        }
+
+        /// <summary>
+        /// Gets the optimization monitor report after solving.
+        /// Returns null if no monitor was configured.
+        /// </summary>
+        /// <returns>The monitoring report, or null if monitoring was not enabled.</returns>
+        public OptimisationMonitorReport? GetMonitorReport()
+        {
+            return _monitor?.GenerateReport();
         }
 
         /// <summary>
@@ -624,6 +653,12 @@ namespace Optimal.Control.Solvers
                 .WithTolerance(_tolerance)
                 .WithMaxIterations(_maxIterations)
                 .WithVerbose(_verbose);
+
+            // Add optimization monitor if configured
+            if (_monitor != null)
+            {
+                constrainedOptimizer.WithOptimisationMonitor(_monitor);
+            }
 
             ConstraintConfigurator.AddDefectConstraints(problem, grid, transcription, segments, hasAnalyticalGradients, constrainedOptimizer);
             ConstraintConfigurator.AddBoundaryConstraints(problem, transcription, segments, constrainedOptimizer);
