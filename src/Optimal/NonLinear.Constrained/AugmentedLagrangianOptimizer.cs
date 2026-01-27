@@ -9,6 +9,8 @@
 using System;
 using System.Collections.Generic;
 using Optimal.NonLinear.Constraints;
+using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.NonLinear.Constrained
@@ -30,6 +32,7 @@ namespace Optimal.NonLinear.Constrained
         private readonly double _penaltyIncrease = 10.0;
         private readonly double _maxPenaltyParameter = 1e8;
         private double _constraintTolerance = 1e-6;
+        private OptimisationMonitor? _monitor;
 
         /// <summary>
         /// Sets the unconstrained optimizer to use for subproblems.
@@ -98,6 +101,17 @@ namespace Optimal.NonLinear.Constrained
             return this;
         }
 
+        /// <summary>
+        /// Sets an optimization monitor for gradient verification and smoothness testing.
+        /// </summary>
+        /// <param name="monitor">The monitor to attach.</param>
+        /// <returns>This optimizer instance for method chaining.</returns>
+        public AugmentedLagrangianOptimizer WithOptimisationMonitor(OptimisationMonitor monitor)
+        {
+            _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
+            return this;
+        }
+
         /// <inheritdoc/>
         public IOptimizer WithInitialPoint(double[] x0)
         {
@@ -159,6 +173,26 @@ namespace Optimal.NonLinear.Constrained
             if (_verbose)
             {
                 Console.WriteLine($"Augmented Lagrangian: {_constraints.Count} constraints, initial penalty μ={mu:E2}, max penalty μ_max={_maxPenaltyParameter:E2}");
+            }
+
+            // Initialize optimization monitor if attached
+            if (_monitor != null)
+            {
+                _monitor.WithObjective(objective);
+                if (_constraints.Count > 0)
+                {
+                    _monitor.WithConstraints(_constraints);
+                }
+                _monitor.OnOptimizationStart(x);
+
+                // Wrap inner optimizer's line search for smoothness monitoring if enabled
+                if (_monitor.IsSmoothnessMonitoringEnabled && _unconstrainedOptimizer is LBFGSOptimizer lbfgsOptimizer)
+                {
+                    var monitoredLineSearch = new MonitoredLineSearch(
+                        new BacktrackingLineSearch(),
+                        _monitor);
+                    lbfgsOptimizer.WithLineSearch(monitoredLineSearch);
+                }
             }
 
             for (var outerIter = 0; outerIter < _maxIterations; outerIter++)
@@ -356,7 +390,7 @@ namespace Optimal.NonLinear.Constrained
                     }
 
                     var gradNorm = ComputeNorm(finalGrad);
-                    return new OptimizerResult
+                    var successResult = new OptimizerResult
                     {
                         OptimalPoint = x,
                         OptimalValue = finalValue,
@@ -370,6 +404,8 @@ namespace Optimal.NonLinear.Constrained
                         FunctionChange = 0.0,
                         ParameterChange = 0.0
                     };
+                    _monitor?.OnOptimizationEnd(successResult);
+                    return successResult;
                 }
 
                 // Update Lagrange multipliers
@@ -451,7 +487,7 @@ namespace Optimal.NonLinear.Constrained
             }
 
             var endGradNorm = ComputeNorm(endGrad);
-            return new OptimizerResult
+            var maxIterResult = new OptimizerResult
             {
                 OptimalPoint = x,
                 OptimalValue = endValue,
@@ -465,6 +501,8 @@ namespace Optimal.NonLinear.Constrained
                 FunctionChange = 0.0,
                 ParameterChange = 0.0
             };
+            _monitor?.OnOptimizationEnd(maxIterResult);
+            return maxIterResult;
         }
 
         private static double ComputeNorm(double[] vector)
