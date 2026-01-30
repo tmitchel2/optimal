@@ -8,7 +8,6 @@
 
 using Optimal.Control.Collocation;
 using Optimal.NonLinear.Monitoring;
-using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Core
 {
@@ -24,68 +23,6 @@ namespace Optimal.Control.Core
         /// <param name="initialGuess">Initial guess for state and control trajectories.</param>
         /// <returns>The optimal control solution.</returns>
         CollocationResult Solve(ControlProblem problem, InitialGuess initialGuess);
-
-        /// <summary>
-        /// Sets the number of collocation segments.
-        /// </summary>
-        /// <param name="segments">Number of segments.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        ISolver WithSegments(int segments);
-
-        /// <summary>
-        /// Sets the convergence tolerance.
-        /// </summary>
-        /// <param name="tolerance">Tolerance for defects and optimality.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        ISolver WithTolerance(double tolerance);
-
-        /// <summary>
-        /// Sets the maximum number of iterations.
-        /// </summary>
-        /// <param name="maxIterations">Maximum iterations.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        ISolver WithMaxIterations(int maxIterations);
-
-        ISolver WithOrder(int order);
-
-        /// <summary>
-        /// Enables or disables verbose output.
-        /// </summary>
-        /// <param name="verbose">True to enable verbose output.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        ISolver WithVerbose(bool verbose = true);
-
-        ISolver WithParallelization(bool enable = true);
-
-        /// <summary>
-        /// Sets the inner NLP optimizer.
-        /// </summary>
-        /// <param name="optimizer">The optimizer to use.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        ISolver WithInnerOptimizer(IOptimizer optimizer);
-
-        /// <summary>
-        /// Enables adaptive mesh refinement.
-        /// </summary>
-        /// <param name="enable">True to enable mesh refinement.</param>
-        /// <param name="maxRefinementIterations">Maximum refinement iterations.</param>
-        /// <param name="defectThreshold">Defect threshold for refinement.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        ISolver WithMeshRefinement(bool enable = true, int maxRefinementIterations = 5, double defectThreshold = 1e-4);
-
-        /// <summary>
-        /// Sets a callback to be invoked during optimization progress.
-        /// </summary>
-        /// <param name="callback">Progress callback function.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        ISolver WithProgressCallback(ProgressCallback? callback);
-
-        /// <summary>
-        /// Sets an optimization monitor for gradient verification and smoothness monitoring.
-        /// </summary>
-        /// <param name="monitor">The monitor to use.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        ISolver WithOptimisationMonitor(OptimisationMonitor monitor);
 
         /// <summary>
         /// Gets the optimization monitor report after solving.

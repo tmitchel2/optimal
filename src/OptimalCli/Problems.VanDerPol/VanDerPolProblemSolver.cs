@@ -85,18 +85,26 @@ public sealed class VanDerPolProblemSolver : ICommand
         var innerOptimizer = new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch());
 
         ISolver solver = options.Solver == SolverType.LGL
-            ? new LegendreGaussLobattoSolver()
-                .WithOrder(5)
-                .WithSegments(25)
-                .WithTolerance(1e-3)
-                .WithMaxIterations(100)
-                .WithInnerOptimizer(innerOptimizer)
-            : new HermiteSimpsonSolver()
-                .WithSegments(25)
-                .WithTolerance(1e-3)
-                .WithMaxIterations(100)
-                .WithMeshRefinement(true, 5, 1e-3)
-                .WithInnerOptimizer(innerOptimizer);
+            ? new LegendreGaussLobattoSolver(
+                new LegendreGaussLobattoSolverOptions
+                {
+                    Order = 5,
+                    Segments = 25,
+                    Tolerance = 1e-3,
+                    MaxIterations = 100
+                },
+                innerOptimizer)
+            : new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions
+                {
+                    Segments = 25,
+                    Tolerance = 1e-3,
+                    MaxIterations = 100,
+                    EnableMeshRefinement = true,
+                    MaxRefinementIterations = 5,
+                    RefinementDefectThreshold = 1e-3
+                },
+                innerOptimizer);
 
         var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 25);
         var result = solver.Solve(problem, initialGuess);

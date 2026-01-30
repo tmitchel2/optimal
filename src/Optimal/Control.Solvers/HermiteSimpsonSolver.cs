@@ -15,7 +15,6 @@ using Optimal.Control.Scaling;
 using Optimal.NonLinear;
 using Optimal.NonLinear.Constrained;
 using Optimal.NonLinear.Monitoring;
-using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers
@@ -30,206 +29,24 @@ namespace Optimal.Control.Solvers
         private const double MinRefinementPercentage = 0.1;
         private const int MaxMeshSegments = 200;
 
-        private int _segments = 20;
-        private double _tolerance = 1e-6;
-        private int _maxIterations = 100;
-        private bool _verbose;
-        private IOptimizer? _innerOptimizer;
-        private bool _enableMeshRefinement;
-        private int _maxRefinementIterations = 5;
-        private double _refinementDefectThreshold = 1e-4;
-        private bool _enableParallelization = true;
-        private ProgressCallback? _progressCallback;
-        private double _initialPenalty = 1.0;
-        private bool _autoScaling;
-        private VariableScaling? _scaling;
-        private OptimisationMonitor? _monitor;
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithSegments(int segments) => WithSegments(segments);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithTolerance(double tolerance) => WithTolerance(tolerance);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithMaxIterations(int maxIterations) => WithMaxIterations(maxIterations);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithVerbose(bool verbose) => WithVerbose(verbose);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithInnerOptimizer(IOptimizer optimizer) => WithInnerOptimizer(optimizer);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithMeshRefinement(bool enable, int maxRefinementIterations, double defectThreshold) =>
-            WithMeshRefinement(enable, maxRefinementIterations, defectThreshold);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithProgressCallback(ProgressCallback? callback) => WithProgressCallback(callback);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithOptimisationMonitor(OptimisationMonitor monitor) => WithOptimisationMonitor(monitor);
-
-        /// <inheritdoc/>
-        OptimisationMonitorReport? ISolver.GetMonitorReport() => GetMonitorReport();
+        private readonly HermiteSimpsonSolverOptions _options;
+        private readonly IOptimizer _innerOptimizer;
+        private readonly OptimisationMonitor? _monitor;
 
         /// <summary>
-        /// Sets the number of collocation segments.
+        /// Initializes a new instance of the <see cref="HermiteSimpsonSolver"/> class with the specified options.
         /// </summary>
-        /// <param name="segments">Number of segments.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        public HermiteSimpsonSolver WithSegments(int segments)
+        /// <param name="options">The solver options.</param>
+        /// <param name="innerOptimizer">Inner NLP optimizer.</param>
+        /// <param name="monitor">Optional optimization monitor for gradient verification.</param>
+        public HermiteSimpsonSolver(
+            HermiteSimpsonSolverOptions options,
+            IOptimizer innerOptimizer,
+            OptimisationMonitor? monitor = null)
         {
-            if (segments <= 0)
-            {
-                throw new ArgumentException("Segments must be positive.", nameof(segments));
-            }
-
-            _segments = segments;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the convergence tolerance.
-        /// </summary>
-        /// <param name="tolerance">Tolerance for defects and optimality.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        public HermiteSimpsonSolver WithTolerance(double tolerance)
-        {
-            if (tolerance <= 0)
-            {
-                throw new ArgumentException("Tolerance must be positive.", nameof(tolerance));
-            }
-
-            _tolerance = tolerance;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the maximum number of iterations.
-        /// </summary>
-        /// <param name="maxIterations">Maximum iterations.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        public HermiteSimpsonSolver WithMaxIterations(int maxIterations)
-        {
-            _maxIterations = maxIterations;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables or disables verbose output.
-        /// </summary>
-        /// <param name="verbose">True to enable verbose output.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        public HermiteSimpsonSolver WithVerbose(bool verbose = true)
-        {
-            _verbose = verbose;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the inner NLP optimizer.
-        /// </summary>
-        /// <param name="optimizer">The optimizer to use (L-BFGS, CG, etc.).</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        public HermiteSimpsonSolver WithInnerOptimizer(IOptimizer optimizer)
-        {
-            _innerOptimizer = optimizer ?? throw new ArgumentNullException(nameof(optimizer));
-            return this;
-        }
-
-        /// <summary>
-        /// Enables adaptive mesh refinement.
-        /// </summary>
-        /// <param name="enable">True to enable mesh refinement.</param>
-        /// <param name="maxRefinementIterations">Maximum refinement iterations.</param>
-        /// <param name="defectThreshold">Defect threshold for refinement.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        public HermiteSimpsonSolver WithMeshRefinement(bool enable = true, int maxRefinementIterations = 5, double defectThreshold = 1e-4)
-        {
-            _enableMeshRefinement = enable;
-            _maxRefinementIterations = maxRefinementIterations;
-            _refinementDefectThreshold = defectThreshold;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables or disables parallel computation for transcription.
-        /// </summary>
-        /// <param name="enable">True to enable parallelization.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        public HermiteSimpsonSolver WithParallelization(bool enable = true)
-        {
-            _enableParallelization = enable;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets a callback to be invoked during optimization progress.
-        /// </summary>
-        /// <param name="callback">Progress callback function.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        public HermiteSimpsonSolver WithProgressCallback(ProgressCallback? callback)
-        {
-            _progressCallback = callback;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the initial penalty parameter for the augmented Lagrangian optimizer.
-        /// Higher values enforce constraints more strongly from the start.
-        /// </summary>
-        /// <param name="penalty">Initial penalty parameter (default: 1.0).</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        public HermiteSimpsonSolver WithInitialPenalty(double penalty)
-        {
-            if (penalty <= 0)
-            {
-                throw new ArgumentException("Penalty must be positive.", nameof(penalty));
-            }
-
-            _initialPenalty = penalty;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables automatic variable scaling based on problem bounds.
-        /// Scales all state and control variables to [-1, 1] for improved conditioning.
-        /// </summary>
-        /// <param name="enable">True to enable auto-scaling (default: true).</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        public HermiteSimpsonSolver WithAutoScaling(bool enable = true)
-        {
-            _autoScaling = enable;
-            if (enable)
-            {
-                _scaling = null; // Clear any custom scaling
-            }
-
-            return this;
-        }
-
-        /// <summary>
-        /// Sets custom variable scaling parameters.
-        /// </summary>
-        /// <param name="scaling">The scaling parameters to use.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        public HermiteSimpsonSolver WithScaling(VariableScaling scaling)
-        {
-            _scaling = scaling ?? throw new ArgumentNullException(nameof(scaling));
-            _autoScaling = false;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets an optimization monitor for gradient verification and smoothness monitoring.
-        /// </summary>
-        /// <param name="monitor">The monitor to use.</param>
-        /// <returns>This solver instance for method chaining.</returns>
-        public HermiteSimpsonSolver WithOptimisationMonitor(OptimisationMonitor monitor)
-        {
-            _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
-            return this;
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _innerOptimizer = innerOptimizer ?? throw new ArgumentNullException(nameof(innerOptimizer));
+            _monitor = monitor;
         }
 
         /// <summary>
@@ -265,26 +82,26 @@ namespace Optimal.Control.Solvers
                 return SolveWithScaling(problem, initialGuess, scaling);
             }
 
-            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _segments);
-            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _enableParallelization);
+            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _options.Segments);
+            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _options.EnableParallelization);
             var z0 = transcription.ToDecisionVector(initialGuess);
 
-            if (_enableMeshRefinement)
+            if (_options.EnableMeshRefinement)
             {
                 return SolveWithMeshRefinement(problem, z0);
             }
 
-            return SolveOnFixedGrid(problem, _segments, z0);
+            return SolveOnFixedGrid(problem, _options.Segments, z0);
         }
 
         private VariableScaling? GetScaling(ControlProblem problem)
         {
-            if (_scaling != null)
+            if (_options.Scaling != null)
             {
-                return _scaling;
+                return _options.Scaling;
             }
 
-            if (!_autoScaling)
+            if (!_options.AutoScaling)
             {
                 return null;
             }
@@ -293,7 +110,7 @@ namespace Optimal.Control.Solvers
             if (problem.StateLowerBounds == null || problem.StateUpperBounds == null ||
                 problem.ControlLowerBounds == null || problem.ControlUpperBounds == null)
             {
-                if (_verbose)
+                if (_options.Verbose)
                 {
                     Console.WriteLine("Auto-scaling disabled: bounds not fully specified");
                 }
@@ -310,7 +127,7 @@ namespace Optimal.Control.Solvers
 
         private CollocationResult SolveWithScaling(ControlProblem problem, InitialGuess initialGuess, VariableScaling scaling)
         {
-            if (_verbose)
+            if (_options.Verbose)
             {
                 Console.WriteLine("Solving with variable scaling enabled");
                 LogScalingInfo(scaling);
@@ -324,19 +141,19 @@ namespace Optimal.Control.Solvers
             var scaledGuess = scaledProblem.ScaleInitialGuess(initialGuess);
 
             // Create transcription for scaled problem
-            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _segments);
-            var transcription = new ParallelHermiteSimpsonTranscription(scaledControlProblem, grid, _enableParallelization);
+            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _options.Segments);
+            var transcription = new ParallelHermiteSimpsonTranscription(scaledControlProblem, grid, _options.EnableParallelization);
             var z0 = transcription.ToDecisionVector(scaledGuess);
 
             // Solve in scaled space
             CollocationResult scaledResult;
-            if (_enableMeshRefinement)
+            if (_options.EnableMeshRefinement)
             {
                 scaledResult = SolveWithMeshRefinement(scaledControlProblem, z0);
             }
             else
             {
-                scaledResult = SolveOnFixedGrid(scaledControlProblem, _segments, z0);
+                scaledResult = SolveOnFixedGrid(scaledControlProblem, _options.Segments, z0);
             }
 
             // Unscale the solution
@@ -377,11 +194,11 @@ namespace Optimal.Control.Solvers
         /// </summary>
         private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[] initialGuess)
         {
-            var currentSegments = _segments;
+            var currentSegments = _options.Segments;
             CollocationResult? result = null;
             var previousSolution = initialGuess;
 
-            for (var iteration = 0; iteration < _maxRefinementIterations; iteration++)
+            for (var iteration = 0; iteration < _options.MaxRefinementIterations; iteration++)
             {
                 LogMeshRefinementIteration(iteration, currentSegments);
 
@@ -416,7 +233,7 @@ namespace Optimal.Control.Solvers
 
         private void LogMeshRefinementIteration(int iteration, int segments)
         {
-            if (_verbose)
+            if (_options.Verbose)
             {
                 Console.WriteLine($"Mesh refinement iteration {iteration + 1}, segments = {segments}");
             }
@@ -424,7 +241,7 @@ namespace Optimal.Control.Solvers
 
         private void LogConvergenceFailure()
         {
-            if (_verbose)
+            if (_options.Verbose)
             {
                 Console.WriteLine("Failed to converge on current mesh");
             }
@@ -432,7 +249,7 @@ namespace Optimal.Control.Solvers
 
         private void LogMaxDefect(double maxDefect)
         {
-            if (_verbose)
+            if (_options.Verbose)
             {
                 Console.WriteLine($"  Max defect: {maxDefect:E2}");
             }
@@ -440,8 +257,8 @@ namespace Optimal.Control.Solvers
 
         private bool HasConverged(double maxDefect)
         {
-            var converged = maxDefect < _refinementDefectThreshold;
-            if (converged && _verbose)
+            var converged = maxDefect < _options.RefinementDefectThreshold;
+            if (converged && _options.Verbose)
             {
                 Console.WriteLine($"Converged with max defect {maxDefect:E2}");
             }
@@ -452,16 +269,16 @@ namespace Optimal.Control.Solvers
             ControlProblem problem, CollocationResult result, int currentSegments, double[] currentSolution)
         {
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, currentSegments);
-            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _enableParallelization);
+            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _options.EnableParallelization);
 
             var z = RebuildSolutionVector(transcription, result, currentSegments);
             var defects = transcription.ComputeAllDefects(z, problem.Dynamics!);
 
-            var meshRefinement = new MeshRefinement(_refinementDefectThreshold, maxSegments: MaxMeshSegments);
+            var meshRefinement = new MeshRefinement(_options.RefinementDefectThreshold, maxSegments: MaxMeshSegments);
             var shouldRefine = meshRefinement.IdentifySegmentsForRefinement(defects, problem.StateDim);
             var refinementPct = MeshRefinement.ComputeRefinementPercentage(shouldRefine);
 
-            if (_verbose)
+            if (_options.Verbose)
             {
                 Console.WriteLine($"  Refining {refinementPct:F1}% of segments");
             }
@@ -504,7 +321,7 @@ namespace Optimal.Control.Solvers
         private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segmentCount, double[] initialGuess)
         {
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, segmentCount);
-            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _enableParallelization);
+            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _options.EnableParallelization);
 
             var z0 = initialGuess;
             var hasAnalyticalGradients = CheckAnalyticalGradientCapability(problem, segmentCount);
@@ -513,7 +330,7 @@ namespace Optimal.Control.Solvers
             var nlpObjective = CreateObjectiveFunction(problem, grid, transcription, segmentCount, iterationCount);
             var constrainedOptimizer = ConfigureOptimizer(problem, grid, transcription, segmentCount, hasAnalyticalGradients);
 
-            if (_verbose)
+            if (_options.Verbose)
             {
                 LogInitialDiagnostics(problem, transcription, segmentCount, z0, nlpObjective);
             }
@@ -559,7 +376,7 @@ namespace Optimal.Control.Solvers
 
         private void LogGradientMode(bool useAnalytical)
         {
-            if (_verbose)
+            if (_options.Verbose)
             {
                 Console.WriteLine(useAnalytical
                     ? "Using analytical gradients from AutoDiff"
@@ -579,7 +396,7 @@ namespace Optimal.Control.Solvers
                 var cost = ObjectiveFunctionFactory.ComputeTotalCost(problem, transcription, z);
                 var gradient = ObjectiveFunctionFactory.ComputeObjectiveGradient(problem, grid, transcription, z);
 
-                if (_verbose)
+                if (_options.Verbose)
                 {
                     LogObjectiveWarnings(cost, gradient);
                 }
@@ -611,7 +428,7 @@ namespace Optimal.Control.Solvers
             Func<DynamicsInput, DynamicsResult> dynamics,
             int[] iterationCount)
         {
-            if (_progressCallback == null)
+            if (_options.ProgressCallback == null)
             {
                 return;
             }
@@ -626,7 +443,7 @@ namespace Optimal.Control.Solvers
             }
 
             var maxViolation = ComputeMaxViolation(transcription, z, dynamics);
-            _progressCallback(iterationCount[0], cost, states, controls, grid.TimePoints, maxViolation, _tolerance);
+            _options.ProgressCallback(iterationCount[0], cost, states, controls, grid.TimePoints, maxViolation, _options.Tolerance);
         }
 
         private static double ComputeMaxViolation(ParallelHermiteSimpsonTranscription transcription, double[] z, Func<DynamicsInput, DynamicsResult> dynamics)
@@ -653,11 +470,11 @@ namespace Optimal.Control.Solvers
             // Create options with collected constraints
             var options = new AugmentedLagrangianOptions
             {
-                Tolerance = _tolerance,
-                MaxIterations = _maxIterations,
-                Verbose = _verbose,
-                PenaltyParameter = _initialPenalty,
-                ConstraintTolerance = _tolerance,
+                Tolerance = _options.Tolerance,
+                MaxIterations = _options.MaxIterations,
+                Verbose = _options.Verbose,
+                PenaltyParameter = _options.InitialPenalty,
+                ConstraintTolerance = _options.Tolerance,
                 EqualityConstraints = constraints.EqualityConstraints,
                 InequalityConstraints = constraints.InequalityConstraints,
                 BoxConstraints = constraints.BoxConstraints
@@ -666,7 +483,7 @@ namespace Optimal.Control.Solvers
             // Create optimizer with constructor DI
             return new AugmentedLagrangianOptimizer(
                 options,
-                _innerOptimizer ?? new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()),
+                _innerOptimizer,
                 _monitor);
         }
 
@@ -735,21 +552,6 @@ namespace Optimal.Control.Solvers
                 MaxDefect = maxDefect,
                 GradientNorm = nlpResult.GradientNorm
             };
-        }
-
-        public ISolver WithOrder(int order)
-        {
-            // if (order != 2)
-            // {
-            //     throw new ArgumentException("Hermite order must be 2.", nameof(order));
-            // }
-
-            return this;
-        }
-
-        ISolver ISolver.WithParallelization(bool enable)
-        {
-            return WithParallelization(enable);
         }
     }
 }

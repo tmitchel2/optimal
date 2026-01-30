@@ -78,11 +78,9 @@ namespace Optimal.Control.Core.Tests
                      .AddPhase(phase2)
                      .AddContinuityLinkage(0, 1);
 
-            var baseSolver = new HermiteSimpsonSolver()
-                .WithSegments(8)
-                .WithTolerance(1e-3)
-                .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var baseSolver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 8, Tolerance = 1e-3, MaxIterations = 50 },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var multiSolver = new MultiPhaseSolver(baseSolver);
 
@@ -116,10 +114,9 @@ namespace Optimal.Control.Core.Tests
                      .AddContinuityLinkage(0, 1)
                      .AddContinuityLinkage(1, 2);
 
-            var baseSolver = new HermiteSimpsonSolver()
-                .WithSegments(8)
-                .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var baseSolver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 8, Tolerance = 1e-3 },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var multiSolver = new MultiPhaseSolver(baseSolver);
 
@@ -145,10 +142,9 @@ namespace Optimal.Control.Core.Tests
 
             multiPhase.AddPhase(phase1).AddPhase(phase2);
 
-            var baseSolver = new HermiteSimpsonSolver()
-                .WithSegments(8)
-                .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var baseSolver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 8, Tolerance = 1e-3 },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var multiSolver = new MultiPhaseSolver(baseSolver);
 
@@ -237,11 +233,9 @@ namespace Optimal.Control.Core.Tests
             multiPhase.AddPhase(phase1).AddPhase(phase2);
             multiPhase.AddContinuityLinkage(0, 1);
 
-            var baseSolver = new HermiteSimpsonSolver()
-                .WithSegments(12)
-                .WithTolerance(1e-3)
-                .WithMaxIterations(60)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-4 }, new BacktrackingLineSearch()));
+            var baseSolver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 12, Tolerance = 1e-3, MaxIterations = 60 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-4 }, new BacktrackingLineSearch()));
 
             var multiSolver = new MultiPhaseSolver(baseSolver);
 

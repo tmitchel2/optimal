@@ -115,50 +115,76 @@ public sealed class GoddardRocketProblemSolver : ICommand
             },
             new ParallelBacktrackingLineSearch(parallelBatchSize: 4));
 
-        ISolver solver = useLGL
-            ? new LegendreGaussLobattoSolver()
-                .WithOrder(5)
-                .WithSegments(segments)
-                .WithTolerance(0.0001)
-                .WithMaxIterations(150)
-                .WithVerbose(true)
-                .WithInnerOptimizer(lbfgInnerOptimizer)
-            : new HermiteSimpsonSolver()
-                .WithSegments(segments)  // Fine mesh for better accuracy
-                .WithTolerance(0.001)  // Moderate tolerance
-                .WithMaxIterations(300)
-                // .WithMeshRefinement(true, 5, 0.1)
-                .WithMeshRefinement(false)
-                // .WithInitialPenalty(100.0)
-                .WithMeshRefinement(false)
-                .WithVerbose(true)
-                .WithInnerOptimizer(lbfgInnerOptimizer);
-
         // Headless mode - run synchronously without visualization
         if (options.Headless)
         {
-            var result = solver.Solve(problem, initialGuess);
+            ISolver headlessSolver = useLGL
+                ? new LegendreGaussLobattoSolver(
+                    new LegendreGaussLobattoSolverOptions
+                    {
+                        Order = 5,
+                        Segments = segments,
+                        Tolerance = 0.0001,
+                        MaxIterations = 150,
+                        Verbose = true
+                    },
+                    lbfgInnerOptimizer)
+                : new HermiteSimpsonSolver(
+                    new HermiteSimpsonSolverOptions
+                    {
+                        Segments = segments,
+                        Tolerance = 0.001,
+                        MaxIterations = 300,
+                        EnableMeshRefinement = false,
+                        Verbose = true
+                    },
+                    lbfgInnerOptimizer);
+
+            var result = headlessSolver.Solve(problem, initialGuess);
             PrintSolutionSummary(result, problemParams);
             return;
         }
 
         // Run the optimizer in a background task with visualization
+        ProgressCallback progressCallback = (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+        {
+            var token = RadiantGoddardRocketVisualizer.CancellationToken;
+            if (token.IsCancellationRequested)
+            {
+                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
+                throw new OperationCanceledException(token);
+            }
+            RadiantGoddardRocketVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, problemParams.H0);
+        };
+
+        ISolver solver = useLGL
+            ? new LegendreGaussLobattoSolver(
+                new LegendreGaussLobattoSolverOptions
+                {
+                    Order = 5,
+                    Segments = segments,
+                    Tolerance = 0.0001,
+                    MaxIterations = 150,
+                    Verbose = true,
+                    ProgressCallback = progressCallback
+                },
+                lbfgInnerOptimizer)
+            : new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions
+                {
+                    Segments = segments,
+                    Tolerance = 0.001,
+                    MaxIterations = 300,
+                    EnableMeshRefinement = false,
+                    Verbose = true,
+                    ProgressCallback = progressCallback
+                },
+                lbfgInnerOptimizer);
+
         var optimizationTask = Task.Run(() =>
         {
             try
             {
-                solver
-                    .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
-                    {
-                        var token = RadiantGoddardRocketVisualizer.CancellationToken;
-                        if (token.IsCancellationRequested)
-                        {
-                            Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
-                            throw new OperationCanceledException(token);
-                        }
-                        RadiantGoddardRocketVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, problemParams.H0);
-                    });
-
                 var result = solver.Solve(problem, initialGuess);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return result;

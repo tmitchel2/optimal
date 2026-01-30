@@ -63,12 +63,8 @@ namespace Optimal.Control.Solvers.Tests
                     return new RunningCostResult(value, gradients);
                 });
 
-            var solver = CreateSolver()
-                .WithSegments(10)
-                .WithTolerance(1e-4)
-                .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()))
-                .WithVerbose(true);
+            var innerOptimizer = new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch());
+            var solver = CreateSolver(segments: 10, tolerance: 1e-4, maxIterations: 50, verbose: true);
 
             var initialGuess = CreateInitialGuess(problem, 10);
             var result = solver.Solve(problem, initialGuess);
@@ -142,11 +138,8 @@ namespace Optimal.Control.Solvers.Tests
                     return new RunningCostResult(value, gradients);
                 });
 
-            var solver = CreateSolver()
-                .WithSegments(15)
-                .WithTolerance(1e-4)
-                .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
+            var innerOptimizer = new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch());
+            var solver = CreateSolver(segments: 15, tolerance: 1e-4, maxIterations: 100);
 
             var initialGuess = CreateInitialGuess(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -196,11 +189,7 @@ namespace Optimal.Control.Solvers.Tests
                     return new RunningCostResult(value, gradients);
                 });
 
-            var solver = CreateSolver()
-                .WithSegments(10)
-                .WithTolerance(1e-3)
-                .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var solver = CreateSolver(segments: 10, tolerance: 1e-3, maxIterations: 100);
 
             var initialGuess = CreateInitialGuess(problem, 10);
             var result = solver.Solve(problem, initialGuess);
@@ -247,9 +236,7 @@ namespace Optimal.Control.Solvers.Tests
                     return new RunningCostResult(value, gradients);
                 });
 
-            var solver = CreateSolver()
-                .WithSegments(10)
-                .WithTolerance(1e-4);
+            var solver = CreateSolver(segments: 10, tolerance: 1e-4);
 
             var initialGuess = CreateInitialGuess(problem, 10);
             var result = solver.Solve(problem, initialGuess);
@@ -265,8 +252,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithStateSize(1)
                 .WithControlSize(1);
 
-            var solver = CreateSolver()
-                .WithSegments(10);
+            var solver = CreateSolver(segments: 10);
 
             Assert.Throws<InvalidOperationException>(() =>
             {
@@ -275,7 +261,14 @@ namespace Optimal.Control.Solvers.Tests
             });
         }
 
-        protected abstract ISolver CreateSolver();
+        /// <summary>
+        /// Creates a solver with the specified configuration.
+        /// </summary>
+        protected abstract ISolver CreateSolver(
+            int segments = 20,
+            double tolerance = 1e-6,
+            int maxIterations = 100,
+            bool verbose = false);
 
         /// <summary>
         /// Creates an initial guess appropriate for this solver type.

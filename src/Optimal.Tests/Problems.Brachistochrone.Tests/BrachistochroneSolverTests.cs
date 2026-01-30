@@ -44,11 +44,9 @@ namespace Optimal.Problems.Brachistochrone.Tests
         public void HermiteSimpsonFixedTimeConverges()
         {
             var problem = CreateFixedTimeProblem();
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(15)
-                .WithTolerance(1e-2)  // Relaxed tolerance
-                .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 15, Tolerance = 1e-2, MaxIterations = 50 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -61,11 +59,9 @@ namespace Optimal.Problems.Brachistochrone.Tests
         public void HermiteSimpsonFixedTimeSatisfiesBoundaryConditions()
         {
             var problem = CreateFixedTimeProblem();
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(15)
-                .WithTolerance(1e-2)
-                .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 15, Tolerance = 1e-2, MaxIterations = 50 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -89,11 +85,9 @@ namespace Optimal.Problems.Brachistochrone.Tests
         public void HermiteSimpsonFixedTimeConservesEnergy()
         {
             var problem = CreateFixedTimeProblem();
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(15)
-                .WithTolerance(1e-2)
-                .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 15, Tolerance = 1e-2, MaxIterations = 50 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -117,11 +111,9 @@ namespace Optimal.Problems.Brachistochrone.Tests
         public void HermiteSimpsonFreeTimeConverges()
         {
             var problem = CreateFreeTimeProblem();
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(15)
-                .WithTolerance(5e-2)  // Relaxed tolerance
-                .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 15, Tolerance = 5e-2, MaxIterations = 100 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -134,11 +126,9 @@ namespace Optimal.Problems.Brachistochrone.Tests
         public void HermiteSimpsonFreeTimeFindsOptimalTime()
         {
             var problem = CreateFreeTimeProblem();
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(15)
-                .WithTolerance(5e-2)
-                .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 15, Tolerance = 5e-2, MaxIterations = 100 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -158,11 +148,9 @@ namespace Optimal.Problems.Brachistochrone.Tests
         public void HermiteSimpsonFreeTimeControlVaries()
         {
             var problem = CreateFreeTimeProblem();
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(15)
-                .WithTolerance(5e-2)
-                .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 15, Tolerance = 5e-2, MaxIterations = 100 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -191,12 +179,9 @@ namespace Optimal.Problems.Brachistochrone.Tests
             // LGL solver has known convergence issues with Brachistochrone
             // This test documents current behavior
             var problem = CreateFixedTimeProblem();
-            var solver = new LegendreGaussLobattoSolver()
-                .WithSegments(8)
-                .WithOrder(3)
-                .WithTolerance(5e-2)
-                .WithMaxIterations(30)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
+            var solver = new LegendreGaussLobattoSolver(
+                new LegendreGaussLobattoSolverOptions { Segments = 8, Order = 3, Tolerance = 5e-2, MaxIterations = 30 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateForLGL(problem, 8, 3);
             var result = solver.Solve(problem, initialGuess);
@@ -213,12 +198,9 @@ namespace Optimal.Problems.Brachistochrone.Tests
         public void LGLFixedTimeReturnsValidStructure()
         {
             var problem = CreateFixedTimeProblem();
-            var solver = new LegendreGaussLobattoSolver()
-                .WithSegments(8)
-                .WithOrder(3)
-                .WithTolerance(5e-2)
-                .WithMaxIterations(30)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
+            var solver = new LegendreGaussLobattoSolver(
+                new LegendreGaussLobattoSolverOptions { Segments = 8, Order = 3, Tolerance = 5e-2, MaxIterations = 30 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateForLGL(problem, 8, 3);
             var result = solver.Solve(problem, initialGuess);
@@ -241,12 +223,9 @@ namespace Optimal.Problems.Brachistochrone.Tests
         {
             // LGL solver has known issues with free-time Brachistochrone
             var problem = CreateFreeTimeProblem();
-            var solver = new LegendreGaussLobattoSolver()
-                .WithSegments(8)
-                .WithOrder(3)
-                .WithTolerance(5e-2)
-                .WithMaxIterations(30)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
+            var solver = new LegendreGaussLobattoSolver(
+                new LegendreGaussLobattoSolverOptions { Segments = 8, Order = 3, Tolerance = 5e-2, MaxIterations = 30 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateForLGL(problem, 8, 3);
             var result = solver.Solve(problem, initialGuess);
@@ -264,12 +243,9 @@ namespace Optimal.Problems.Brachistochrone.Tests
             // Known issue: LGL may produce solutions where control stays constant
             // This test documents expected behavior
             var problem = CreateFreeTimeProblem();
-            var solver = new LegendreGaussLobattoSolver()
-                .WithSegments(8)
-                .WithOrder(3)
-                .WithTolerance(5e-2)
-                .WithMaxIterations(30)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
+            var solver = new LegendreGaussLobattoSolver(
+                new LegendreGaussLobattoSolverOptions { Segments = 8, Order = 3, Tolerance = 5e-2, MaxIterations = 30 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateForLGL(problem, 8, 3);
             var result = solver.Solve(problem, initialGuess);

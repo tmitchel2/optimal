@@ -29,22 +29,17 @@ namespace Optimal.Control.Scaling.Tests
             var problem = CreateSimpleIntegratorProblem();
 
             // Solve without scaling
-            var solverWithout = new HermiteSimpsonSolver()
-                .WithSegments(10)
-                .WithTolerance(SolverTolerance)
-                .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
+            var solverWithout = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 10, Tolerance = SolverTolerance, MaxIterations = 100 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guessWithout = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
             var resultWithout = solverWithout.Solve(problem, guessWithout);
 
             // Solve with auto-scaling
-            var solverWith = new HermiteSimpsonSolver()
-                .WithSegments(10)
-                .WithTolerance(SolverTolerance)
-                .WithMaxIterations(100)
-                .WithAutoScaling(true)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
+            var solverWith = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 10, Tolerance = SolverTolerance, MaxIterations = 100, AutoScaling = true },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guessWith = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
             var resultWith = solverWith.Solve(problem, guessWith);
@@ -71,12 +66,9 @@ namespace Optimal.Control.Scaling.Tests
             var problem = CreatePoorlyScaledProblem();
 
             // Solve with auto-scaling
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(15)
-                .WithTolerance(SolverTolerance)
-                .WithMaxIterations(200)
-                .WithAutoScaling(true)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6, MaxIterations = 500 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 15, Tolerance = SolverTolerance, MaxIterations = 200, AutoScaling = true },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6, MaxIterations = 500 }, new BacktrackingLineSearch()));
 
             var guess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, guess);
@@ -109,12 +101,9 @@ namespace Optimal.Control.Scaling.Tests
                 controlScales: new[] { 1.0 },
                 controlCenters: new[] { 0.0 });
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(10)
-                .WithTolerance(SolverTolerance)
-                .WithMaxIterations(100)
-                .WithScaling(scaling)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 10, Tolerance = SolverTolerance, MaxIterations = 100, Scaling = scaling },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
             var result = solver.Solve(problem, guess);
@@ -157,12 +146,9 @@ namespace Optimal.Control.Scaling.Tests
                     return new PathConstraintResult(x[0] - 10.0, new[] { 1.0, 0.0, 0.0, 0.0 });
                 });
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(10)
-                .WithTolerance(SolverTolerance)
-                .WithMaxIterations(100)
-                .WithAutoScaling(true)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 10, Tolerance = SolverTolerance, MaxIterations = 100, AutoScaling = true },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
 
@@ -200,12 +186,9 @@ namespace Optimal.Control.Scaling.Tests
                     return new RunningCostResult(u[0] * u[0], new[] { 0.0, 2 * u[0], 0.0 });
                 });
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(10)
-                .WithTolerance(SolverTolerance)
-                .WithMaxIterations(100)
-                .WithAutoScaling(true)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 10, Tolerance = SolverTolerance, MaxIterations = 100, AutoScaling = true },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
             var result = solver.Solve(problem, guess);

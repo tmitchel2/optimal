@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -11,6 +11,8 @@ using System.Diagnostics;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
+using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers.Tests
 {
@@ -261,11 +263,9 @@ namespace Optimal.Control.Solvers.Tests
                 .WithFinalCondition(s_finalState);
 
             // Sequential solve (parallelization disabled)
-            var seqSolver = new HermiteSimpsonSolver()
-                .WithSegments(segments)
-                .WithMaxIterations(maxIterations)
-                .WithVerbose(false)
-                .WithParallelization(false);
+            var seqSolver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = segments, MaxIterations = maxIterations, Verbose = false, EnableParallelization = false },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, segments);
             var sw = Stopwatch.StartNew();
@@ -274,11 +274,9 @@ namespace Optimal.Control.Solvers.Tests
             var seqTime = sw.Elapsed.TotalMilliseconds;
 
             // Parallel solve (parallelization enabled)
-            var parSolver = new HermiteSimpsonSolver()
-                .WithSegments(segments)
-                .WithMaxIterations(maxIterations)
-                .WithVerbose(false)
-                .WithParallelization(true);
+            var parSolver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = segments, MaxIterations = maxIterations, Verbose = false, EnableParallelization = true },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             sw = Stopwatch.StartNew();
             var parResult = parSolver.Solve(problem, initialGuess);

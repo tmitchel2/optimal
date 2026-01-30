@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -14,8 +14,8 @@ using Optimal.Control.Core;
 using Optimal.Control.Optimization;
 using Optimal.NonLinear.Constrained;
 using Optimal.NonLinear.Constraints;
-using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers
@@ -26,204 +26,24 @@ namespace Optimal.Control.Solvers
     /// </summary>
     public sealed class LegendreGaussLobattoSolver : ISolver
     {
-        private int _segments = 20;
-        private int _order = 4;
-        private double _tolerance = 1e-6;
-        private int _maxIterations = 100;
-        private bool _verbose;
-        private bool _enableParallelization = true;
-        private bool _enableMeshRefinement;
-        private int _maxRefinementIterations = 5;
-        private double _refinementDefectThreshold = 1e-4;
-        private IOptimizer? _innerOptimizer;
-        private ProgressCallback? _progressCallback;
-        private bool _forceNumericalGradients;
-        private OptimisationMonitor? _monitor;
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithSegments(int segments) => WithSegments(segments);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithTolerance(double tolerance) => WithTolerance(tolerance);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithMaxIterations(int maxIterations) => WithMaxIterations(maxIterations);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithOrder(int order) => WithOrder(order);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithParallelization(bool enable) => WithParallelization(enable);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithVerbose(bool verbose) => WithVerbose(verbose);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithInnerOptimizer(IOptimizer optimizer) => WithInnerOptimizer(optimizer);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithMeshRefinement(bool enable, int maxRefinementIterations, double defectThreshold) =>
-            WithMeshRefinement(enable, maxRefinementIterations, defectThreshold);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithProgressCallback(ProgressCallback? callback) => WithProgressCallback(callback);
-
-        /// <inheritdoc/>
-        ISolver ISolver.WithOptimisationMonitor(OptimisationMonitor monitor) => WithOptimisationMonitor(monitor);
-
-        /// <inheritdoc/>
-        OptimisationMonitorReport? ISolver.GetMonitorReport() => GetMonitorReport();
+        private readonly LegendreGaussLobattoSolverOptions _options;
+        private readonly IOptimizer _innerOptimizer;
+        private readonly OptimisationMonitor? _monitor;
 
         /// <summary>
-        /// Sets the number of collocation segments.
+        /// Initializes a new instance of the <see cref="LegendreGaussLobattoSolver"/> class with the specified options.
         /// </summary>
-        /// <param name="segments">Number of segments (must be > 0).</param>
-        /// <returns>This solver for method chaining.</returns>
-        public LegendreGaussLobattoSolver WithSegments(int segments)
+        /// <param name="options">The solver options.</param>
+        /// <param name="innerOptimizer">Inner NLP optimizer.</param>
+        /// <param name="monitor">Optional optimization monitor for gradient verification.</param>
+        public LegendreGaussLobattoSolver(
+            LegendreGaussLobattoSolverOptions options,
+            IOptimizer innerOptimizer,
+            OptimisationMonitor? monitor = null)
         {
-            if (segments <= 0)
-            {
-                throw new ArgumentException("Number of segments must be positive.", nameof(segments));
-            }
-
-            _segments = segments;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the LGL collocation order (number of collocation points per segment).
-        /// Higher orders provide more accurate solutions but increase computational cost.
-        /// Common values: 3, 4, 5, 7, 9.
-        /// </summary>
-        /// <param name="order">LGL order (must be >= 2).</param>
-        /// <returns>This solver for method chaining.</returns>
-        public LegendreGaussLobattoSolver WithOrder(int order)
-        {
-            if (order < 2)
-            {
-                throw new ArgumentException("LGL order must be at least 2.", nameof(order));
-            }
-
-            _order = order;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the convergence tolerance.
-        /// </summary>
-        /// <param name="tolerance">Tolerance for convergence (must be > 0).</param>
-        /// <returns>This solver for method chaining.</returns>
-        public LegendreGaussLobattoSolver WithTolerance(double tolerance)
-        {
-            if (tolerance <= 0)
-            {
-                throw new ArgumentException("Tolerance must be positive.", nameof(tolerance));
-            }
-
-            _tolerance = tolerance;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the maximum number of iterations.
-        /// </summary>
-        /// <param name="maxIterations">Maximum iterations (must be > 0).</param>
-        /// <returns>This solver for method chaining.</returns>
-        public LegendreGaussLobattoSolver WithMaxIterations(int maxIterations)
-        {
-            if (maxIterations <= 0)
-            {
-                throw new ArgumentException("Max iterations must be positive.", nameof(maxIterations));
-            }
-
-            _maxIterations = maxIterations;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets verbose output mode.
-        /// </summary>
-        /// <param name="verbose">True to enable verbose output.</param>
-        /// <returns>This solver for method chaining.</returns>
-        public LegendreGaussLobattoSolver WithVerbose(bool verbose = true)
-        {
-            _verbose = verbose;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets a custom inner optimizer for the unconstrained NLP subproblem.
-        /// If not set, uses LBFGSOptimizer by default.
-        /// </summary>
-        /// <param name="optimizer">The optimizer to use.</param>
-        /// <returns>This solver for method chaining.</returns>
-        public LegendreGaussLobattoSolver WithInnerOptimizer(IOptimizer optimizer)
-        {
-            _innerOptimizer = optimizer;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets a callback to monitor optimization progress at each iteration.
-        /// The callback receives current iteration, cost, states, controls, times, max violation, and tolerance.
-        /// </summary>
-        /// <param name="callback">Progress callback function.</param>
-        /// <returns>This solver for method chaining.</returns>
-        public LegendreGaussLobattoSolver WithProgressCallback(ProgressCallback? callback)
-        {
-            _progressCallback = callback;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables or disables parallelization for constraint and cost evaluation.
-        /// When enabled, uses parallel computation for problems with many segments.
-        /// Default: true.
-        /// </summary>
-        /// <param name="enable">True to enable parallelization.</param>
-        /// <returns>This solver for method chaining.</returns>
-        public LegendreGaussLobattoSolver WithParallelization(bool enable = true)
-        {
-            _enableParallelization = enable;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables adaptive mesh refinement to automatically refine the grid based on defect distribution.
-        /// </summary>
-        /// <param name="enable">True to enable mesh refinement.</param>
-        /// <param name="maxRefinementIterations">Maximum number of refinement iterations (default: 5).</param>
-        /// <param name="defectThreshold">Defect threshold for convergence (default: 1e-4).</param>
-        /// <returns>This solver for method chaining.</returns>
-        public LegendreGaussLobattoSolver WithMeshRefinement(bool enable = true, int maxRefinementIterations = 5, double defectThreshold = 1e-4)
-        {
-            _enableMeshRefinement = enable;
-            _maxRefinementIterations = maxRefinementIterations;
-            _refinementDefectThreshold = defectThreshold;
-            return this;
-        }
-
-        /// <summary>
-        /// Forces the use of numerical gradients instead of analytical gradients.
-        /// Useful for debugging gradient issues.
-        /// </summary>
-        /// <param name="forceNumerical">True to force numerical gradients.</param>
-        /// <returns>This solver for method chaining.</returns>
-        public LegendreGaussLobattoSolver WithNumericalGradients(bool forceNumerical = true)
-        {
-            _forceNumericalGradients = forceNumerical;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets an optimization monitor for gradient verification and smoothness monitoring.
-        /// </summary>
-        /// <param name="monitor">The monitor to use.</param>
-        /// <returns>This solver for method chaining.</returns>
-        public LegendreGaussLobattoSolver WithOptimisationMonitor(OptimisationMonitor monitor)
-        {
-            _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
-            return this;
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _innerOptimizer = innerOptimizer ?? throw new ArgumentNullException(nameof(innerOptimizer));
+            _monitor = monitor;
         }
 
         /// <summary>
@@ -252,18 +72,18 @@ namespace Optimal.Control.Solvers
                 throw new InvalidOperationException("Problem must have dynamics defined.");
             }
 
-            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _segments);
-            ICollocationTranscription transcription = _enableParallelization
-                ? new ParallelLGLTranscription(problem, grid, _order, _enableParallelization)
-                : new LegendreGaussLobattoTranscription(problem, grid, _order);
+            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _options.Segments);
+            ICollocationTranscription transcription = _options.EnableParallelization
+                ? new ParallelLGLTranscription(problem, grid, _options.Order, _options.EnableParallelization)
+                : new LegendreGaussLobattoTranscription(problem, grid, _options.Order);
             var z0 = transcription.ToDecisionVector(initialGuess);
 
-            if (_enableMeshRefinement)
+            if (_options.EnableMeshRefinement)
             {
                 return SolveWithMeshRefinement(problem, z0);
             }
 
-            return SolveOnFixedGrid(problem, _segments, z0);
+            return SolveOnFixedGrid(problem, _options.Segments, z0);
         }
 
         /// <summary>
@@ -275,11 +95,11 @@ namespace Optimal.Control.Solvers
         /// <returns>The collocation result containing the optimal trajectory.</returns>
         private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segments, double[] initialGuess)
         {
-            if (_verbose)
+            if (_options.Verbose)
             {
                 Console.WriteLine($"Legendre-Gauss-Lobatto Solver");
                 Console.WriteLine($"  Segments: {segments}");
-                Console.WriteLine($"  Order: {_order}");
+                Console.WriteLine($"  Order: {_options.Order}");
                 Console.WriteLine($"  State dimension: {problem.StateDim}");
                 Console.WriteLine($"  Control dimension: {problem.ControlDim}");
             }
@@ -291,22 +111,22 @@ namespace Optimal.Control.Solvers
                 segments);
 
             // Create transcription (parallel or sequential based on settings)
-            ICollocationTranscription transcription = _enableParallelization
-                ? new ParallelLGLTranscription(problem, grid, _order, _enableParallelization)
-                : new LegendreGaussLobattoTranscription(problem, grid, _order);
+            ICollocationTranscription transcription = _options.EnableParallelization
+                ? new ParallelLGLTranscription(problem, grid, _options.Order, _options.EnableParallelization)
+                : new LegendreGaussLobattoTranscription(problem, grid, _options.Order);
 
-            if (_verbose)
+            if (_options.Verbose)
             {
                 Console.WriteLine($"  Total collocation points: {transcription.TotalPoints}");
                 Console.WriteLine($"  Decision vector size: {transcription.DecisionVectorSize}");
-                Console.WriteLine($"  Defects per segment: {_order - 2}");
-                Console.WriteLine($"  Total defect constraints: {_segments * (_order - 2) * problem.StateDim}");
+                Console.WriteLine($"  Defects per segment: {_options.Order - 2}");
+                Console.WriteLine($"  Total defect constraints: {segments * (_options.Order - 2) * problem.StateDim}");
             }
 
             var z0 = initialGuess;
             var dynamics = problem.Dynamics!;
 
-            if (_verbose)
+            if (_options.Verbose)
             {
                 Console.WriteLine($"Initial guess:");
 
@@ -334,7 +154,7 @@ namespace Optimal.Control.Solvers
 
             // Check if dynamics provides analytical gradients
             var hasAnalyticalDynamicsGradients = false;
-            if (!_forceNumericalGradients)
+            if (!_options.ForceNumericalGradients)
             {
                 try
                 {
@@ -360,13 +180,13 @@ namespace Optimal.Control.Solvers
                 }
             }
 
-            if (_verbose && hasAnalyticalDynamicsGradients)
+            if (_options.Verbose && hasAnalyticalDynamicsGradients)
             {
                 Console.WriteLine("Dynamics provides analytical gradients");
             }
 
             // Check if we can use analytical gradients for costs
-            var useAnalyticalGradients = !_forceNumericalGradients;
+            var useAnalyticalGradients = !_options.ForceNumericalGradients;
 
             if (problem.RunningCost != null)
             {
@@ -377,7 +197,7 @@ namespace Optimal.Control.Solvers
                     var testResult = problem.RunningCost(new RunningCostInput(testX, testU, 0.0));
                     var expectedSize = problem.StateDim + problem.ControlDim + 1;
 
-                    if (_verbose)
+                    if (_options.Verbose)
                     {
                         Console.WriteLine($"Testing running cost gradients: hasGrads={(testResult.Gradients != null)}, length={testResult.Gradients?.Length ?? 0}, expected={expectedSize}");
                     }
@@ -388,7 +208,7 @@ namespace Optimal.Control.Solvers
                 }
                 catch (Exception ex)
                 {
-                    if (_verbose)
+                    if (_options.Verbose)
                     {
                         Console.WriteLine($"Running cost gradient test failed: {ex.Message}");
                     }
@@ -413,7 +233,7 @@ namespace Optimal.Control.Solvers
                 }
             }
 
-            if (_verbose && useAnalyticalGradients)
+            if (_options.Verbose && useAnalyticalGradients)
             {
                 Console.WriteLine("Using analytical gradients from AutoDiff");
             }
@@ -448,7 +268,7 @@ namespace Optimal.Control.Solvers
                     if (problem.RunningCost != null)
                     {
                         var runningGrad = AutoDiffLGLGradientHelper.ComputeRunningCostGradient(
-                            problem, grid, z, _order, transcription.GetState, transcription.GetControl,
+                            problem, grid, z, _options.Order, transcription.GetState, transcription.GetControl,
                             (x, u, t) =>
                             {
                                 var res = problem.RunningCost!(new RunningCostInput(x, u, t));
@@ -496,7 +316,7 @@ namespace Optimal.Control.Solvers
                 }
 
                 // Invoke progress callback
-                if (_progressCallback != null)
+                if (_options.ProgressCallback != null)
                 {
                     iterationCount++;
                     var states = new double[transcription.TotalPoints][];
@@ -517,28 +337,28 @@ namespace Optimal.Control.Solvers
                     var pointIndex = 0;
                     for (var k = 0; k < segments; k++)
                     {
-                        var (lglPoints, _) = LegendreGaussLobatto.GetPointsAndWeights(_order);
+                        var (lglPoints, _) = LegendreGaussLobatto.GetPointsAndWeights(_options.Order);
                         var h = grid.GetTimeStep(k);
                         var tk = grid.TimePoints[k];
 
-                        for (var i = 0; i < _order; i++)
+                        for (var ii = 0; ii < _options.Order; ii++)
                         {
-                            if (k > 0 && i == 0)
+                            if (k > 0 && ii == 0)
                                 continue; // Skip shared endpoint
 
-                            var tau = lglPoints[i];
+                            var tau = lglPoints[ii];
                             times[pointIndex++] = tk + (tau + 1.0) * h / 2.0;
                         }
                     }
 
-                    _progressCallback(iterationCount, cost, states, controls, times, maxViolation, _tolerance);
+                    _options.ProgressCallback(iterationCount, cost, states, controls, times, maxViolation, _options.Tolerance);
                 }
 
                 return (cost, gradient);
             };
 
             // Get LGL differentiation matrix for analytical gradients
-            var lglDiffMatrix = LegendreGaussLobatto.GetDifferentiationMatrix(_order);
+            var lglDiffMatrix = LegendreGaussLobatto.GetDifferentiationMatrix(_options.Order);
 
             var analyticalDefectCount = 0;
             var numericalDefectFallbackCount = 0;
@@ -556,7 +376,7 @@ namespace Optimal.Control.Solvers
                     try
                     {
                         // Map flat defectIndex to (segmentIndex, interiorPointIndex, stateComponentIndex)
-                        var numInteriorPointsPerSegment = _order - 2;
+                        var numInteriorPointsPerSegment = _options.Order - 2;
                         var defectsPerSegment = numInteriorPointsPerSegment * problem.StateDim;
 
                         var segmentIndex = defectIndex / defectsPerSegment;
@@ -565,7 +385,7 @@ namespace Optimal.Control.Solvers
                         var stateComponentIndex = remainder % problem.StateDim;
 
                         gradient = AutoDiffLGLGradientHelper.ComputeDefectGradient(
-                            problem, grid, z, _order, lglDiffMatrix,
+                            problem, grid, z, _options.Order, lglDiffMatrix,
                             transcription.GetState, transcription.GetControl,
                             segmentIndex, interiorPointIndex, stateComponentIndex,
                             (x, u, t) =>
@@ -601,10 +421,10 @@ namespace Optimal.Control.Solvers
             };
 
             // Collect all constraints
-            var totalDefects = _segments * (_order - 2) * problem.StateDim;
+            var totalDefects = segments * (_options.Order - 2) * problem.StateDim;
 
             // Verify gradients at initial guess for a few defects
-            if (_verbose && hasAnalyticalDynamicsGradients)
+            if (_options.Verbose && hasAnalyticalDynamicsGradients)
             {
                 Console.WriteLine("Verifying defect gradients at initial guess...");
                 var defectIndicesToCheck = new[] { 0, totalDefects / 2, totalDefects - 1 };
@@ -645,7 +465,7 @@ namespace Optimal.Control.Solvers
                 }
             }
 
-            if (_verbose)
+            if (_options.Verbose)
             {
                 Console.WriteLine($"Adding {totalDefects} defect constraints");
             }
@@ -753,13 +573,13 @@ namespace Optimal.Control.Solvers
                 {
                     var pathConstraint = problem.PathConstraints[constraintIndex];
 
-                    for (var k = 0; k < _segments; k++)
+                    for (var k = 0; k < segments; k++)
                     {
-                        var (lglPoints, _) = LegendreGaussLobatto.GetPointsAndWeights(_order);
+                        var (lglPoints, _) = LegendreGaussLobatto.GetPointsAndWeights(_options.Order);
 
-                        for (var localIdx = 0; localIdx < _order; localIdx++)
+                        for (var localIdx = 0; localIdx < _options.Order; localIdx++)
                         {
-                            var globalIdx = k * (_order - 1) + localIdx;
+                            var globalIdx = k * (_options.Order - 1) + localIdx;
 
                             // Skip shared endpoint (already constrained by previous segment)
                             if (k > 0 && localIdx == 0)
@@ -800,11 +620,11 @@ namespace Optimal.Control.Solvers
             // Use higher initial penalty for LGL since defects are typically larger
             var options = new AugmentedLagrangianOptions
             {
-                Tolerance = _tolerance,
-                MaxIterations = _maxIterations,
-                Verbose = _verbose,
+                Tolerance = _options.Tolerance,
+                MaxIterations = _options.MaxIterations,
+                Verbose = _options.Verbose,
                 PenaltyParameter = 100.0,
-                ConstraintTolerance = _tolerance,
+                ConstraintTolerance = _options.Tolerance,
                 EqualityConstraints = equalityConstraints,
                 InequalityConstraints = inequalityConstraints,
                 BoxConstraints = boxConstraints
@@ -827,13 +647,13 @@ namespace Optimal.Control.Solvers
             var states = new double[transcription.TotalPoints][];
             var controls = new double[transcription.TotalPoints][];
 
-            for (var k = 0; k < _segments; k++)
+            for (var k = 0; k < segments; k++)
             {
-                var (lglPoints, _) = LegendreGaussLobatto.GetPointsAndWeights(_order);
+                var (lglPoints, _) = LegendreGaussLobatto.GetPointsAndWeights(_options.Order);
 
-                for (var localIdx = 0; localIdx < _order; localIdx++)
+                for (var localIdx = 0; localIdx < _options.Order; localIdx++)
                 {
-                    var globalIdx = k * (_order - 1) + localIdx;
+                    var globalIdx = k * (_options.Order - 1) + localIdx;
 
                     // Skip shared endpoint (already set by previous segment)
                     if (k > 0 && localIdx == 0)
@@ -855,7 +675,7 @@ namespace Optimal.Control.Solvers
             var finalDefects = transcription.ComputeAllDefects(zOpt, dynamics);
             var maxDefect = LegendreGaussLobattoTranscription.MaxDefect(finalDefects);
 
-            if (_verbose)
+            if (_options.Verbose)
             {
                 Console.WriteLine($"\nSolver completed:");
                 Console.WriteLine($"  Objective: {nlpResult.OptimalValue:E6}");
@@ -885,13 +705,13 @@ namespace Optimal.Control.Solvers
         /// <returns>The collocation result containing the optimal trajectory.</returns>
         private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[] initialGuess)
         {
-            var currentSegments = _segments;
+            var currentSegments = _options.Segments;
             CollocationResult? result = null;
             var previousSolution = initialGuess;
 
-            for (var iteration = 0; iteration < _maxRefinementIterations; iteration++)
+            for (var iteration = 0; iteration < _options.MaxRefinementIterations; iteration++)
             {
-                if (_verbose)
+                if (_options.Verbose)
                 {
                     Console.WriteLine($"Mesh refinement iteration {iteration + 1}, segments = {currentSegments}");
                 }
@@ -901,22 +721,22 @@ namespace Optimal.Control.Solvers
 
                 if (!result.Success)
                 {
-                    if (_verbose)
+                    if (_options.Verbose)
                     {
                         Console.WriteLine("Failed to converge on current mesh");
                     }
                     break;
                 }
 
-                if (_verbose)
+                if (_options.Verbose)
                 {
                     Console.WriteLine($"  Max defect: {result.MaxDefect:E2}");
                 }
 
                 // Check if we should stop
-                if (result.MaxDefect < _refinementDefectThreshold)
+                if (result.MaxDefect < _options.RefinementDefectThreshold)
                 {
-                    if (_verbose)
+                    if (_options.Verbose)
                     {
                         Console.WriteLine($"Converged with max defect {result.MaxDefect:E2}");
                     }
@@ -925,9 +745,9 @@ namespace Optimal.Control.Solvers
 
                 // Analyze defects and refine mesh
                 var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, currentSegments);
-                ICollocationTranscription transcription = _enableParallelization
-                    ? new ParallelLGLTranscription(problem, grid, _order, _enableParallelization)
-                    : new LegendreGaussLobattoTranscription(problem, grid, _order);
+                ICollocationTranscription transcription = _options.EnableParallelization
+                    ? new ParallelLGLTranscription(problem, grid, _options.Order, _options.EnableParallelization)
+                    : new LegendreGaussLobattoTranscription(problem, grid, _options.Order);
 
                 // Rebuild solution vector for defect computation
                 var z = new double[transcription.DecisionVectorSize];
@@ -940,13 +760,13 @@ namespace Optimal.Control.Solvers
                 var defects = transcription.ComputeAllDefects(z, problem.Dynamics!);
 
                 // Identify segments for refinement
-                var numInteriorPointsPerSegment = _order - 2;
-                var meshRefinement = new MeshRefinement(_refinementDefectThreshold, maxSegments: 200);
+                var numInteriorPointsPerSegment = _options.Order - 2;
+                var meshRefinement = new MeshRefinement(_options.RefinementDefectThreshold, maxSegments: 200);
                 var shouldRefine = meshRefinement.IdentifySegmentsForRefinement(defects, problem.StateDim, numInteriorPointsPerSegment);
 
                 var refinementPct = MeshRefinement.ComputeRefinementPercentage(shouldRefine);
 
-                if (_verbose)
+                if (_options.Verbose)
                 {
                     Console.WriteLine($"  Refining {refinementPct:F1}% of segments");
                 }
@@ -968,12 +788,12 @@ namespace Optimal.Control.Solvers
                 }
 
                 // Interpolate solution to new grid for warm start
-                ICollocationTranscription newTranscription = _enableParallelization
-                    ? new ParallelLGLTranscription(problem, newGrid, _order, _enableParallelization)
-                    : new LegendreGaussLobattoTranscription(problem, newGrid, _order);
+                ICollocationTranscription newTranscription = _options.EnableParallelization
+                    ? new ParallelLGLTranscription(problem, newGrid, _options.Order, _options.EnableParallelization)
+                    : new LegendreGaussLobattoTranscription(problem, newGrid, _options.Order);
 
                 previousSolution = MeshRefinement.InterpolateLGLSolution(
-                    grid, newGrid, z, _order, problem.StateDim, problem.ControlDim);
+                    grid, newGrid, z, _options.Order, problem.StateDim, problem.ControlDim);
 
                 currentSegments = newSegments;
             }

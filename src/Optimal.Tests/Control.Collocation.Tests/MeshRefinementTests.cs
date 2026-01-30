@@ -106,12 +106,17 @@ namespace Optimal.Control.Collocation.Tests
                     return new RunningCostResult(value, gradients);
                 });
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(5) // Start coarse
-                .WithTolerance(1e-4)
-                .WithMaxIterations(50)
-                .WithMeshRefinement(enable: true, maxRefinementIterations: 3, defectThreshold: 1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions
+                {
+                    Segments = 5,
+                    Tolerance = 1e-4,
+                    MaxIterations = 50,
+                    EnableMeshRefinement = true,
+                    MaxRefinementIterations = 3,
+                    RefinementDefectThreshold = 1e-3
+                },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 5);
             var result = solver.Solve(problem, initialGuess);
@@ -156,22 +161,24 @@ namespace Optimal.Control.Collocation.Tests
                 });
 
             // Without refinement (coarse)
-            var solverCoarse = new HermiteSimpsonSolver()
-                .WithSegments(5)
-                .WithTolerance(1e-3)
-                .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var solverCoarse = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 5, Tolerance = 1e-3, MaxIterations = 50 },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 5);
             var resultCoarse = solverCoarse.Solve(problem, initialGuess);
 
             // With refinement
-            var solverRefined = new HermiteSimpsonSolver()
-                .WithSegments(5)
-                .WithTolerance(1e-3)
-                .WithMaxIterations(50)
-                .WithMeshRefinement(enable: true, maxRefinementIterations: 3)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var solverRefined = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions
+                {
+                    Segments = 5,
+                    Tolerance = 1e-3,
+                    MaxIterations = 50,
+                    EnableMeshRefinement = true,
+                    MaxRefinementIterations = 3
+                },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var resultRefined = solverRefined.Solve(problem, initialGuess);
 
@@ -215,12 +222,17 @@ namespace Optimal.Control.Collocation.Tests
                     return new RunningCostResult(value, gradients);
                 });
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(8)
-                .WithTolerance(1e-3)
-                .WithMeshRefinement(enable: true, maxRefinementIterations: 4, defectThreshold: 5e-3)
-                .WithMaxIterations(60)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-4 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions
+                {
+                    Segments = 8,
+                    Tolerance = 1e-3,
+                    MaxIterations = 60,
+                    EnableMeshRefinement = true,
+                    MaxRefinementIterations = 4,
+                    RefinementDefectThreshold = 5e-3
+                },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-4 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 8);
             var result = solver.Solve(problem, initialGuess);

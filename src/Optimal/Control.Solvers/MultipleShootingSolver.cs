@@ -132,11 +132,14 @@ namespace Optimal.Control.Solvers
                 var intervalProblem = CreateIntervalProblem(problem, interval, i == 0, i == _shootingIntervals - 1);
                 
                 // Solve interval
-                var solver = new HermiteSimpsonSolver()
-                    .WithSegments(_segments)
-                    .WithTolerance(_tolerance)
-                    .WithMaxIterations(_maxIterations)
-                    .WithInnerOptimizer(_innerOptimizer ?? new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+                var solver = new HermiteSimpsonSolver(
+                    new HermiteSimpsonSolverOptions
+                    {
+                        Segments = _segments,
+                        Tolerance = _tolerance,
+                        MaxIterations = _maxIterations
+                    },
+                    _innerOptimizer ?? new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
                 var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(intervalProblem, _segments);
                 var result = solver.Solve(intervalProblem, initialGuess);
@@ -223,11 +226,14 @@ namespace Optimal.Control.Solvers
                                 problem.ControlUpperBounds);
                         }
                         
-                        var solver = new HermiteSimpsonSolver()
-                            .WithSegments(_segments)
-                            .WithTolerance(_tolerance)
-                            .WithMaxIterations(_maxIterations)
-                            .WithInnerOptimizer(_innerOptimizer ?? new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+                        var solver = new HermiteSimpsonSolver(
+                            new HermiteSimpsonSolverOptions
+                            {
+                                Segments = _segments,
+                                Tolerance = _tolerance,
+                                MaxIterations = _maxIterations
+                            },
+                            _innerOptimizer ?? new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
                         var refinementGuess = InitialGuessFactory.CreateWithControlHeuristics(intervalProblem, _segments);
                         var refinedResult = solver.Solve(intervalProblem, refinementGuess);

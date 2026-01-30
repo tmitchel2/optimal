@@ -203,21 +203,26 @@ public sealed class CornerProblemSolver : ICommand
                 MaxIterations = 300
             }, new BacktrackingLineSearch());
 
-        return new HermiteSimpsonSolver()
-            .WithSegments(30)
-            .WithTolerance(1e-1)
-            .WithMaxIterations(500)
-            .WithMeshRefinement(true, 5, 1e-1)
-            .WithVerbose(true)
-            .WithInnerOptimizer(innerOptimizer)
-            .WithInitialPenalty(50.0)
-            .WithAutoScaling()
-            .WithOptimisationMonitor(monitor)
-            .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+        return new HermiteSimpsonSolver(
+            new HermiteSimpsonSolverOptions
             {
-                visualizer.CancellationToken.ThrowIfCancellationRequested();
-                visualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
-            });
+                Segments = 30,
+                Tolerance = 1e-1,
+                MaxIterations = 500,
+                EnableMeshRefinement = true,
+                MaxRefinementIterations = 5,
+                RefinementDefectThreshold = 1e-1,
+                Verbose = true,
+                InitialPenalty = 50.0,
+                AutoScaling = true,
+                ProgressCallback = (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+                {
+                    visualizer.CancellationToken.ThrowIfCancellationRequested();
+                    visualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+                }
+            },
+            innerOptimizer,
+            monitor);
     }
 
     private ControlProblem CreateProblem(TrackGeometry trackGeometry)

@@ -186,11 +186,14 @@ namespace Optimal.Control.Solvers
         /// </summary>
         private CollocationResult SolvePhase(ControlPhase phase, InitialGuess? initialGuess)
         {
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(phase.Segments)
-                .WithTolerance(_phaseSolver.GetTolerance())
-                .WithMaxIterations(_phaseSolver.GetMaxIterations())
-                .WithInnerOptimizer(_phaseSolver.GetInnerOptimizer());
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions
+                {
+                    Segments = phase.Segments,
+                    Tolerance = _phaseSolver.GetTolerance(),
+                    MaxIterations = _phaseSolver.GetMaxIterations()
+                },
+                _phaseSolver.GetInnerOptimizer());
 
             var guess = initialGuess ?? InitialGuessFactory.CreateWithControlHeuristics(phase.Problem!, phase.Segments);
             return solver.Solve(phase.Problem!, guess);
@@ -211,11 +214,14 @@ namespace Optimal.Control.Solvers
 
             var warmStart = WarmStart.InterpolateFromPrevious(previousSolution, grid);
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(phase.Segments)
-                .WithTolerance(_phaseSolver.GetTolerance())
-                .WithMaxIterations(_phaseSolver.GetMaxIterations())
-                .WithInnerOptimizer(_phaseSolver.GetInnerOptimizer());
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions
+                {
+                    Segments = phase.Segments,
+                    Tolerance = _phaseSolver.GetTolerance(),
+                    MaxIterations = _phaseSolver.GetMaxIterations()
+                },
+                _phaseSolver.GetInnerOptimizer());
 
             return solver.Solve(modifiedProblem, warmStart);
         }
@@ -309,11 +315,16 @@ namespace Optimal.Control.Solvers
         {
             ArgumentNullException.ThrowIfNull(solver);
 
-            var field = typeof(HermiteSimpsonSolver).GetField(
-                "_tolerance",
+            var optionsField = typeof(HermiteSimpsonSolver).GetField(
+                "_options",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-            return field != null ? (double)field.GetValue(solver)! : 1e-6;
+            if (optionsField?.GetValue(solver) is HermiteSimpsonSolverOptions options)
+            {
+                return options.Tolerance;
+            }
+
+            return 1e-6;
         }
 
         /// <summary>
@@ -323,11 +334,16 @@ namespace Optimal.Control.Solvers
         {
             ArgumentNullException.ThrowIfNull(solver);
 
-            var field = typeof(HermiteSimpsonSolver).GetField(
-                "_maxIterations",
+            var optionsField = typeof(HermiteSimpsonSolver).GetField(
+                "_options",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-            return field != null ? (int)field.GetValue(solver)! : 100;
+            if (optionsField?.GetValue(solver) is HermiteSimpsonSolverOptions options)
+            {
+                return options.MaxIterations;
+            }
+
+            return 100;
         }
 
         /// <summary>

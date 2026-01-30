@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -10,15 +10,29 @@
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
+using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers.Tests
 {
     [TestClass]
     public sealed class HermiteSimpsonSolverTests : SolverTests
     {
-        protected override ISolver CreateSolver()
+        protected override ISolver CreateSolver(
+            int segments = 20,
+            double tolerance = 1e-6,
+            int maxIterations = 100,
+            bool verbose = false)
         {
-            return new HermiteSimpsonSolver();
+            return new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions
+                {
+                    Segments = segments,
+                    Tolerance = tolerance,
+                    MaxIterations = maxIterations,
+                    Verbose = verbose
+                },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
         }
 
         protected override InitialGuess CreateInitialGuess(ControlProblem problem, int segments)

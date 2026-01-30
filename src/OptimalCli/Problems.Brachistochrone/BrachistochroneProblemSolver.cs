@@ -59,8 +59,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
         Console.WriteLine();
 
         // Create and run solver
-        var solver = CreateSolver(options);
-        RunSolver(solver, problem, options);
+        RunSolver(problem, options);
     }
 
     /// <summary>
@@ -283,7 +282,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
         return (problem, description);
     }
 
-    private static ISolver CreateSolver(CommandOptions options)
+    private static ISolver CreateSolver(CommandOptions options, ProgressCallback? progressCallback = null)
     {
         var innerOptimizer = new LBFGSOptimizer(new LBFGSOptions
         {
@@ -301,22 +300,30 @@ public sealed class BrachistochroneProblemSolver : ICommand
         Console.WriteLine();
 
         return options.Solver == SolverType.LGL
-            ? new LegendreGaussLobattoSolver()
-                .WithOrder(5)
-                .WithSegments(20)
-                .WithTolerance(5e-3)
-                .WithMaxIterations(100)
-                .WithVerbose(true)
-                .WithInnerOptimizer(innerOptimizer)
-            : new HermiteSimpsonSolver()
-                .WithSegments(50)
-                .WithTolerance(1e-2)
-                .WithMaxIterations(200)
-                .WithVerbose(true)
-                .WithInnerOptimizer(innerOptimizer);
+            ? new LegendreGaussLobattoSolver(
+                new LegendreGaussLobattoSolverOptions
+                {
+                    Order = 5,
+                    Segments = 20,
+                    Tolerance = 5e-3,
+                    MaxIterations = 100,
+                    Verbose = true,
+                    ProgressCallback = progressCallback
+                },
+                innerOptimizer)
+            : new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions
+                {
+                    Segments = 50,
+                    Tolerance = 1e-2,
+                    MaxIterations = 200,
+                    Verbose = true,
+                    ProgressCallback = progressCallback
+                },
+                innerOptimizer);
     }
 
-    private static void RunSolver(ISolver solver, ControlProblem problem, CommandOptions options)
+    private static void RunSolver(ControlProblem problem, CommandOptions options)
     {
         Console.WriteLine("Solving...");
         if (!options.Headless)
@@ -335,18 +342,18 @@ public sealed class BrachistochroneProblemSolver : ICommand
 
         if (options.Headless)
         {
+            var solver = CreateSolver(options);
             var headlessResult = solver.Solve(problem, initialGuess);
             PrintSolutionSummary(headlessResult, options.Variant);
             return;
         }
 
+        var solverWithCallback = CreateSolver(options, CreateProgressCallback());
         var optimizationTask = Task.Run(() =>
         {
             try
             {
-                var taskResult = solver
-                    .WithProgressCallback(CreateProgressCallback())
-                    .Solve(problem, initialGuess);
+                var taskResult = solverWithCallback.Solve(problem, initialGuess);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return taskResult;
             }

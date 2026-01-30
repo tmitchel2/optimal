@@ -56,10 +56,9 @@ namespace Optimal.Control.Collocation.Tests
                     return new RunningCostResult(value, gradients);
                 });
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(10)
-                .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 10, Tolerance = 1e-3 },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
             var result = solver.Solve(problem, initialGuess);
@@ -113,20 +112,18 @@ namespace Optimal.Control.Collocation.Tests
                 });
 
             // First solve with fewer segments
-            var solver1 = new HermiteSimpsonSolver()
-                .WithSegments(8)
-                .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var solver1 = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 8, Tolerance = 1e-3 },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess1 = InitialGuessFactory.CreateWithControlHeuristics(problem, 8);
             var result1 = solver1.Solve(problem, initialGuess1);
             Assert.IsTrue(result1.Success, "Coarse solution should converge");
 
             // Now solve with more segments using warm start
-            var solver2 = new HermiteSimpsonSolver()
-                .WithSegments(20)
-                .WithTolerance(1e-4)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var solver2 = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 20, Tolerance = 1e-4 },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var newGrid = new CollocationGrid(0.0, 5.0, 20);
             var warmStart = WarmStart.InterpolateFromPrevious(result1, newGrid);
@@ -168,10 +165,9 @@ namespace Optimal.Control.Collocation.Tests
                     return new RunningCostResult(value, gradients);
                 });
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(10)
-                .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 10, Tolerance = 1e-3 },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem1, 10);
             var result1 = solver.Solve(problem1, initialGuess);
@@ -240,10 +236,9 @@ namespace Optimal.Control.Collocation.Tests
                     return new RunningCostResult(value, gradients);
                 });
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(10)
-                .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 10, Tolerance = 1e-3 },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess1 = InitialGuessFactory.CreateWithControlHeuristics(problem1, 10);
             var initialGuess2 = InitialGuessFactory.CreateWithControlHeuristics(problem2, 10);
@@ -277,10 +272,9 @@ namespace Optimal.Control.Collocation.Tests
                 .WithDynamics(input => new DynamicsResult(new[] { input.Control[0] }, new double[2][]))
                 .WithRunningCost(input => new RunningCostResult(input.Control[0] * input.Control[0], new double[3]));
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(5)
-                .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 5, Tolerance = 1e-3 },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 5);
             var result = solver.Solve(problem, initialGuess);
@@ -327,22 +321,18 @@ namespace Optimal.Control.Collocation.Tests
                 });
 
             // Solve coarse first
-            var solver1 = new HermiteSimpsonSolver()
-                .WithSegments(8)
-                .WithTolerance(1e-3)
-                .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var solver1 = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 8, Tolerance = 1e-3, MaxIterations = 50 },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess1 = InitialGuessFactory.CreateWithControlHeuristics(problem, 8);
             var result1 = solver1.Solve(problem, initialGuess1);
             Assert.IsTrue(result1.Success, "Coarse solution should converge");
 
             // Refine with warm start
-            var solver2 = new HermiteSimpsonSolver()
-                .WithSegments(16)
-                .WithTolerance(1e-4)
-                .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
+            var solver2 = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 16, Tolerance = 1e-4, MaxIterations = 50 },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var grid2 = new CollocationGrid(0.0, 2.0, 16);
             var warmStart = WarmStart.InterpolateFromPrevious(result1, grid2);

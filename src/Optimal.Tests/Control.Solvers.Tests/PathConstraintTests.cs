@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -69,11 +69,9 @@ namespace Optimal.Control.Solvers.Tests
                     return new PathConstraintResult(value, gradients);
                 });
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(10)
-                .WithTolerance(5e-4)
-                .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 10, Tolerance = 5e-4, MaxIterations = 100 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
             var result = solver.Solve(problem, initialGuess);
@@ -139,11 +137,9 @@ namespace Optimal.Control.Solvers.Tests
                     return new PathConstraintResult(value, gradients);
                 });
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(15)
-                .WithTolerance(1e-3)
-                .WithMaxIterations(80)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 15, Tolerance = 1e-3, MaxIterations = 80 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -216,11 +212,9 @@ result.States[i][0], $"At t={result.Times[i]:F2}, x={result.States[i][0]:F2} sho
                     return new PathConstraintResult(value, gradients);
                 });
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(12)
-                .WithTolerance(1e-3)
-                .WithMaxIterations(80)
-                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 12, Tolerance = 1e-3, MaxIterations = 80 },
+                new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 12);
             var result = solver.Solve(problem, initialGuess);
@@ -282,10 +276,9 @@ result.States[i][0], $"At t={result.Times[i]:F2}, x={result.States[i][0]:F2} sho
                     return new PathConstraintResult(value, gradients);
                 });
 
-            var solver = new HermiteSimpsonSolver()
-                .WithSegments(10)
-                .WithTolerance(5e-3)
-                .WithMaxIterations(100);
+            var solver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions { Segments = 10, Tolerance = 5e-3, MaxIterations = 100 },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
             var result = solver.Solve(problem, initialGuess);

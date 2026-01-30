@@ -132,41 +132,42 @@ public sealed class DubinsCarProblemSolver : ICommand
                     MaxIterations = 150
                 }, new BacktrackingLineSearch());
 
+                ProgressCallback progressCallback = (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+                {
+                    var token = RadiantDubinsCarVisualizer.CancellationToken;
+                    if (token.IsCancellationRequested)
+                    {
+                        Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
+                        throw new OperationCanceledException(token);
+                    }
+                    RadiantDubinsCarVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+                };
+
                 ISolver solver = useLGL
-                    ? new LegendreGaussLobattoSolver()
-                        .WithOrder(5)
-                        .WithSegments(20)
-                        .WithTolerance(1e-5)
-                        .WithMaxIterations(150)
-                        .WithVerbose(true)
-                        .WithInnerOptimizer(innerOptimizer)
-                        .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+                    ? new LegendreGaussLobattoSolver(
+                        new LegendreGaussLobattoSolverOptions
                         {
-                            var token = RadiantDubinsCarVisualizer.CancellationToken;
-                            if (token.IsCancellationRequested)
-                            {
-                                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
-                                throw new OperationCanceledException(token);
-                            }
-                            RadiantDubinsCarVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
-                        })
-                    : new HermiteSimpsonSolver()
-                        .WithSegments(20)
-                        .WithTolerance(1e-5)
-                        .WithMaxIterations(150)
-                        .WithMeshRefinement(true, 5, 1e-5)
-                        .WithVerbose(true)
-                        .WithInnerOptimizer(innerOptimizer)
-                        .WithProgressCallback((iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+                            Order = 5,
+                            Segments = 20,
+                            Tolerance = 1e-5,
+                            MaxIterations = 150,
+                            Verbose = true,
+                            ProgressCallback = progressCallback
+                        },
+                        innerOptimizer)
+                    : new HermiteSimpsonSolver(
+                        new HermiteSimpsonSolverOptions
                         {
-                            var token = RadiantDubinsCarVisualizer.CancellationToken;
-                            if (token.IsCancellationRequested)
-                            {
-                                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
-                                throw new OperationCanceledException(token);
-                            }
-                            RadiantDubinsCarVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
-                        });
+                            Segments = 20,
+                            Tolerance = 1e-5,
+                            MaxIterations = 150,
+                            EnableMeshRefinement = true,
+                            MaxRefinementIterations = 5,
+                            RefinementDefectThreshold = 1e-5,
+                            Verbose = true,
+                            ProgressCallback = progressCallback
+                        },
+                        innerOptimizer);
 
                 var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 20);
                 var result = solver.Solve(problem, initialGuess);
