@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -11,7 +11,7 @@ using Optimal;
 namespace OptimalCli.Problems.Corner
 {
     /// <summary>
-    /// Racecar dynamics with arc-length parameterization matching the dymos model.
+    /// Racecar dynamics with arc-length parameterization.
     ///
     /// State: [V, ax, ay, n, alpha, lambda, Omega, t]
     ///   - V: Speed (m/s)

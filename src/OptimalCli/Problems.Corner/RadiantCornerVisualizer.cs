@@ -42,7 +42,6 @@ internal sealed class RadiantCornerVisualizer
     private const int WindowHeight = 800;
     private static readonly Vector2 Translation = new(-300, 300);
 
-    // State indices for the 8-state dymos model
     private const int IdxV = 0;
     private const int IdxAx = 1;
     private const int IdxAy = 2;
@@ -114,7 +113,7 @@ internal sealed class RadiantCornerVisualizer
         try
         {
             using var app = new RadiantApplication();
-            app.Run("Racecar Minimum Time Optimization (Dymos Model)", WindowWidth, WindowHeight, renderer => RenderFrame(renderer), Colors.Slate900);
+            app.Run("Racecar Minimum Time Optimization", WindowWidth, WindowHeight, renderer => RenderFrame(renderer), Colors.Slate900);
         }
         finally
         {

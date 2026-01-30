@@ -19,7 +19,7 @@ using Optimal.NonLinear.Unconstrained;
 namespace OptimalCli.Problems.Corner;
 
 /// <summary>
-/// Solves the minimum lap time problem for a racecar using the dymos model.
+/// Solves the minimum lap time problem for a racecar.
 ///
 /// This is an arc-length parameterized optimal control problem where:
 /// - Independent variable: s (arc length along track centerline)
@@ -30,7 +30,7 @@ namespace OptimalCli.Problems.Corner;
 /// </summary>
 public sealed class CornerProblemSolver : ICommand
 {
-    // Vehicle parameters (from dymos racecar model)
+    // Vehicle parameters
     private const double M = 800.0;        // Vehicle mass (kg)
     private const double VehicleA = 1.404; // CoG to front axle (m)
     private const double VehicleB = 1.356; // CoG to rear axle (m)
@@ -128,6 +128,7 @@ public sealed class CornerProblemSolver : ICommand
             }
             Console.WriteLine("\n" + "=".PadRight(70, '=') + "\n");
             Console.WriteLine("OPTIMIZATION CANCELLED");
+            PrintMonitorReport(monitor);
             return;
         }
 
