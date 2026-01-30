@@ -17,141 +17,44 @@ namespace Optimal.NonLinear.Unconstrained
     /// </summary>
     public sealed class LBFGSOptimizer : IOptimizer
     {
-        private double[] _x0 = Array.Empty<double>();
-        private double _tolerance = 1e-6;
-        private double _functionTolerance = 1e-8;
-        private double _parameterTolerance = 1e-8;
-        private int _maxIterations = 1000;
-        private int _maxFunctionEvaluations;
-        private bool _verbose;
-        private ILineSearch _lineSearch = new BacktrackingLineSearch();
-        private int _memorySize = 10; // Number of correction pairs to store (m parameter)
+        private readonly LBFGSOptions _options;
+        private readonly ILineSearch _lineSearch;
 
         /// <summary>
-        /// Sets the line search algorithm to use for adaptive step sizing.
+        /// Creates a new L-BFGS optimizer with the specified options and line search.
         /// </summary>
-        /// <param name="lineSearch">The line search algorithm.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public LBFGSOptimizer WithLineSearch(ILineSearch lineSearch)
+        /// <param name="options">Optimizer options.</param>
+        /// <param name="lineSearch">Line search algorithm.</param>
+        public LBFGSOptimizer(
+            LBFGSOptions options,
+            ILineSearch lineSearch)
         {
+            _options = options;
             _lineSearch = lineSearch;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables parallel line search for improved CPU utilization.
-        /// </summary>
-        /// <param name="enable">True to enable parallel line search (default).</param>
-        /// <param name="batchSize">Number of step sizes to evaluate in parallel (default 4).</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public LBFGSOptimizer WithParallelLineSearch(bool enable = true, int batchSize = 4)
-        {
-            if (enable)
-            {
-                _lineSearch = new ParallelBacktrackingLineSearch(parallelBatchSize: batchSize);
-            }
-            else
-            {
-                _lineSearch = new BacktrackingLineSearch();
-            }
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the memory size (number of correction pairs to store).
-        /// </summary>
-        /// <param name="memorySize">Memory size (typically 3-20, default 10).</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public LBFGSOptimizer WithMemorySize(int memorySize)
-        {
-            if (memorySize <= 0)
-            {
-                throw new ArgumentException("Memory size must be positive", nameof(memorySize));
-            }
-
-            _memorySize = memorySize;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the function value change tolerance for convergence.
-        /// </summary>
-        /// <param name="tolerance">The function change tolerance.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public LBFGSOptimizer WithFunctionTolerance(double tolerance)
-        {
-            _functionTolerance = tolerance;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the parameter change tolerance for convergence.
-        /// </summary>
-        /// <param name="tolerance">The parameter change tolerance.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public LBFGSOptimizer WithParameterTolerance(double tolerance)
-        {
-            _parameterTolerance = tolerance;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the maximum number of function evaluations.
-        /// </summary>
-        /// <param name="maxEvaluations">The maximum number of function evaluations.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public LBFGSOptimizer WithMaxFunctionEvaluations(int maxEvaluations)
-        {
-            _maxFunctionEvaluations = maxEvaluations;
-            return this;
         }
 
         /// <inheritdoc/>
-        public IOptimizer WithInitialPoint(double[] x0)
+        public OptimizerResult Minimize(
+            Func<double[], (double value, double[] gradient)> objective,
+            double[] initialPoint)
         {
-            _x0 = x0;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public IOptimizer WithTolerance(double tolerance)
-        {
-            _tolerance = tolerance;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public IOptimizer WithMaxIterations(int maxIterations)
-        {
-            _maxIterations = maxIterations;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public IOptimizer WithVerbose(bool verbose = true)
-        {
-            _verbose = verbose;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public OptimizerResult Minimize(Func<double[], (double value, double[] gradient)> objective)
-        {
-            var x = (double[])_x0.Clone();
+            var x = (double[])initialPoint.Clone();
             var n = x.Length;
             var functionEvaluations = 0;
 
             // Initialize L-BFGS memory
-            var memory = new LBFGSMemory(_memorySize, n);
+            var memory = new LBFGSMemory(_options.MemorySize, n);
 
             // Create convergence monitor
             // Use maxFunctionEvaluations if set, otherwise use maxIterations * 20 (generous for line search)
-            var effectiveMaxFunctionEvals = _maxFunctionEvaluations > 0 ? _maxFunctionEvaluations : _maxIterations * 20;
+            var effectiveMaxFunctionEvals = _options.MaxFunctionEvaluations > 0
+                ? _options.MaxFunctionEvaluations
+                : _options.MaxIterations * 20;
             var monitor = new ConvergenceMonitor(
-                gradientTolerance: _tolerance,
-                functionTolerance: _functionTolerance,
-                parameterTolerance: _parameterTolerance,
-                maxIterations: _maxIterations,
+                gradientTolerance: _options.Tolerance,
+                functionTolerance: _options.FunctionTolerance,
+                parameterTolerance: _options.ParameterTolerance,
+                maxIterations: _options.MaxIterations,
                 maxFunctionEvaluations: effectiveMaxFunctionEvals,
                 stallIterations: 10);
 
@@ -199,7 +102,7 @@ namespace Optimal.NonLinear.Unconstrained
                 }
             }
 
-            if (_verbose)
+            if (_options.Verbose)
             {
                 var gradNormSq = 0.0;
                 for (var i = 0; i < n; i++)
@@ -214,14 +117,14 @@ namespace Optimal.NonLinear.Unconstrained
             var xPrev = new double[n];
             var gradientPrev = new double[n];
 
-            for (var iter = 0; iter < _maxIterations; iter++)
+            for (var iter = 0; iter < _options.MaxIterations; iter++)
             {
                 // Check convergence
                 var convergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
 
                 if (convergence.HasConverged || convergence.Reason.HasValue)
                 {
-                    if (_verbose)
+                    if (_options.Verbose)
                     {
                         Console.WriteLine($"L-BFGS Converged: {convergence.Message}");
                     }
@@ -280,7 +183,7 @@ namespace Optimal.NonLinear.Unconstrained
                         };
                     }
 
-                    // Clear memory and restart when falling back to steepest descent
+                    // Clear memory when falling back to steepest descent
                     memory.Clear();
                 }
 
@@ -336,7 +239,7 @@ namespace Optimal.NonLinear.Unconstrained
                     }
                 }
 
-                if (_verbose && (iter % 10 == 0 || iter < 5))
+                if (_options.Verbose && (iter % 10 == 0 || iter < 5))
                 {
                     var gradNormSq = 0.0;
                     for (var i = 0; i < n; i++)
@@ -361,13 +264,13 @@ namespace Optimal.NonLinear.Unconstrained
             }
 
             // Maximum iterations reached
-            var finalConvergence = monitor.CheckConvergence(_maxIterations, functionEvaluations, x, value, gradient);
+            var finalConvergence = monitor.CheckConvergence(_options.MaxIterations, functionEvaluations, x, value, gradient);
             return new OptimizerResult
             {
                 OptimalPoint = x,
                 OptimalValue = value,
                 FinalGradient = gradient,
-                Iterations = _maxIterations,
+                Iterations = _options.MaxIterations,
                 FunctionEvaluations = functionEvaluations,
                 StoppingReason = StoppingReason.MaxIterations,
                 Success = false,

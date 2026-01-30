@@ -141,15 +141,13 @@ namespace Optimal.NonLinear.LineSearch.Tests
         public void OptimizerWithParallelLineSearchConvergesOnRosenbrock()
         {
             var lineSearch = new ParallelBacktrackingLineSearch(parallelBatchSize: 4);
-            var optimizer = new LBFGSOptimizer();
-            optimizer.WithInitialPoint(s_rosenbrockStart);
-            optimizer.WithLineSearch(lineSearch);
-            optimizer.WithTolerance(1e-5);
-            optimizer.WithMaxIterations(1000);
+            var optimizer = new LBFGSOptimizer(
+                new LBFGSOptions { Tolerance = 1e-5, MaxIterations = 1000 },
+                lineSearch);
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                s_rosenbrockStart);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-3, "x should be near 1");

@@ -10,6 +10,7 @@
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers.Tests
@@ -72,7 +73,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithSegments(10)
                 .WithTolerance(5e-4)
                 .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
             var result = solver.Solve(problem, initialGuess);
@@ -142,7 +143,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithSegments(15)
                 .WithTolerance(1e-3)
                 .WithMaxIterations(80)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -219,7 +220,7 @@ result.States[i][0], $"At t={result.Times[i]:F2}, x={result.States[i][0]:F2} sho
                 .WithSegments(12)
                 .WithTolerance(1e-3)
                 .WithMaxIterations(80)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 12);
             var result = solver.Solve(problem, initialGuess);

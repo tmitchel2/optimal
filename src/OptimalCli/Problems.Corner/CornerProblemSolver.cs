@@ -13,6 +13,7 @@ using Optimal.Control.Core;
 using Optimal.Control.Solvers;
 using Optimal.NonLinear.Constrained;
 using Optimal.NonLinear.Monitoring;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace OptimalCli.Problems.Corner;
@@ -189,16 +190,18 @@ public sealed class CornerProblemSolver : ICommand
         // Use L-BFGS-B for native box constraint support, or standard L-BFGS
         // L-BFGS-B handles bounds internally, which can be more efficient for
         // bound-constrained problems like optimal control
-        var innerOptimizer = useLBFGSB
-            ? new LBFGSBOptimizer()
-                .WithMemorySize(10)
-                .WithTolerance(1e-2)
-                .WithMaxIterations(300)
-                .WithVerbose(false)
-            : new LBFGSOptimizer()
-                .WithTolerance(1e-2)
-                .WithMaxIterations(300)
-                .WithVerbose(false);
+        IOptimizer innerOptimizer = useLBFGSB
+            ? new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                MemorySize = 10,
+                Tolerance = 1e-2,
+                MaxIterations = 300
+            })
+            : new LBFGSOptimizer(new LBFGSOptions
+            {
+                Tolerance = 1e-2,
+                MaxIterations = 300
+            }, new BacktrackingLineSearch());
 
         return new HermiteSimpsonSolver()
             .WithSegments(30)

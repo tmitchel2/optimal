@@ -12,6 +12,7 @@ using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Collocation.Tests
@@ -58,7 +59,7 @@ namespace Optimal.Control.Collocation.Tests
             var solver = new HermiteSimpsonSolver()
                 .WithSegments(10)
                 .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
             var result = solver.Solve(problem, initialGuess);
@@ -115,7 +116,7 @@ namespace Optimal.Control.Collocation.Tests
             var solver1 = new HermiteSimpsonSolver()
                 .WithSegments(8)
                 .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess1 = InitialGuessFactory.CreateWithControlHeuristics(problem, 8);
             var result1 = solver1.Solve(problem, initialGuess1);
@@ -125,7 +126,7 @@ namespace Optimal.Control.Collocation.Tests
             var solver2 = new HermiteSimpsonSolver()
                 .WithSegments(20)
                 .WithTolerance(1e-4)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var newGrid = new CollocationGrid(0.0, 5.0, 20);
             var warmStart = WarmStart.InterpolateFromPrevious(result1, newGrid);
@@ -170,7 +171,7 @@ namespace Optimal.Control.Collocation.Tests
             var solver = new HermiteSimpsonSolver()
                 .WithSegments(10)
                 .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem1, 10);
             var result1 = solver.Solve(problem1, initialGuess);
@@ -242,7 +243,7 @@ namespace Optimal.Control.Collocation.Tests
             var solver = new HermiteSimpsonSolver()
                 .WithSegments(10)
                 .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess1 = InitialGuessFactory.CreateWithControlHeuristics(problem1, 10);
             var initialGuess2 = InitialGuessFactory.CreateWithControlHeuristics(problem2, 10);
@@ -279,7 +280,7 @@ namespace Optimal.Control.Collocation.Tests
             var solver = new HermiteSimpsonSolver()
                 .WithSegments(5)
                 .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 5);
             var result = solver.Solve(problem, initialGuess);
@@ -330,7 +331,7 @@ namespace Optimal.Control.Collocation.Tests
                 .WithSegments(8)
                 .WithTolerance(1e-3)
                 .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess1 = InitialGuessFactory.CreateWithControlHeuristics(problem, 8);
             var result1 = solver1.Solve(problem, initialGuess1);
@@ -341,7 +342,7 @@ namespace Optimal.Control.Collocation.Tests
                 .WithSegments(16)
                 .WithTolerance(1e-4)
                 .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var grid2 = new CollocationGrid(0.0, 2.0, 16);
             var warmStart = WarmStart.InterpolateFromPrevious(result1, grid2);

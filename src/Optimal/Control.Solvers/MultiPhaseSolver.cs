@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers
@@ -340,7 +341,7 @@ namespace Optimal.Control.Solvers
                 "_innerOptimizer",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-            return (IOptimizer)(field?.GetValue(solver) ?? new LBFGSOptimizer());
+            return (IOptimizer)(field?.GetValue(solver) ?? new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
         }
     }
 }

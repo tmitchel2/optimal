@@ -7,12 +7,15 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Optimization;
 using Optimal.NonLinear.Constrained;
+using Optimal.NonLinear.Constraints;
 using Optimal.NonLinear.Monitoring;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers
@@ -597,26 +600,7 @@ namespace Optimal.Control.Solvers
                 return (allDefects[defectIndex], gradient);
             };
 
-            // Set up constrained optimizer
-            // Use higher initial penalty for LGL since defects are typically larger
-            var constrainedOptimizer = new AugmentedLagrangianOptimizer()
-                .WithUnconstrainedOptimizer(_innerOptimizer ?? new LBFGSOptimizer())
-                .WithConstraintTolerance(_tolerance)
-                .WithPenaltyParameter(100.0);  // Higher initial penalty for LGL
-
-            constrainedOptimizer
-                .WithInitialPoint(z0)
-                .WithTolerance(_tolerance)
-                .WithMaxIterations(_maxIterations)
-                .WithVerbose(_verbose);
-
-            // Add optimization monitor if configured
-            if (_monitor != null)
-            {
-                constrainedOptimizer.WithOptimisationMonitor(_monitor);
-            }
-
-            // Add all defect constraints as equality constraints
+            // Collect all constraints
             var totalDefects = _segments * (_order - 2) * problem.StateDim;
 
             // Verify gradients at initial guess for a few defects
@@ -666,9 +650,12 @@ namespace Optimal.Control.Solvers
                 Console.WriteLine($"Adding {totalDefects} defect constraints");
             }
 
+            // Build equality constraints list
+            var equalityConstraints = new List<Func<double[], (double value, double[] gradient)>>();
+
             for (var i = 0; i < totalDefects; i++)
             {
-                constrainedOptimizer.WithEqualityConstraint(DefectConstraint(i));
+                equalityConstraints.Add(DefectConstraint(i));
             }
 
             // Add boundary condition constraints
@@ -678,7 +665,7 @@ namespace Optimal.Control.Solvers
                 {
                     var stateIndex = i;
                     var targetValue = problem.InitialState[i];
-                    constrainedOptimizer.WithEqualityConstraint(z =>
+                    equalityConstraints.Add(z =>
                     {
                         var x = transcription.GetState(z, 0);
 
@@ -709,7 +696,7 @@ namespace Optimal.Control.Solvers
                     }
 
                     var finalPointIndex = transcription.TotalPoints - 1;
-                    constrainedOptimizer.WithEqualityConstraint(z =>
+                    equalityConstraints.Add(z =>
                     {
                         var x = transcription.GetState(z, finalPointIndex);
 
@@ -725,7 +712,8 @@ namespace Optimal.Control.Solvers
                 }
             }
 
-            // Add control bounds if specified
+            // Build box constraints if specified
+            BoxConstraints? boxConstraints = null;
             if (problem.ControlLowerBounds != null && problem.ControlUpperBounds != null)
             {
                 // Build flat bounds for decision vector
@@ -751,8 +739,11 @@ namespace Optimal.Control.Solvers
                     }
                 }
 
-                constrainedOptimizer.WithBoxConstraints(lowerBounds, upperBounds);
+                boxConstraints = new BoxConstraints(lowerBounds, upperBounds);
             }
+
+            // Build inequality constraints list
+            var inequalityConstraints = new List<Func<double[], (double value, double[] gradient)>>();
 
             // Add path constraints if specified
             if (problem.PathConstraints != null && problem.PathConstraints.Count > 0)
@@ -781,7 +772,7 @@ namespace Optimal.Control.Solvers
                             var tau = lglPoints[localIdx];
                             var timePoint = tk + (tau + 1.0) * h / 2.0;
 
-                            constrainedOptimizer.WithInequalityConstraint(z =>
+                            inequalityConstraints.Add(z =>
                             {
                                 var x = transcription.GetState(z, globalIdx);
                                 var u = transcription.GetControl(z, globalIdx);
@@ -805,8 +796,28 @@ namespace Optimal.Control.Solvers
                 }
             }
 
+            // Create options with collected constraints
+            // Use higher initial penalty for LGL since defects are typically larger
+            var options = new AugmentedLagrangianOptions
+            {
+                Tolerance = _tolerance,
+                MaxIterations = _maxIterations,
+                Verbose = _verbose,
+                PenaltyParameter = 100.0,
+                ConstraintTolerance = _tolerance,
+                EqualityConstraints = equalityConstraints,
+                InequalityConstraints = inequalityConstraints,
+                BoxConstraints = boxConstraints
+            };
+
+            // Create optimizer with constructor DI
+            var constrainedOptimizer = new AugmentedLagrangianOptimizer(
+                options,
+                _innerOptimizer ?? new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()),
+                _monitor);
+
             // Solve the NLP
-            var nlpResult = constrainedOptimizer.Minimize(nlpObjective);
+            var nlpResult = constrainedOptimizer.Minimize(nlpObjective, z0);
 
             // Extract solution
             var zOpt = nlpResult.OptimalPoint;

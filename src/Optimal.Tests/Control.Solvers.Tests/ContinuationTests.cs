@@ -11,6 +11,7 @@
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers.Tests
@@ -30,7 +31,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithSegments(10)
                 .WithTolerance(1e-3)
                 .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var continuation = new ContinuationSolver(baseSolver)
                 .WithLinearSteps(5); // 0.0, 0.25, 0.5, 0.75, 1.0
@@ -78,7 +79,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithSegments(8)
                 .WithTolerance(1e-3)
                 .WithMaxIterations(40)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var continuation = new ContinuationSolver(baseSolver)
                 .WithParameters(0.0, 0.2, 0.6, 1.0);
@@ -124,7 +125,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithSegments(5)
                 .WithTolerance(1e-6)
                 .WithMaxIterations(5) // Very few iterations - will likely fail
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var continuation = new ContinuationSolver(baseSolver)
                 .WithLinearSteps(3);
@@ -163,7 +164,7 @@ namespace Optimal.Control.Solvers.Tests
             var baseSolver = new HermiteSimpsonSolver()
                 .WithSegments(10)
                 .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var continuation = new ContinuationSolver(baseSolver);
 
@@ -223,7 +224,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithSegments(15)
                 .WithTolerance(1e-3)
                 .WithMaxIterations(60)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-4));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-4 }, new BacktrackingLineSearch()));
 
             var continuation = new ContinuationSolver(baseSolver)
                 .WithLinearSteps(6)
@@ -283,7 +284,7 @@ namespace Optimal.Control.Solvers.Tests
         {
             var baseSolver = new HermiteSimpsonSolver()
                 .WithSegments(10)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var continuation = new ContinuationSolver(baseSolver);
 
@@ -300,7 +301,7 @@ namespace Optimal.Control.Solvers.Tests
         {
             var baseSolver = new HermiteSimpsonSolver()
                 .WithSegments(10)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var continuation = new ContinuationSolver(baseSolver);
 
@@ -317,7 +318,7 @@ namespace Optimal.Control.Solvers.Tests
         {
             var baseSolver = new HermiteSimpsonSolver()
                 .WithSegments(10)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var continuation = new ContinuationSolver(baseSolver);
 

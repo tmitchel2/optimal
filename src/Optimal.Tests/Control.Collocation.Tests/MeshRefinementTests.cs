@@ -12,6 +12,7 @@ using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Collocation.Tests
@@ -110,7 +111,7 @@ namespace Optimal.Control.Collocation.Tests
                 .WithTolerance(1e-4)
                 .WithMaxIterations(50)
                 .WithMeshRefinement(enable: true, maxRefinementIterations: 3, defectThreshold: 1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 5);
             var result = solver.Solve(problem, initialGuess);
@@ -159,7 +160,7 @@ namespace Optimal.Control.Collocation.Tests
                 .WithSegments(5)
                 .WithTolerance(1e-3)
                 .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 5);
             var resultCoarse = solverCoarse.Solve(problem, initialGuess);
@@ -170,7 +171,7 @@ namespace Optimal.Control.Collocation.Tests
                 .WithTolerance(1e-3)
                 .WithMaxIterations(50)
                 .WithMeshRefinement(enable: true, maxRefinementIterations: 3)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var resultRefined = solverRefined.Solve(problem, initialGuess);
 
@@ -219,7 +220,7 @@ namespace Optimal.Control.Collocation.Tests
                 .WithTolerance(1e-3)
                 .WithMeshRefinement(enable: true, maxRefinementIterations: 4, defectThreshold: 5e-3)
                 .WithMaxIterations(60)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-4));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-4 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 8);
             var result = solver.Solve(problem, initialGuess);

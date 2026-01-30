@@ -18,126 +18,41 @@ namespace Optimal.NonLinear
     /// </summary>
     public sealed class ConjugateGradientOptimizer : IOptimizer
     {
-        private double[] _x0 = Array.Empty<double>();
-        private double _tolerance = 1e-6;
-        private double _functionTolerance = 1e-8;
-        private double _parameterTolerance = 1e-8;
-        private int _maxIterations = 1000;
-        private int _maxFunctionEvaluations;
-        private bool _verbose;
-        private ILineSearch _lineSearch = new BacktrackingLineSearch();
-        private ConjugateGradientFormula _formula = ConjugateGradientFormula.FletcherReeves;
-        private int _restartInterval; // 0 = no periodic restart, n = restart every n iterations
+        private readonly ConjugateGradientOptions _options;
+        private readonly ILineSearch _lineSearch;
 
         /// <summary>
-        /// Sets the conjugate gradient formula to use for beta calculation.
+        /// Creates a new Conjugate Gradient optimizer with the specified options and line search.
         /// </summary>
-        /// <param name="formula">The formula (Fletcher-Reeves, Polak-Ribiere, or Hestenes-Stiefel).</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public ConjugateGradientOptimizer WithFormula(ConjugateGradientFormula formula)
+        /// <param name="options">Optimizer options.</param>
+        /// <param name="lineSearch">Line search algorithm.</param>
+        public ConjugateGradientOptimizer(
+            ConjugateGradientOptions options,
+            ILineSearch lineSearch)
         {
-            _formula = formula;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the line search algorithm to use for adaptive step sizing.
-        /// </summary>
-        /// <param name="lineSearch">The line search algorithm.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public ConjugateGradientOptimizer WithLineSearch(ILineSearch lineSearch)
-        {
+            _options = options;
             _lineSearch = lineSearch;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the restart interval. If > 0, resets to steepest descent every n iterations.
-        /// </summary>
-        /// <param name="interval">Restart interval (0 = no periodic restart).</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public ConjugateGradientOptimizer WithRestartInterval(int interval)
-        {
-            _restartInterval = interval;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the function value change tolerance for convergence.
-        /// </summary>
-        /// <param name="tolerance">The function change tolerance.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public ConjugateGradientOptimizer WithFunctionTolerance(double tolerance)
-        {
-            _functionTolerance = tolerance;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the parameter change tolerance for convergence.
-        /// </summary>
-        /// <param name="tolerance">The parameter change tolerance.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public ConjugateGradientOptimizer WithParameterTolerance(double tolerance)
-        {
-            _parameterTolerance = tolerance;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the maximum number of function evaluations.
-        /// </summary>
-        /// <param name="maxEvaluations">The maximum number of function evaluations.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public ConjugateGradientOptimizer WithMaxFunctionEvaluations(int maxEvaluations)
-        {
-            _maxFunctionEvaluations = maxEvaluations;
-            return this;
         }
 
         /// <inheritdoc/>
-        public IOptimizer WithInitialPoint(double[] x0)
+        public OptimizerResult Minimize(
+            Func<double[], (double value, double[] gradient)> objective,
+            double[] initialPoint)
         {
-            _x0 = x0;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public IOptimizer WithTolerance(double tolerance)
-        {
-            _tolerance = tolerance;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public IOptimizer WithMaxIterations(int maxIterations)
-        {
-            _maxIterations = maxIterations;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public IOptimizer WithVerbose(bool verbose = true)
-        {
-            _verbose = verbose;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public OptimizerResult Minimize(Func<double[], (double value, double[] gradient)> objective)
-        {
-            var x = (double[])_x0.Clone();
+            var x = (double[])initialPoint.Clone();
             var n = x.Length;
             var functionEvaluations = 0;
 
             // Create convergence monitor
             // Use maxFunctionEvaluations if set, otherwise use maxIterations * 20 (generous for line search)
-            var effectiveMaxFunctionEvals = _maxFunctionEvaluations > 0 ? _maxFunctionEvaluations : _maxIterations * 20;
+            var effectiveMaxFunctionEvals = _options.MaxFunctionEvaluations > 0
+                ? _options.MaxFunctionEvaluations
+                : _options.MaxIterations * 20;
             var monitor = new ConvergenceMonitor(
-                gradientTolerance: _tolerance,
-                functionTolerance: _functionTolerance,
-                parameterTolerance: _parameterTolerance,
-                maxIterations: _maxIterations,
+                gradientTolerance: _options.Tolerance,
+                functionTolerance: _options.FunctionTolerance,
+                parameterTolerance: _options.ParameterTolerance,
+                maxIterations: _options.MaxIterations,
                 maxFunctionEvaluations: effectiveMaxFunctionEvals,
                 stallIterations: 10);
 
@@ -185,7 +100,7 @@ namespace Optimal.NonLinear
                 }
             }
 
-            if (_verbose)
+            if (_options.Verbose)
             {
                 var gradNormSq = 0.0;
                 for (var i = 0; i < n; i++)
@@ -193,7 +108,7 @@ namespace Optimal.NonLinear
                     gradNormSq += gradient[i] * gradient[i];
                 }
                 var gradNorm = Math.Sqrt(gradNormSq);
-                Console.WriteLine($"Conjugate Gradient Optimizer: formula={_formula}, Initial f={value:E6}, ||grad||={gradNorm:E3}");
+                Console.WriteLine($"Conjugate Gradient Optimizer: formula={_options.Formula}, Initial f={value:E6}, ||grad||={gradNorm:E3}");
             }
 
             // Initialize search direction to negative gradient (steepest descent)
@@ -205,19 +120,19 @@ namespace Optimal.NonLinear
 
             var previousGradient = new double[n];
 
-            for (var iter = 0; iter < _maxIterations; iter++)
+            for (var iter = 0; iter < _options.MaxIterations; iter++)
             {
                 // Check convergence
                 var convergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
 
-                if (_verbose && (iter % 10 == 0 || iter < 5))
+                if (_options.Verbose && (iter % 10 == 0 || iter < 5))
                 {
                     Console.WriteLine($"  Iter {iter + 1:D4}: f={value:E6}, ||grad||={convergence.GradientNorm:E3}");
                 }
 
                 if (convergence.HasConverged || convergence.Reason.HasValue)
                 {
-                    if (_verbose)
+                    if (_options.Verbose)
                     {
                         Console.WriteLine($"Conjugate Gradient Converged: {convergence.Message}");
                     }
@@ -326,7 +241,7 @@ namespace Optimal.NonLinear
                 }
 
                 // Check if we should restart (periodic or at beginning)
-                var shouldRestart = (_restartInterval > 0 && (iter + 1) % _restartInterval == 0);
+                var shouldRestart = (_options.RestartInterval > 0 && (iter + 1) % _options.RestartInterval == 0);
 
                 if (shouldRestart)
                 {
@@ -342,7 +257,7 @@ namespace Optimal.NonLinear
                     var beta = ComputeBeta(gradient, previousGradient, direction);
 
                     // Polak-Ribiere variant: if beta < 0, restart with steepest descent
-                    if (_formula == ConjugateGradientFormula.PolakRibiere && beta < 0)
+                    if (_options.Formula == ConjugateGradientFormula.PolakRibiere && beta < 0)
                     {
                         beta = 0.0;
                     }
@@ -356,13 +271,13 @@ namespace Optimal.NonLinear
             }
 
             // Maximum iterations reached
-            var finalConvergence = monitor.CheckConvergence(_maxIterations, functionEvaluations, x, value, gradient);
+            var finalConvergence = monitor.CheckConvergence(_options.MaxIterations, functionEvaluations, x, value, gradient);
             return new OptimizerResult
             {
                 OptimalPoint = x,
                 OptimalValue = value,
                 FinalGradient = gradient,
-                Iterations = _maxIterations,
+                Iterations = _options.MaxIterations,
                 FunctionEvaluations = functionEvaluations,
                 StoppingReason = StoppingReason.MaxIterations,
                 Success = false,
@@ -377,7 +292,7 @@ namespace Optimal.NonLinear
         {
             var n = gradientNew.Length;
 
-            switch (_formula)
+            switch (_options.Formula)
             {
                 case ConjugateGradientFormula.FletcherReeves:
                     {

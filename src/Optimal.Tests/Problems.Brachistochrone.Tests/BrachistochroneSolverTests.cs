@@ -13,6 +13,7 @@ using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Problems.Brachistochrone.Tests
@@ -47,7 +48,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithSegments(15)
                 .WithTolerance(1e-2)  // Relaxed tolerance
                 .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -64,7 +65,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithSegments(15)
                 .WithTolerance(1e-2)
                 .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -92,7 +93,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithSegments(15)
                 .WithTolerance(1e-2)
                 .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -120,7 +121,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithSegments(15)
                 .WithTolerance(5e-2)  // Relaxed tolerance
                 .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -137,7 +138,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithSegments(15)
                 .WithTolerance(5e-2)
                 .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -161,7 +162,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithSegments(15)
                 .WithTolerance(5e-2)
                 .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, initialGuess);
@@ -195,7 +196,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithOrder(3)
                 .WithTolerance(5e-2)
                 .WithMaxIterations(30)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateForLGL(problem, 8, 3);
             var result = solver.Solve(problem, initialGuess);
@@ -217,7 +218,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithOrder(3)
                 .WithTolerance(5e-2)
                 .WithMaxIterations(30)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateForLGL(problem, 8, 3);
             var result = solver.Solve(problem, initialGuess);
@@ -245,7 +246,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithOrder(3)
                 .WithTolerance(5e-2)
                 .WithMaxIterations(30)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateForLGL(problem, 8, 3);
             var result = solver.Solve(problem, initialGuess);
@@ -268,7 +269,7 @@ namespace Optimal.Problems.Brachistochrone.Tests
                 .WithOrder(3)
                 .WithTolerance(5e-2)
                 .WithMaxIterations(30)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateForLGL(problem, 8, 3);
             var result = solver.Solve(problem, initialGuess);

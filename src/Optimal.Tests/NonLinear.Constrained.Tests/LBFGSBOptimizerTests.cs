@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -8,6 +8,7 @@
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.Tests;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.NonLinear.Constrained.Tests
@@ -21,18 +22,17 @@ namespace Optimal.NonLinear.Constrained.Tests
         public void CanMinimizeUnconstrainedQuadratic()
         {
             // f(x,y) = x^2 + y^2, minimum at (0,0)
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint([1.0, 1.0]);
-            optimizer.WithBounds(
-                [-10.0, -10.0],
-                [10.0, 10.0]
-            );
-            optimizer.WithTolerance(1e-6);
-            optimizer.WithMaxIterations(100);
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-6,
+                MaxIterations = 100,
+                LowerBounds = [-10.0, -10.0],
+                UpperBounds = [10.0, 10.0]
+            });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
+                [1.0, 1.0]);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(0.0, result.OptimalPoint[0], 1e-4, "x should be near 0");
@@ -44,19 +44,18 @@ namespace Optimal.NonLinear.Constrained.Tests
         public void CanMinimizeRosenbrock2DWithWideBounds()
         {
             // Rosenbrock with bounds that don't affect the solution
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint([-1.2, 1.0]);
-            optimizer.WithBounds(
-                [-10.0, -10.0],
-                [10.0, 10.0]
-            );
-            optimizer.WithTolerance(1e-5);
-            optimizer.WithMaxIterations(1000);
-            optimizer.WithMemorySize(10);
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-5,
+                MaxIterations = 1000,
+                MemorySize = 10,
+                LowerBounds = [-10.0, -10.0],
+                UpperBounds = [10.0, 10.0]
+            });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                [-1.2, 1.0]);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
@@ -67,18 +66,17 @@ namespace Optimal.NonLinear.Constrained.Tests
         [TestMethod]
         public void CanMinimizeBoothFunctionWithWideBounds()
         {
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint([0.0, 0.0]);
-            optimizer.WithBounds(
-                [-10.0, -10.0],
-                [10.0, 10.0]
-            );
-            optimizer.WithTolerance(1e-6);
-            optimizer.WithMaxIterations(500);
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-6,
+                MaxIterations = 500,
+                LowerBounds = [-10.0, -10.0],
+                UpperBounds = [10.0, 10.0]
+            });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.BoothReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.BoothReverse(x[0], x[1]),
+                [0.0, 0.0]);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-3, "x should be near 1");
@@ -94,21 +92,20 @@ namespace Optimal.NonLinear.Constrained.Tests
         {
             // f(x,y) = (x-2)^2 + (y-2)^2, unconstrained min at (2,2)
             // With bounds [0,1] x [0,1], optimal should be at (1,1)
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint([0.5, 0.5]);
-            optimizer.WithBounds(
-                [0.0, 0.0],
-                [1.0, 1.0]
-            );
-            optimizer.WithTolerance(1e-6);
-            optimizer.WithMaxIterations(100);
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-6,
+                MaxIterations = 100,
+                LowerBounds = [0.0, 0.0],
+                UpperBounds = [1.0, 1.0]
+            });
 
             var result = optimizer.Minimize(x =>
             {
                 var fx = (x[0] - 2.0) * (x[0] - 2.0) + (x[1] - 2.0) * (x[1] - 2.0);
                 var grad = new[] { 2.0 * (x[0] - 2.0), 2.0 * (x[1] - 2.0) };
                 return (fx, grad);
-            });
+            }, [0.5, 0.5]);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
 
@@ -128,18 +125,17 @@ namespace Optimal.NonLinear.Constrained.Tests
         {
             // f(x,y) = x^2 + y^2, unconstrained min at (0,0)
             // With bounds x >= 0.5, y >= 0.5, optimal should be at (0.5, 0.5)
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint([1.0, 1.0]);
-            optimizer.WithBounds(
-                [0.5, 0.5],
-                [10.0, 10.0]
-            );
-            optimizer.WithTolerance(1e-6);
-            optimizer.WithMaxIterations(100);
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-6,
+                MaxIterations = 100,
+                LowerBounds = [0.5, 0.5],
+                UpperBounds = [10.0, 10.0]
+            });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
+                [1.0, 1.0]);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(0.5, result.OptimalPoint[0], 1e-4, "x should be at lower bound");
@@ -153,21 +149,20 @@ namespace Optimal.NonLinear.Constrained.Tests
             // Unconstrained min at (0.3, 0)
             // With bounds 0 <= x <= 1, -0.5 <= y <= 0.5
             // Only x constraint is NOT active, y=0 is interior
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint([0.5, 0.25]);
-            optimizer.WithBounds(
-                [0.0, -0.5],
-                [1.0, 0.5]
-            );
-            optimizer.WithTolerance(1e-6);
-            optimizer.WithMaxIterations(100);
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-6,
+                MaxIterations = 100,
+                LowerBounds = [0.0, -0.5],
+                UpperBounds = [1.0, 0.5]
+            });
 
             var result = optimizer.Minimize(x =>
             {
                 var fx = (x[0] - 0.3) * (x[0] - 0.3) + x[1] * x[1];
                 var grad = new[] { 2.0 * (x[0] - 0.3), 2.0 * x[1] };
                 return (fx, grad);
-            });
+            }, [0.5, 0.25]);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(0.3, result.OptimalPoint[0], 1e-3, "x should be at interior optimum 0.3");
@@ -181,14 +176,13 @@ namespace Optimal.NonLinear.Constrained.Tests
         [TestMethod]
         public void HandlesStartingPointOnBoundary()
         {
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint([0.0, 0.0]); // Starting at lower bounds
-            optimizer.WithBounds(
-                [0.0, 0.0],
-                [2.0, 2.0]
-            );
-            optimizer.WithTolerance(1e-6);
-            optimizer.WithMaxIterations(100);
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-6,
+                MaxIterations = 100,
+                LowerBounds = [0.0, 0.0],
+                UpperBounds = [2.0, 2.0]
+            });
 
             var result = optimizer.Minimize(x =>
             {
@@ -196,7 +190,7 @@ namespace Optimal.NonLinear.Constrained.Tests
                 var fx = (x[0] - 1.0) * (x[0] - 1.0) + (x[1] - 1.0) * (x[1] - 1.0);
                 var grad = new[] { 2.0 * (x[0] - 1.0), 2.0 * (x[1] - 1.0) };
                 return (fx, grad);
-            });
+            }, [0.0, 0.0]); // Starting at lower bounds
 
             Assert.IsTrue(result.Success, $"Optimization should succeed starting from boundary");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-3);
@@ -206,18 +200,17 @@ namespace Optimal.NonLinear.Constrained.Tests
         [TestMethod]
         public void HandlesStartingPointOutsideFeasibleRegion()
         {
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint([-5.0, 5.0]); // Outside bounds
-            optimizer.WithBounds(
-                [0.0, 0.0],
-                [1.0, 1.0]
-            );
-            optimizer.WithTolerance(1e-6);
-            optimizer.WithMaxIterations(100);
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-6,
+                MaxIterations = 100,
+                LowerBounds = [0.0, 0.0],
+                UpperBounds = [1.0, 1.0]
+            });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
+                [-5.0, 5.0]); // Outside bounds
 
             Assert.IsTrue(result.Success, $"Optimization should succeed after projection");
             // Result should be at (0, 0) since that's the closest feasible point to the unconstrained minimum
@@ -229,14 +222,13 @@ namespace Optimal.NonLinear.Constrained.Tests
         public void HandlesAllVariablesAtBounds()
         {
             // All variables active at solution
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint([0.5, 0.5, 0.5]);
-            optimizer.WithBounds(
-                [0.0, 0.0, 0.0],
-                [1.0, 1.0, 1.0]
-            );
-            optimizer.WithTolerance(1e-6);
-            optimizer.WithMaxIterations(100);
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-6,
+                MaxIterations = 100,
+                LowerBounds = [0.0, 0.0, 0.0],
+                UpperBounds = [1.0, 1.0, 1.0]
+            });
 
             // f(x) = sum((x_i - 2)^2), unconstrained min at (2,2,2)
             // With [0,1] bounds, optimal is at (1,1,1)
@@ -250,7 +242,7 @@ namespace Optimal.NonLinear.Constrained.Tests
                     grad[i] = 2.0 * (x[i] - 2.0);
                 }
                 return (fx, grad);
-            });
+            }, [0.5, 0.5, 0.5]);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed");
             for (var i = 0; i < 3; i++)
@@ -262,20 +254,19 @@ namespace Optimal.NonLinear.Constrained.Tests
         [TestMethod]
         public void HandlesInfinityBounds()
         {
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint([5.0, -5.0]);
-            optimizer.WithBounds(
-                [0.0, double.NegativeInfinity],
-                [double.PositiveInfinity, 0.0]
-            );
-            optimizer.WithTolerance(1e-6);
-            optimizer.WithMaxIterations(100);
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-6,
+                MaxIterations = 100,
+                LowerBounds = [0.0, double.NegativeInfinity],
+                UpperBounds = [double.PositiveInfinity, 0.0]
+            });
 
             // f(x,y) = x^2 + y^2, min at (0,0)
             // With x >= 0 and y <= 0, min is still at (0,0)
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
+                [5.0, -5.0]);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed with infinity bounds");
             Assert.AreEqual(0.0, result.OptimalPoint[0], 1e-4, "x should be at lower bound 0");
@@ -285,15 +276,16 @@ namespace Optimal.NonLinear.Constrained.Tests
         [TestMethod]
         public void HandlesNoBoundsSpecified()
         {
-            // No WithBounds call - should work as unconstrained
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint([-1.2, 1.0]);
-            optimizer.WithTolerance(1e-5);
-            optimizer.WithMaxIterations(1000);
+            // No bounds specified - should work as unconstrained
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-5,
+                MaxIterations = 1000
+            });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                [-1.2, 1.0]);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed without bounds");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2);
@@ -317,14 +309,16 @@ namespace Optimal.NonLinear.Constrained.Tests
                 upper[i] = 5.0;
             }
 
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint(x0);
-            optimizer.WithBounds(lower, upper);
-            optimizer.WithTolerance(1e-4);
-            optimizer.WithMaxIterations(5000);
-            optimizer.WithMemorySize(10);
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-4,
+                MaxIterations = 5000,
+                MemorySize = 10,
+                LowerBounds = lower,
+                UpperBounds = upper
+            });
 
-            var result = optimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock);
+            var result = optimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             for (var i = 0; i < n; i++)
@@ -349,14 +343,16 @@ namespace Optimal.NonLinear.Constrained.Tests
                 upper[i] = 0.8; // Upper bound will be active since Rosenbrock min is at 1.0
             }
 
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint(x0);
-            optimizer.WithBounds(lower, upper);
-            optimizer.WithTolerance(1e-4);
-            optimizer.WithMaxIterations(2000);
-            optimizer.WithMemorySize(15);
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-4,
+                MaxIterations = 2000,
+                MemorySize = 15,
+                LowerBounds = lower,
+                UpperBounds = upper
+            });
 
-            var result = optimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock);
+            var result = optimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed with active bounds");
 
@@ -378,27 +374,27 @@ namespace Optimal.NonLinear.Constrained.Tests
             // With wide bounds, L-BFGS-B should find same solution as L-BFGS
             var x0 = new[] { -1.2, 1.0 };
 
-            var lbfgsbOptimizer = new LBFGSBOptimizer();
-            lbfgsbOptimizer.WithInitialPoint(x0);
-            lbfgsbOptimizer.WithBounds(
-                [-100.0, -100.0],
-                [100.0, 100.0]
-            );
-            lbfgsbOptimizer.WithTolerance(1e-5);
-            lbfgsbOptimizer.WithMaxIterations(1000);
+            var lbfgsbOptimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-5,
+                MaxIterations = 1000,
+                LowerBounds = [-100.0, -100.0],
+                UpperBounds = [100.0, 100.0]
+            });
 
-            var lbfgsbResult = lbfgsbOptimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var lbfgsbResult = lbfgsbOptimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                x0);
 
-            var lbfgsOptimizer = new LBFGSOptimizer();
-            lbfgsOptimizer.WithInitialPoint(x0);
-            lbfgsOptimizer.WithTolerance(1e-5);
-            lbfgsOptimizer.WithMaxIterations(1000);
+            var lbfgsOptimizer = new LBFGSOptimizer(new LBFGSOptions
+            {
+                Tolerance = 1e-5,
+                MaxIterations = 1000
+            }, new BacktrackingLineSearch());
 
-            var lbfgsResult = lbfgsOptimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var lbfgsResult = lbfgsOptimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                x0);
 
             Assert.IsTrue(lbfgsbResult.Success, "L-BFGS-B should succeed");
             Assert.IsTrue(lbfgsResult.Success, "L-BFGS should succeed");
@@ -417,15 +413,17 @@ namespace Optimal.NonLinear.Constrained.Tests
         [TestMethod]
         public void ReturnsGradientToleranceWhenConverged()
         {
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint([0.1, 0.1]);
-            optimizer.WithBounds([-1.0, -1.0], [1.0, 1.0]);
-            optimizer.WithTolerance(1e-4);
-            optimizer.WithMaxIterations(100);
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-4,
+                MaxIterations = 100,
+                LowerBounds = [-1.0, -1.0],
+                UpperBounds = [1.0, 1.0]
+            });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
+                [0.1, 0.1]);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(StoppingReason.GradientTolerance, result.StoppingReason,
@@ -435,15 +433,17 @@ namespace Optimal.NonLinear.Constrained.Tests
         [TestMethod]
         public void ReturnsMaxIterationsWhenNotConverged()
         {
-            var optimizer = new LBFGSBOptimizer();
-            optimizer.WithInitialPoint([-1.2, 1.0]);
-            optimizer.WithBounds([-10.0, -10.0], [10.0, 10.0]);
-            optimizer.WithTolerance(1e-15); // Very tight tolerance
-            optimizer.WithMaxIterations(5); // Very few iterations
+            var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                Tolerance = 1e-15,
+                MaxIterations = 5,
+                LowerBounds = [-10.0, -10.0],
+                UpperBounds = [10.0, 10.0]
+            });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                [-1.2, 1.0]);
 
             Assert.IsFalse(result.Success, "Should not succeed with very few iterations");
             Assert.AreEqual(StoppingReason.MaxIterations, result.StoppingReason);
@@ -460,16 +460,18 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             foreach (var m in memorySizes)
             {
-                var optimizer = new LBFGSBOptimizer();
-                optimizer.WithInitialPoint([-1.2, 1.0]);
-                optimizer.WithBounds([-5.0, -5.0], [5.0, 5.0]);
-                optimizer.WithTolerance(1e-4);
-                optimizer.WithMaxIterations(1000);
-                optimizer.WithMemorySize(m);
+                var optimizer = new LBFGSBOptimizer(new LBFGSBOptions
+                {
+                    Tolerance = 1e-4,
+                    MaxIterations = 1000,
+                    MemorySize = m,
+                    LowerBounds = [-5.0, -5.0],
+                    UpperBounds = [5.0, 5.0]
+                });
 
-                var result = optimizer.Minimize(x =>
-                    TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-                );
+                var result = optimizer.Minimize(
+                    x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                    [-1.2, 1.0]);
 
                 Assert.IsTrue(result.Success, $"Should succeed with memory size {m}");
                 Assert.IsLessThan(1e-3, result.OptimalValue, $"Should find good solution with memory size {m}");

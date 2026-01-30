@@ -12,6 +12,7 @@ using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers.Tests
@@ -68,7 +69,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithOrder(3)
                 .WithTolerance(1e-4)
                 .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var initialGuess = CreateInitialGuess(problem, 10, 3);
             var result = solver.Solve(problem, initialGuess);
@@ -139,7 +140,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithOrder(5)
                 .WithTolerance(1e-4)
                 .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var initialGuess = CreateInitialGuess(problem, 10, 5);
             var result = solver.Solve(problem, initialGuess);
@@ -194,7 +195,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithOrder(4)
                 .WithTolerance(1e-3)
                 .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = CreateInitialGuess(problem, 10, 4);
             var result = solver.Solve(problem, initialGuess);

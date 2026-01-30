@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -16,7 +16,6 @@ namespace Optimal.NonLinear.Monitoring
 {
     /// <summary>
     /// Monitors optimization for gradient correctness and function smoothness.
-    /// Equivalent to ALGLIB's OptGuard.
     /// </summary>
     public sealed class OptimisationMonitor
     {

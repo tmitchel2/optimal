@@ -11,6 +11,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Scaling.Tests
@@ -32,7 +33,7 @@ namespace Optimal.Control.Scaling.Tests
                 .WithSegments(10)
                 .WithTolerance(SolverTolerance)
                 .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guessWithout = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
             var resultWithout = solverWithout.Solve(problem, guessWithout);
@@ -43,7 +44,7 @@ namespace Optimal.Control.Scaling.Tests
                 .WithTolerance(SolverTolerance)
                 .WithMaxIterations(100)
                 .WithAutoScaling(true)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guessWith = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
             var resultWith = solverWith.Solve(problem, guessWith);
@@ -75,7 +76,7 @@ namespace Optimal.Control.Scaling.Tests
                 .WithTolerance(SolverTolerance)
                 .WithMaxIterations(200)
                 .WithAutoScaling(true)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6).WithMaxIterations(500));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6, MaxIterations = 500 }, new BacktrackingLineSearch()));
 
             var guess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
             var result = solver.Solve(problem, guess);
@@ -113,7 +114,7 @@ namespace Optimal.Control.Scaling.Tests
                 .WithTolerance(SolverTolerance)
                 .WithMaxIterations(100)
                 .WithScaling(scaling)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
             var result = solver.Solve(problem, guess);
@@ -161,7 +162,7 @@ namespace Optimal.Control.Scaling.Tests
                 .WithTolerance(SolverTolerance)
                 .WithMaxIterations(100)
                 .WithAutoScaling(true)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
 
@@ -204,7 +205,7 @@ namespace Optimal.Control.Scaling.Tests
                 .WithTolerance(SolverTolerance)
                 .WithMaxIterations(100)
                 .WithAutoScaling(true)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-6));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
             var result = solver.Solve(problem, guess);

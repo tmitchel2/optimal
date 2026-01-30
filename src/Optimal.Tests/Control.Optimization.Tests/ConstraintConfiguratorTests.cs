@@ -11,7 +11,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
-using Optimal.NonLinear.Constrained;
 
 namespace Optimal.Control.Optimization.Tests
 {
@@ -29,15 +28,13 @@ namespace Optimal.Control.Optimization.Tests
             var problem = CreateSimpleProblem();
             var grid = new CollocationGrid(0.0, 1.0, 5);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid);
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(new double[transcription.DecisionVectorSize]);
+            var constraints = new ConstraintCollection();
 
             ConstraintConfigurator.AddDefectConstraints(
-                problem, grid, transcription, 5, hasAnalyticalGradients: false, optimizer);
+                problem, grid, transcription, 5, hasAnalyticalGradients: false, constraints);
 
             // 5 segments * 1 state dim = 5 defect constraints
-            // Just verify no exception is thrown - constraint count is internal
-            Assert.IsNotNull(optimizer);
+            Assert.HasCount(5, constraints.EqualityConstraints);
         }
 
         [TestMethod]
@@ -62,14 +59,13 @@ namespace Optimal.Control.Optimization.Tests
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid);
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(new double[transcription.DecisionVectorSize]);
+            var constraints = new ConstraintCollection();
 
             ConstraintConfigurator.AddDefectConstraints(
-                problem, grid, transcription, 5, hasAnalyticalGradients: true, optimizer);
+                problem, grid, transcription, 5, hasAnalyticalGradients: true, constraints);
 
             // 5 segments * 2 state dims = 10 defect constraints
-            Assert.IsNotNull(optimizer);
+            Assert.HasCount(10, constraints.EqualityConstraints);
         }
 
         [TestMethod]
@@ -78,12 +74,12 @@ namespace Optimal.Control.Optimization.Tests
             var problem = CreateSimpleProblem();
             var grid = new CollocationGrid(0.0, 1.0, 5);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid);
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(new double[transcription.DecisionVectorSize]);
+            var constraints = new ConstraintCollection();
 
-            ConstraintConfigurator.AddBoundaryConstraints(problem, transcription, 5, optimizer);
+            ConstraintConfigurator.AddBoundaryConstraints(problem, transcription, 5, constraints);
 
-            Assert.IsNotNull(optimizer);
+            // 1 initial + 1 final state constraint
+            Assert.HasCount(2, constraints.EqualityConstraints);
         }
 
         [TestMethod]
@@ -103,13 +99,13 @@ namespace Optimal.Control.Optimization.Tests
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid);
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(new double[transcription.DecisionVectorSize]);
+            var constraints = new ConstraintCollection();
 
             // Should not throw
-            ConstraintConfigurator.AddBoundaryConstraints(problem, transcription, 5, optimizer);
+            ConstraintConfigurator.AddBoundaryConstraints(problem, transcription, 5, constraints);
 
-            Assert.IsNotNull(optimizer);
+            // No constraints should be added when no initial/final state specified
+            Assert.IsEmpty(constraints.EqualityConstraints);
         }
 
         [TestMethod]
@@ -118,13 +114,13 @@ namespace Optimal.Control.Optimization.Tests
             var problem = CreateSimpleProblem();
             var grid = new CollocationGrid(0.0, 1.0, 5);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid);
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(new double[transcription.DecisionVectorSize]);
+            var constraints = new ConstraintCollection();
 
             // Should not throw
-            ConstraintConfigurator.AddBoxConstraints(problem, transcription, 5, optimizer);
+            ConstraintConfigurator.AddBoxConstraints(problem, transcription, 5, constraints);
 
-            Assert.IsNotNull(optimizer);
+            // No box constraints should be set
+            Assert.IsNull(constraints.BoxConstraints);
         }
 
         [TestMethod]
@@ -147,12 +143,11 @@ namespace Optimal.Control.Optimization.Tests
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid);
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(new double[transcription.DecisionVectorSize]);
+            var constraints = new ConstraintCollection();
 
-            ConstraintConfigurator.AddBoxConstraints(problem, transcription, 5, optimizer);
+            ConstraintConfigurator.AddBoxConstraints(problem, transcription, 5, constraints);
 
-            Assert.IsNotNull(optimizer);
+            Assert.IsNotNull(constraints.BoxConstraints);
         }
 
         [TestMethod]
@@ -176,12 +171,11 @@ namespace Optimal.Control.Optimization.Tests
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid);
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(new double[transcription.DecisionVectorSize]);
+            var constraints = new ConstraintCollection();
 
-            ConstraintConfigurator.AddBoxConstraints(problem, transcription, 5, optimizer);
+            ConstraintConfigurator.AddBoxConstraints(problem, transcription, 5, constraints);
 
-            Assert.IsNotNull(optimizer);
+            Assert.IsNotNull(constraints.BoxConstraints);
         }
 
         [TestMethod]
@@ -190,13 +184,13 @@ namespace Optimal.Control.Optimization.Tests
             var problem = CreateSimpleProblem();
             var grid = new CollocationGrid(0.0, 1.0, 5);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid);
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(new double[transcription.DecisionVectorSize]);
+            var constraints = new ConstraintCollection();
 
             // Should not throw
-            ConstraintConfigurator.AddPathConstraints(problem, grid, transcription, 5, optimizer);
+            ConstraintConfigurator.AddPathConstraints(problem, grid, transcription, 5, constraints);
 
-            Assert.IsNotNull(optimizer);
+            // No inequality constraints should be added
+            Assert.IsEmpty(constraints.InequalityConstraints);
         }
 
         [TestMethod]
@@ -225,12 +219,12 @@ namespace Optimal.Control.Optimization.Tests
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid);
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(new double[transcription.DecisionVectorSize]);
+            var constraints = new ConstraintCollection();
 
-            ConstraintConfigurator.AddPathConstraints(problem, grid, transcription, 5, optimizer);
+            ConstraintConfigurator.AddPathConstraints(problem, grid, transcription, 5, constraints);
 
-            Assert.IsNotNull(optimizer);
+            // 1 path constraint at each of 6 nodes (0 to 5 inclusive)
+            Assert.HasCount(6, constraints.InequalityConstraints);
         }
 
         [TestMethod]
@@ -254,13 +248,12 @@ namespace Optimal.Control.Optimization.Tests
 
             var grid = new CollocationGrid(0.0, 1.0, 5);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid);
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(new double[transcription.DecisionVectorSize]);
+            var constraints = new ConstraintCollection();
 
             ConstraintConfigurator.AddDefectConstraints(
-                problem, grid, transcription, 5, hasAnalyticalGradients: true, optimizer);
+                problem, grid, transcription, 5, hasAnalyticalGradients: true, constraints);
 
-            Assert.IsNotNull(optimizer);
+            Assert.HasCount(5, constraints.EqualityConstraints);
         }
 
         private static ControlProblem CreateSimpleProblem()

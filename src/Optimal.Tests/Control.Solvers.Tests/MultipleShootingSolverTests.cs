@@ -11,6 +11,7 @@
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers.Tests
@@ -80,7 +81,7 @@ namespace Optimal.Control.Solvers.Tests
         public void WithInnerOptimizerReturnsSelf()
         {
             var solver = new MultipleShootingSolver();
-            var optimizer = new LBFGSOptimizer();
+            var optimizer = new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch());
             var result = solver.WithInnerOptimizer(optimizer);
             Assert.AreSame(solver, result);
         }
@@ -151,7 +152,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithShootingIntervals(2)
                 .WithTolerance(1e-3)
                 .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var result = solver.Solve(problem);
 
@@ -200,7 +201,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithShootingIntervals(3)
                 .WithTolerance(1e-3)
                 .WithMaxIterations(100)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-5));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var result = solver.Solve(problem);
 

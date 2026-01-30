@@ -9,7 +9,6 @@
 using System;
 using System.Collections.Generic;
 using Optimal.NonLinear.Constraints;
-using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.Unconstrained;
 
@@ -17,185 +16,92 @@ namespace Optimal.NonLinear.Constrained
 {
     /// <summary>
     /// Augmented Lagrangian optimizer for constrained optimization problems.
-    /// Solves: minimize f(x) subject to h_j(x) = 0, g_k(x) ≤ 0
+    /// Solves: minimize f(x) subject to h_j(x) = 0, g_k(x) &lt;= 0
     /// </summary>
     public sealed class AugmentedLagrangianOptimizer : IOptimizer
     {
-        private double[] _x0 = Array.Empty<double>();
-        private double _tolerance = 1e-6;
-        private int _maxIterations = 50;
-        private bool _verbose;
-        private IOptimizer _unconstrainedOptimizer = new LBFGSOptimizer();
-        private readonly List<IConstraint> _constraints = new List<IConstraint>();
-        private BoxConstraints? _boxConstraints;
-        private double _penaltyParameter = 1.0;
+        private readonly AugmentedLagrangianOptions _options;
+        private readonly IOptimizer _unconstrainedOptimizer;
+        private readonly OptimisationMonitor? _monitor;
         private readonly double _penaltyIncrease = 10.0;
         private readonly double _maxPenaltyParameter = 1e8;
-        private double _constraintTolerance = 1e-6;
-        private OptimisationMonitor? _monitor;
 
         /// <summary>
-        /// Sets the unconstrained optimizer to use for subproblems.
+        /// Creates a new Augmented Lagrangian optimizer with the specified options and dependencies.
         /// </summary>
-        /// <param name="optimizer">Unconstrained optimizer (L-BFGS, CG, GD).</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public AugmentedLagrangianOptimizer WithUnconstrainedOptimizer(IOptimizer optimizer)
+        /// <param name="options">Optimizer options including constraints.</param>
+        /// <param name="unconstrainedOptimizer">The inner optimizer for subproblems.</param>
+        /// <param name="monitor">Optional optimization monitor for gradient verification.</param>
+        public AugmentedLagrangianOptimizer(
+            AugmentedLagrangianOptions options,
+            IOptimizer unconstrainedOptimizer,
+            OptimisationMonitor? monitor = null)
         {
-            _unconstrainedOptimizer = optimizer ?? throw new ArgumentNullException(nameof(optimizer));
-            return this;
-        }
-
-        /// <summary>
-        /// Adds an equality constraint h(x) = 0.
-        /// </summary>
-        /// <param name="constraint">Equality constraint function.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public AugmentedLagrangianOptimizer WithEqualityConstraint(Func<double[], (double value, double[] gradient)> constraint)
-        {
-            _constraints.Add(new EqualityConstraint(constraint));
-            return this;
-        }
-
-        /// <summary>
-        /// Adds an inequality constraint g(x) ≤ 0.
-        /// </summary>
-        /// <param name="constraint">Inequality constraint function.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public AugmentedLagrangianOptimizer WithInequalityConstraint(Func<double[], (double value, double[] gradient)> constraint)
-        {
-            _constraints.Add(new InequalityConstraint(constraint));
-            return this;
-        }
-
-        /// <summary>
-        /// Sets box constraints for all variables.
-        /// </summary>
-        /// <param name="lower">Lower bounds.</param>
-        /// <param name="upper">Upper bounds.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public AugmentedLagrangianOptimizer WithBoxConstraints(double[] lower, double[] upper)
-        {
-            _boxConstraints = new BoxConstraints(lower, upper);
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the initial penalty parameter.
-        /// </summary>
-        /// <param name="penalty">Initial penalty parameter (default 1.0).</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public AugmentedLagrangianOptimizer WithPenaltyParameter(double penalty)
-        {
-            _penaltyParameter = penalty;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the constraint tolerance.
-        /// </summary>
-        /// <param name="tolerance">Constraint violation tolerance.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public AugmentedLagrangianOptimizer WithConstraintTolerance(double tolerance)
-        {
-            _constraintTolerance = tolerance;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets an optimization monitor for gradient verification and smoothness testing.
-        /// </summary>
-        /// <param name="monitor">The monitor to attach.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public AugmentedLagrangianOptimizer WithOptimisationMonitor(OptimisationMonitor monitor)
-        {
-            _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
-            return this;
+            _options = options;
+            _unconstrainedOptimizer = unconstrainedOptimizer;
+            _monitor = monitor;
         }
 
         /// <inheritdoc/>
-        public IOptimizer WithInitialPoint(double[] x0)
+        public OptimizerResult Minimize(
+            Func<double[], (double value, double[] gradient)> objective,
+            double[] initialPoint)
         {
-            _x0 = x0;
-            return this;
-        }
+            var n = initialPoint.Length;
+            var x = (double[])initialPoint.Clone();
 
-        /// <inheritdoc/>
-        public IOptimizer WithTolerance(double tolerance)
-        {
-            _tolerance = tolerance;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public IOptimizer WithMaxIterations(int maxIterations)
-        {
-            _maxIterations = maxIterations;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public IOptimizer WithVerbose(bool verbose = true)
-        {
-            _verbose = verbose;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public OptimizerResult Minimize(Func<double[], (double value, double[] gradient)> objective)
-        {
-            var n = _x0.Length;
-            var x = (double[])_x0.Clone();
+            // Build constraints list from options
+            var constraints = new List<IConstraint>();
+            foreach (var eq in _options.EqualityConstraints)
+            {
+                constraints.Add(new EqualityConstraint(eq));
+            }
+            foreach (var ineq in _options.InequalityConstraints)
+            {
+                constraints.Add(new InequalityConstraint(ineq));
+            }
 
             // Check if the inner optimizer natively supports box constraints
-            var innerSupportsBoxConstraints = _unconstrainedOptimizer is IBoxConstrainedOptimizer;
+            var innerSupportsBoxConstraints = _unconstrainedOptimizer is LBFGSBOptimizer;
 
-            // If inner optimizer supports bounds and we have box constraints, pass them through
-            if (innerSupportsBoxConstraints && _boxConstraints != null)
+            // If inner optimizer supports bounds and we have box constraints, configure them
+            if (innerSupportsBoxConstraints && _options.BoxConstraints != null)
             {
-                var boxOptimizer = (IBoxConstrainedOptimizer)_unconstrainedOptimizer;
-                boxOptimizer.WithBounds(_boxConstraints.Lower, _boxConstraints.Upper);
+                // Note: With the new pattern, we can't reconfigure the optimizer after construction
+                // The user should pass a properly configured LBFGSBOptimizer
             }
 
             // Project onto box constraints if present (needed for initial point and when inner doesn't support bounds)
-            if (_boxConstraints != null)
+            if (_options.BoxConstraints != null)
             {
-                x = _boxConstraints.Project(x);
+                x = _options.BoxConstraints.Project(x);
             }
 
             // Initialize Lagrange multipliers
-            var lambda = new double[_constraints.Count];
-            var mu = _penaltyParameter;
+            var lambda = new double[constraints.Count];
+            var mu = _options.PenaltyParameter;
             var prevMaxViolation = double.PositiveInfinity;
 
             var totalFunctionEvaluations = 0;
             var totalIterations = 0;
 
-            if (_verbose)
+            if (_options.Verbose)
             {
-                Console.WriteLine($"Augmented Lagrangian: {_constraints.Count} constraints, initial penalty μ={mu:E2}, max penalty μ_max={_maxPenaltyParameter:E2}");
+                Console.WriteLine($"Augmented Lagrangian: {constraints.Count} constraints, initial penalty μ={mu:E2}, max penalty μ_max={_maxPenaltyParameter:E2}");
             }
 
             // Initialize optimization monitor if attached
             if (_monitor != null)
             {
                 _monitor.WithObjective(objective);
-                if (_constraints.Count > 0)
+                if (constraints.Count > 0)
                 {
-                    _monitor.WithConstraints(_constraints);
+                    _monitor.WithConstraints(constraints);
                 }
                 _monitor.OnOptimizationStart(x);
-
-                // Wrap inner optimizer's line search for smoothness monitoring if enabled
-                if (_monitor.IsSmoothnessMonitoringEnabled && _unconstrainedOptimizer is LBFGSOptimizer lbfgsOptimizer)
-                {
-                    var monitoredLineSearch = new MonitoredLineSearch(
-                        new BacktrackingLineSearch(),
-                        _monitor);
-                    lbfgsOptimizer.WithLineSearch(monitoredLineSearch);
-                }
             }
 
-            for (var outerIter = 0; outerIter < _maxIterations; outerIter++)
+            for (var outerIter = 0; outerIter < _options.MaxIterations; outerIter++)
             {
                 // Build augmented Lagrangian function
                 (double value, double[] gradient) AugmentedLagrangian(double[] xAug)
@@ -221,22 +127,22 @@ namespace Optimal.NonLinear.Constrained
                     var augGrad = (double[])fGrad.Clone();
 
                     // Add constraint terms
-                    for (var i = 0; i < _constraints.Count; i++)
+                    for (var i = 0; i < constraints.Count; i++)
                     {
-                        var constraint = _constraints[i];
+                        var constraint = constraints[i];
                         var (cValue, cGrad) = constraint.Evaluate(xAug);
 
                         if (constraint.Type == ConstraintType.Equality)
                         {
                             // Equality: L = f + λ*h + (μ/2)*h²
                             var penaltyTerm = lambda[i] * cValue + 0.5 * mu * cValue * cValue;
-                            
+
                             // Check for numerical overflow
                             if (double.IsInfinity(penaltyTerm) || double.IsNaN(penaltyTerm))
                             {
                                 return (double.PositiveInfinity, augGrad);
                             }
-                            
+
                             augValue += penaltyTerm;
 
                             for (var j = 0; j < n; j++)
@@ -251,13 +157,13 @@ namespace Optimal.NonLinear.Constrained
                             if (lambdaPlusMuG > 0)
                             {
                                 var penaltyTerm = lambdaPlusMuG * lambdaPlusMuG / (2.0 * mu);
-                                
+
                                 // Check for numerical overflow
                                 if (double.IsInfinity(penaltyTerm) || double.IsNaN(penaltyTerm))
                                 {
                                     return (double.PositiveInfinity, augGrad);
                                 }
-                                
+
                                 augValue += penaltyTerm;
 
                                 for (var j = 0; j < n; j++)
@@ -272,12 +178,7 @@ namespace Optimal.NonLinear.Constrained
                 }
 
                 // Solve unconstrained subproblem
-                _unconstrainedOptimizer.WithInitialPoint(x);
-                // _unconstrainedOptimizer.WithTolerance(_tolerance / 10.0); // Tighter inner tolerance
-                _unconstrainedOptimizer.WithTolerance(_tolerance); // Tighter inner tolerance
-                // _unconstrainedOptimizer.WithMaxIterations(1000);
-
-                var subResult = _unconstrainedOptimizer.Minimize(AugmentedLagrangian);
+                var subResult = _unconstrainedOptimizer.Minimize(AugmentedLagrangian, x);
 
                 // Check if inner optimizer encountered numerical error
                 if (subResult.StoppingReason == StoppingReason.NumericalError)
@@ -301,9 +202,9 @@ namespace Optimal.NonLinear.Constrained
                 x = subResult.OptimalPoint;
 
                 // Project onto box constraints if present (skip if inner optimizer handles bounds)
-                if (_boxConstraints != null && !innerSupportsBoxConstraints)
+                if (_options.BoxConstraints != null && !innerSupportsBoxConstraints)
                 {
-                    x = _boxConstraints.Project(x);
+                    x = _options.BoxConstraints.Project(x);
                 }
 
                 totalFunctionEvaluations += subResult.FunctionEvaluations;
@@ -311,14 +212,14 @@ namespace Optimal.NonLinear.Constrained
 
                 // Evaluate constraints at current point
                 var maxViolation = 0.0;
-                var constraintValues = new double[_constraints.Count];
+                var constraintValues = new double[constraints.Count];
 
-                for (var i = 0; i < _constraints.Count; i++)
+                for (var i = 0; i < constraints.Count; i++)
                 {
-                    var (cValue, _) = _constraints[i].Evaluate(x);
+                    var (cValue, _) = constraints[i].Evaluate(x);
                     constraintValues[i] = cValue;
 
-                    if (_constraints[i].Type == ConstraintType.Equality)
+                    if (constraints[i].Type == ConstraintType.Equality)
                     {
                         maxViolation = Math.Max(maxViolation, Math.Abs(cValue));
                     }
@@ -329,23 +230,23 @@ namespace Optimal.NonLinear.Constrained
                 }
 
                 // Check box constraint violation
-                if (_boxConstraints != null)
+                if (_options.BoxConstraints != null)
                 {
-                    maxViolation = Math.Max(maxViolation, _boxConstraints.MaxViolation(x));
+                    maxViolation = Math.Max(maxViolation, _options.BoxConstraints.MaxViolation(x));
                 }
 
-                if (_verbose)
+                if (_options.Verbose)
                 {
                     var (fVal, _) = objective(x);
                     Console.WriteLine($"  Outer iter {outerIter + 1}: f={fVal:E6}, max_violation={maxViolation:E3}, μ={mu:E2}, inner_iters={subResult.Iterations}");
                 }
 
                 // Check convergence
-                if (maxViolation < _constraintTolerance)
+                if (maxViolation < _options.ConstraintTolerance)
                 {
-                    if (_verbose)
+                    if (_options.Verbose)
                     {
-                        Console.WriteLine($"Augmented Lagrangian Converged: max constraint violation {maxViolation:E3} < {_constraintTolerance:E3}");
+                        Console.WriteLine($"Augmented Lagrangian Converged: max constraint violation {maxViolation:E3} < {_options.ConstraintTolerance:E3}");
                     }
                     var (finalValue, finalGrad) = objective(x);
 
@@ -399,7 +300,7 @@ namespace Optimal.NonLinear.Constrained
                         FunctionEvaluations = totalFunctionEvaluations,
                         StoppingReason = StoppingReason.GradientTolerance,
                         Success = true,
-                        Message = $"Converged: max constraint violation {maxViolation:E3} < {_constraintTolerance:E3}",
+                        Message = $"Converged: max constraint violation {maxViolation:E3} < {_options.ConstraintTolerance:E3}",
                         GradientNorm = gradNorm,
                         FunctionChange = 0.0,
                         ParameterChange = 0.0
@@ -409,9 +310,9 @@ namespace Optimal.NonLinear.Constrained
                 }
 
                 // Update Lagrange multipliers
-                for (var i = 0; i < _constraints.Count; i++)
+                for (var i = 0; i < constraints.Count; i++)
                 {
-                    if (_constraints[i].Type == ConstraintType.Equality)
+                    if (constraints[i].Type == ConstraintType.Equality)
                     {
                         lambda[i] += mu * constraintValues[i];
                     }
@@ -439,7 +340,7 @@ namespace Optimal.NonLinear.Constrained
                     // No progress - still increase penalty slowly to avoid getting stuck
                     mu = Math.Min(mu * 1.5, _maxPenaltyParameter);
                 }
-                
+
                 prevMaxViolation = maxViolation;
             }
 
@@ -454,7 +355,7 @@ namespace Optimal.NonLinear.Constrained
                     OptimalPoint = x,
                     OptimalValue = endValue,
                     FinalGradient = endGrad,
-                    Iterations = _maxIterations,
+                    Iterations = _options.MaxIterations,
                     FunctionEvaluations = totalFunctionEvaluations,
                     StoppingReason = StoppingReason.NumericalError,
                     Success = false,
@@ -474,7 +375,7 @@ namespace Optimal.NonLinear.Constrained
                         OptimalPoint = x,
                         OptimalValue = endValue,
                         FinalGradient = endGrad,
-                        Iterations = _maxIterations,
+                        Iterations = _options.MaxIterations,
                         FunctionEvaluations = totalFunctionEvaluations,
                         StoppingReason = StoppingReason.NumericalError,
                         Success = false,
@@ -492,7 +393,7 @@ namespace Optimal.NonLinear.Constrained
                 OptimalPoint = x,
                 OptimalValue = endValue,
                 FinalGradient = endGrad,
-                Iterations = _maxIterations,
+                Iterations = _options.MaxIterations,
                 FunctionEvaluations = totalFunctionEvaluations,
                 StoppingReason = StoppingReason.MaxIterations,
                 Success = false,

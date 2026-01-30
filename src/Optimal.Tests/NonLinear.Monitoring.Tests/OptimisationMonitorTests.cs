@@ -10,6 +10,8 @@ using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.Constrained;
 using Optimal.NonLinear.Constraints;
+using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.NonLinear.Monitoring.Tests
 {
@@ -346,15 +348,18 @@ namespace Optimal.NonLinear.Monitoring.Tests
                 .WithGradientVerification(testStep: 1e-6)
                 .WithSmoothnessMonitoring();
 
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(s_initialPoint);
-            optimizer.WithEqualityConstraint(Constraint);
-            optimizer.WithOptimisationMonitor(monitor);
-            optimizer.WithTolerance(1e-4);
-            optimizer.WithConstraintTolerance(1e-6);
-            optimizer.WithMaxIterations(30);
+            var optimizer = new AugmentedLagrangianOptimizer(
+                new AugmentedLagrangianOptions
+                {
+                    Tolerance = 1e-4,
+                    ConstraintTolerance = 1e-6,
+                    MaxIterations = 30,
+                    EqualityConstraints = [Constraint]
+                },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()),
+                monitor);
 
-            var result = optimizer.Minimize(Objective);
+            var result = optimizer.Minimize(Objective, s_initialPoint);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed: {result.Message}");
 
@@ -399,15 +404,18 @@ namespace Optimal.NonLinear.Monitoring.Tests
             var monitor = new OptimisationMonitor()
                 .WithGradientVerification(testStep: 1e-6);
 
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(s_initialPointSmall);
-            optimizer.WithEqualityConstraint(Constraint);
-            optimizer.WithOptimisationMonitor(monitor);
-            optimizer.WithTolerance(1e-4);
-            optimizer.WithMaxIterations(20);
+            var optimizer = new AugmentedLagrangianOptimizer(
+                new AugmentedLagrangianOptions
+                {
+                    Tolerance = 1e-4,
+                    MaxIterations = 20,
+                    EqualityConstraints = [Constraint]
+                },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()),
+                monitor);
 
             // Run optimization (may or may not converge due to bad gradient)
-            _ = optimizer.Minimize(BadObjective);
+            _ = optimizer.Minimize(BadObjective, s_initialPointSmall);
 
             var report = monitor.GenerateReport();
 

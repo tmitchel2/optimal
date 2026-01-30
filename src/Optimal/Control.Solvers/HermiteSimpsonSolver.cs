@@ -15,6 +15,7 @@ using Optimal.Control.Scaling;
 using Optimal.NonLinear;
 using Optimal.NonLinear.Constrained;
 using Optimal.NonLinear.Monitoring;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers
@@ -510,14 +511,14 @@ namespace Optimal.Control.Solvers
             var iterationCount = new int[1];
 
             var nlpObjective = CreateObjectiveFunction(problem, grid, transcription, segmentCount, iterationCount);
-            var constrainedOptimizer = ConfigureOptimizer(problem, grid, transcription, segmentCount, z0, hasAnalyticalGradients);
+            var constrainedOptimizer = ConfigureOptimizer(problem, grid, transcription, segmentCount, hasAnalyticalGradients);
 
             if (_verbose)
             {
                 LogInitialDiagnostics(problem, transcription, segmentCount, z0, nlpObjective);
             }
 
-            var nlpResult = constrainedOptimizer.Minimize(nlpObjective);
+            var nlpResult = constrainedOptimizer.Minimize(nlpObjective, z0);
             return ExtractSolution(problem, grid, transcription, segmentCount, nlpResult);
         }
 
@@ -640,32 +641,33 @@ namespace Optimal.Control.Solvers
             CollocationGrid grid,
             ParallelHermiteSimpsonTranscription transcription,
             int segments,
-            double[] z0,
             bool hasAnalyticalGradients)
         {
-            var constrainedOptimizer = new AugmentedLagrangianOptimizer()
-                .WithUnconstrainedOptimizer(_innerOptimizer ?? new LBFGSOptimizer())
-                .WithConstraintTolerance(_tolerance)
-                .WithPenaltyParameter(_initialPenalty);
+            // Collect all constraints
+            var constraints = new ConstraintCollection();
+            ConstraintConfigurator.AddDefectConstraints(problem, grid, transcription, segments, hasAnalyticalGradients, constraints);
+            ConstraintConfigurator.AddBoundaryConstraints(problem, transcription, segments, constraints);
+            ConstraintConfigurator.AddBoxConstraints(problem, transcription, segments, constraints);
+            ConstraintConfigurator.AddPathConstraints(problem, grid, transcription, segments, constraints);
 
-            constrainedOptimizer
-                .WithInitialPoint(z0)
-                .WithTolerance(_tolerance)
-                .WithMaxIterations(_maxIterations)
-                .WithVerbose(_verbose);
-
-            // Add optimization monitor if configured
-            if (_monitor != null)
+            // Create options with collected constraints
+            var options = new AugmentedLagrangianOptions
             {
-                constrainedOptimizer.WithOptimisationMonitor(_monitor);
-            }
+                Tolerance = _tolerance,
+                MaxIterations = _maxIterations,
+                Verbose = _verbose,
+                PenaltyParameter = _initialPenalty,
+                ConstraintTolerance = _tolerance,
+                EqualityConstraints = constraints.EqualityConstraints,
+                InequalityConstraints = constraints.InequalityConstraints,
+                BoxConstraints = constraints.BoxConstraints
+            };
 
-            ConstraintConfigurator.AddDefectConstraints(problem, grid, transcription, segments, hasAnalyticalGradients, constrainedOptimizer);
-            ConstraintConfigurator.AddBoundaryConstraints(problem, transcription, segments, constrainedOptimizer);
-            ConstraintConfigurator.AddBoxConstraints(problem, transcription, segments, constrainedOptimizer);
-            ConstraintConfigurator.AddPathConstraints(problem, grid, transcription, segments, constrainedOptimizer);
-
-            return constrainedOptimizer;
+            // Create optimizer with constructor DI
+            return new AugmentedLagrangianOptimizer(
+                options,
+                _innerOptimizer ?? new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()),
+                _monitor);
         }
 
         private static void LogInitialDiagnostics(

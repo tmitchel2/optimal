@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -22,15 +22,12 @@ namespace Optimal.NonLinear.Tests
         [TestMethod]
         public void CanMinimizeQuadraticFunction()
         {
-            var optimizer = new GradientDescentOptimizer();
-            optimizer.WithInitialPoint(s_quadraticStart);
-            optimizer.WithStepSize(0.1);
-            optimizer.WithTolerance(1e-6);
-            optimizer.WithMaxIterations(1000);
+            var optimizer = new GradientDescentOptimizer(
+                new GradientDescentOptions { StepSize = 0.1, Tolerance = 1e-6, MaxIterations = 1000 });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
+                s_quadraticStart);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(0.0, result.OptimalPoint[0], Tolerance, "x should be near 0");
@@ -47,15 +44,12 @@ namespace Optimal.NonLinear.Tests
         [TestMethod]
         public void CanMinimizeRosenbrockFunction()
         {
-            var optimizer = new GradientDescentOptimizer();
-            optimizer.WithInitialPoint(s_rosenbrockStart);
-            optimizer.WithStepSize(0.001);
-            optimizer.WithTolerance(1e-4);
-            optimizer.WithMaxIterations(50000);
+            var optimizer = new GradientDescentOptimizer(
+                new GradientDescentOptions { StepSize = 0.001, Tolerance = 1e-4, MaxIterations = 50000 });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                s_rosenbrockStart);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
@@ -92,15 +86,12 @@ namespace Optimal.NonLinear.Tests
         [TestMethod]
         public void ReturnsMaxIterationsWhenNotConverged()
         {
-            var optimizer = new GradientDescentOptimizer();
-            optimizer.WithInitialPoint(s_rosenbrockStart);
-            optimizer.WithStepSize(0.001);
-            optimizer.WithTolerance(1e-10);
-            optimizer.WithMaxIterations(10);
+            var optimizer = new GradientDescentOptimizer(
+                new GradientDescentOptions { StepSize = 0.001, Tolerance = 1e-10, MaxIterations = 10 });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                s_rosenbrockStart);
 
             Assert.IsFalse(result.Success, "Optimization should not succeed");
             Assert.AreEqual(StoppingReason.MaxIterations, result.StoppingReason);
@@ -110,15 +101,12 @@ namespace Optimal.NonLinear.Tests
         [TestMethod]
         public void FunctionEvaluationCountIsCorrect()
         {
-            var optimizer = new GradientDescentOptimizer();
-            optimizer.WithInitialPoint(s_quadraticStart);
-            optimizer.WithStepSize(0.1);
-            optimizer.WithTolerance(1e-6);
-            optimizer.WithMaxIterations(1000);
+            var optimizer = new GradientDescentOptimizer(
+                new GradientDescentOptions { StepSize = 0.1, Tolerance = 1e-6, MaxIterations = 1000 });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
+                s_quadraticStart);
 
             Assert.IsTrue(result.Success);
             Assert.AreEqual(result.Iterations, result.FunctionEvaluations,
@@ -128,15 +116,12 @@ namespace Optimal.NonLinear.Tests
         [TestMethod]
         public void CanMinimizeBoothFunction()
         {
-            var optimizer = new GradientDescentOptimizer();
-            optimizer.WithInitialPoint(s_boothStart);
-            optimizer.WithStepSize(0.01);
-            optimizer.WithTolerance(1e-6);
-            optimizer.WithMaxIterations(10000);
+            var optimizer = new GradientDescentOptimizer(
+                new GradientDescentOptions { StepSize = 0.01, Tolerance = 1e-6, MaxIterations = 10000 });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.BoothReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.BoothReverse(x[0], x[1]),
+                s_boothStart);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
@@ -147,15 +132,13 @@ namespace Optimal.NonLinear.Tests
         [TestMethod]
         public void CanMinimizeWithLineSearch()
         {
-            var optimizer = new GradientDescentOptimizer();
-            optimizer.WithInitialPoint(s_quadraticStart);
-            optimizer.WithLineSearch(new LineSearch.BacktrackingLineSearch());
-            optimizer.WithTolerance(1e-6);
-            optimizer.WithMaxIterations(1000);
+            var optimizer = new GradientDescentOptimizer(
+                new GradientDescentOptions { Tolerance = 1e-6, MaxIterations = 1000 },
+                new LineSearch.BacktrackingLineSearch());
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
+                s_quadraticStart);
 
             Assert.IsTrue(result.Success, "Optimization should succeed with line search");
             Assert.AreEqual(0.0, result.OptimalPoint[0], Tolerance, "x should be near 0");
@@ -165,15 +148,12 @@ namespace Optimal.NonLinear.Tests
         [TestMethod]
         public void CanMinimizeWithFunctionTolerance()
         {
-            var optimizer = new GradientDescentOptimizer();
-            optimizer.WithInitialPoint(s_quadraticStart);
-            optimizer.WithStepSize(0.1);
-            optimizer.WithFunctionTolerance(1e-8);
-            optimizer.WithMaxIterations(1000);
+            var optimizer = new GradientDescentOptimizer(
+                new GradientDescentOptions { StepSize = 0.1, FunctionTolerance = 1e-8, MaxIterations = 1000 });
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
+                s_quadraticStart);
 
             Assert.IsTrue(result.Success, "Optimization should succeed with function tolerance");
             Assert.IsLessThan(1e-4, result.OptimalValue, "Function value should be small");

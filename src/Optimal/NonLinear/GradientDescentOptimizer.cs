@@ -17,124 +17,51 @@ namespace Optimal.NonLinear
     /// </summary>
     public sealed class GradientDescentOptimizer : IOptimizer
     {
-        private double[] _x0 = Array.Empty<double>();
-        private double _tolerance = 1e-6;
-        private double _functionTolerance = 1e-8;
-        private double _parameterTolerance = 1e-8;
-        private int _maxIterations = 1000;
-        private int _maxFunctionEvaluations;
-        private double _stepSize = 0.01;
-        private bool _verbose;
-        private ILineSearch? _lineSearch;
+        private readonly GradientDescentOptions _options;
+        private readonly ILineSearch? _lineSearch;
 
         /// <summary>
-        /// Sets the step size for gradient descent (only used when no line search is provided).
+        /// Creates a new Gradient Descent optimizer with the specified options and optional line search.
         /// </summary>
-        /// <param name="stepSize">The step size (learning rate).</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public GradientDescentOptimizer WithStepSize(double stepSize)
+        /// <param name="options">Optimizer options.</param>
+        /// <param name="lineSearch">Optional line search algorithm for adaptive step sizing.</param>
+        public GradientDescentOptimizer(
+            GradientDescentOptions options,
+            ILineSearch? lineSearch = null)
         {
-            _stepSize = stepSize;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the line search algorithm to use for adaptive step sizing.
-        /// </summary>
-        /// <param name="lineSearch">The line search algorithm.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public GradientDescentOptimizer WithLineSearch(ILineSearch lineSearch)
-        {
+            _options = options;
             _lineSearch = lineSearch;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the function value change tolerance for convergence.
-        /// </summary>
-        /// <param name="tolerance">The function change tolerance.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public GradientDescentOptimizer WithFunctionTolerance(double tolerance)
-        {
-            _functionTolerance = tolerance;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the parameter change tolerance for convergence.
-        /// </summary>
-        /// <param name="tolerance">The parameter change tolerance.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public GradientDescentOptimizer WithParameterTolerance(double tolerance)
-        {
-            _parameterTolerance = tolerance;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the maximum number of function evaluations.
-        /// </summary>
-        /// <param name="maxEvaluations">The maximum number of function evaluations.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public GradientDescentOptimizer WithMaxFunctionEvaluations(int maxEvaluations)
-        {
-            _maxFunctionEvaluations = maxEvaluations;
-            return this;
         }
 
         /// <inheritdoc/>
-        public IOptimizer WithInitialPoint(double[] x0)
+        public OptimizerResult Minimize(
+            Func<double[], (double value, double[] gradient)> objective,
+            double[] initialPoint)
         {
-            _x0 = x0;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public IOptimizer WithTolerance(double tolerance)
-        {
-            _tolerance = tolerance;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public IOptimizer WithMaxIterations(int maxIterations)
-        {
-            _maxIterations = maxIterations;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public IOptimizer WithVerbose(bool verbose = true)
-        {
-            _verbose = verbose;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public OptimizerResult Minimize(Func<double[], (double value, double[] gradient)> objective)
-        {
-            var x = (double[])_x0.Clone();
+            var x = (double[])initialPoint.Clone();
             var n = x.Length;
             var functionEvaluations = 0;
 
             // Create convergence monitor
             // Use maxFunctionEvaluations if set, otherwise use maxIterations * 20 (generous for line search)
-            var effectiveMaxFunctionEvals = _maxFunctionEvaluations > 0 ? _maxFunctionEvaluations : _maxIterations * 20;
+            var effectiveMaxFunctionEvals = _options.MaxFunctionEvaluations > 0
+                ? _options.MaxFunctionEvaluations
+                : _options.MaxIterations * 20;
             var monitor = new ConvergenceMonitor(
-                gradientTolerance: _tolerance,
-                functionTolerance: _functionTolerance,
-                parameterTolerance: _parameterTolerance,
-                maxIterations: _maxIterations,
+                gradientTolerance: _options.Tolerance,
+                functionTolerance: _options.FunctionTolerance,
+                parameterTolerance: _options.ParameterTolerance,
+                maxIterations: _options.MaxIterations,
                 maxFunctionEvaluations: effectiveMaxFunctionEvals,
                 stallIterations: 10);
 
-            if (_verbose)
+            if (_options.Verbose)
             {
-                var lineSearchMode = _lineSearch != null ? "with line search" : $"fixed step α={_stepSize}";
+                var lineSearchMode = _lineSearch != null ? "with line search" : $"fixed step α={_options.StepSize}";
                 Console.WriteLine($"Gradient Descent Optimizer: {lineSearchMode}");
             }
 
-            for (var iter = 0; iter < _maxIterations; iter++)
+            for (var iter = 0; iter < _options.MaxIterations; iter++)
             {
                 var (value, gradient) = objective(x);
                 functionEvaluations++;
@@ -182,14 +109,14 @@ namespace Optimal.NonLinear
                 // Check convergence
                 var convergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
 
-                if (_verbose && (iter % 10 == 0 || iter < 5))
+                if (_options.Verbose && (iter % 10 == 0 || iter < 5))
                 {
                     Console.WriteLine($"  Iter {iter + 1:D4}: f={value:E6}, ||grad||={convergence.GradientNorm:E3}");
                 }
 
                 if (convergence.HasConverged || convergence.Reason.HasValue)
                 {
-                    if (_verbose)
+                    if (_options.Verbose)
                     {
                         Console.WriteLine($"Gradient Descent Converged: {convergence.Message}");
                     }
@@ -226,7 +153,7 @@ namespace Optimal.NonLinear
                     // If line search failed to find a step, use a small default
                     if (alpha == 0.0)
                     {
-                        alpha = _stepSize;
+                        alpha = _options.StepSize;
                     }
 
                     // Count additional function evaluations from line search
@@ -236,7 +163,7 @@ namespace Optimal.NonLinear
                 else
                 {
                     // Use fixed step size
-                    alpha = _stepSize;
+                    alpha = _options.StepSize;
                 }
 
                 // Update: x = x - alpha * gradient
@@ -258,7 +185,7 @@ namespace Optimal.NonLinear
                     OptimalPoint = x,
                     OptimalValue = finalEval.value,
                     FinalGradient = finalEval.gradient,
-                    Iterations = _maxIterations,
+                    Iterations = _options.MaxIterations,
                     FunctionEvaluations = functionEvaluations,
                     StoppingReason = StoppingReason.NumericalError,
                     Success = false,
@@ -278,7 +205,7 @@ namespace Optimal.NonLinear
                         OptimalPoint = x,
                         OptimalValue = finalEval.value,
                         FinalGradient = finalEval.gradient,
-                        Iterations = _maxIterations,
+                        Iterations = _options.MaxIterations,
                         FunctionEvaluations = functionEvaluations,
                         StoppingReason = StoppingReason.NumericalError,
                         Success = false,
@@ -290,14 +217,14 @@ namespace Optimal.NonLinear
                 }
             }
 
-            var finalConvergence = monitor.CheckConvergence(_maxIterations, functionEvaluations, x, finalEval.value, finalEval.gradient);
+            var finalConvergence = monitor.CheckConvergence(_options.MaxIterations, functionEvaluations, x, finalEval.value, finalEval.gradient);
 
             return new OptimizerResult
             {
                 OptimalPoint = x,
                 OptimalValue = finalEval.value,
                 FinalGradient = finalEval.gradient,
-                Iterations = _maxIterations,
+                Iterations = _options.MaxIterations,
                 FunctionEvaluations = functionEvaluations,
                 StoppingReason = StoppingReason.MaxIterations,
                 Success = false,

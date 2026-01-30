@@ -10,6 +10,7 @@
 
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace OptimalCli.Problems.VanDerPol;
@@ -81,7 +82,7 @@ public sealed class VanDerPolProblemSolver : ICommand
         Console.WriteLine();
         Console.WriteLine("Solving...");
 
-        var innerOptimizer = new LBFGSOptimizer().WithTolerance(1e-5);
+        var innerOptimizer = new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch());
 
         ISolver solver = options.Solver == SolverType.LGL
             ? new LegendreGaussLobattoSolver()

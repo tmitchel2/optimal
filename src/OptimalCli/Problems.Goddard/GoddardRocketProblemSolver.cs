@@ -11,6 +11,7 @@
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace OptimalCli.Problems.Goddard;
@@ -105,11 +106,14 @@ public sealed class GoddardRocketProblemSolver : ICommand
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
-        var lbfgInnerOptimizer = new LBFGSOptimizer()
-            .WithParallelLineSearch(enable: true, batchSize: 4)
-            .WithTolerance(0.0001)  // Relaxed inner tolerance
-            .WithMaxIterations(1000)  // More inner iterations
-            .WithVerbose(true);
+        var lbfgInnerOptimizer = new LBFGSOptimizer(
+            new LBFGSOptions
+            {
+                Tolerance = 0.0001,  // Relaxed inner tolerance
+                MaxIterations = 1000,  // More inner iterations
+                Verbose = true
+            },
+            new ParallelBacktrackingLineSearch(parallelBatchSize: 4));
 
         ISolver solver = useLGL
             ? new LegendreGaussLobattoSolver()

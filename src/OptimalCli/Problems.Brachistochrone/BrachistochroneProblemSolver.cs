@@ -11,6 +11,7 @@
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace OptimalCli.Problems.Brachistochrone;
@@ -284,10 +285,11 @@ public sealed class BrachistochroneProblemSolver : ICommand
 
     private static ISolver CreateSolver(CommandOptions options)
     {
-        var innerOptimizer = new LBFGSOptimizer()
-            .WithTolerance(1e-4)
-            .WithMaxIterations(500)
-            .WithVerbose(false);
+        var innerOptimizer = new LBFGSOptimizer(new LBFGSOptions
+        {
+            Tolerance = 1e-4,
+            MaxIterations = 500
+        }, new BacktrackingLineSearch());
 
         Console.WriteLine("Solver configuration:");
         Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");

@@ -104,15 +104,13 @@ namespace Optimal.NonLinear.LineSearch.Tests
         public void OptimizerWithLineSearchConvergesOnRosenbrock()
         {
             var lineSearch = new BacktrackingLineSearch();
-            var optimizer = new GradientDescentOptimizer();
-            optimizer.WithInitialPoint(s_rosenbrockStart);
-            optimizer.WithLineSearch(lineSearch);
-            optimizer.WithTolerance(1e-5);
-            optimizer.WithMaxIterations(10000);
+            var optimizer = new GradientDescentOptimizer(
+                new GradientDescentOptions { Tolerance = 1e-5, MaxIterations = 10000 },
+                lineSearch);
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                s_rosenbrockStart);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 6e-2, "x should be near 1");
@@ -127,26 +125,21 @@ namespace Optimal.NonLinear.LineSearch.Tests
             var lineSearch = new BacktrackingLineSearch();
 
             // Optimizer with line search
-            var optimizerLS = new GradientDescentOptimizer();
-            optimizerLS.WithInitialPoint(s_rosenbrockStart);
-            optimizerLS.WithLineSearch(lineSearch);
-            optimizerLS.WithTolerance(1e-4);
-            optimizerLS.WithMaxIterations(10000);
+            var optimizerLS = new GradientDescentOptimizer(
+                new GradientDescentOptions { Tolerance = 1e-4, MaxIterations = 10000 },
+                lineSearch);
 
-            var resultLS = optimizerLS.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var resultLS = optimizerLS.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                s_rosenbrockStart);
 
             // Optimizer with fixed step size (same as Phase 1 test)
-            var optimizerFixed = new GradientDescentOptimizer();
-            optimizerFixed.WithInitialPoint(s_rosenbrockStart);
-            optimizerFixed.WithStepSize(0.001);
-            optimizerFixed.WithTolerance(1e-4);
-            optimizerFixed.WithMaxIterations(50000);
+            var optimizerFixed = new GradientDescentOptimizer(
+                new GradientDescentOptions { StepSize = 0.001, Tolerance = 1e-4, MaxIterations = 50000 });
 
-            var resultFixed = optimizerFixed.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var resultFixed = optimizerFixed.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                s_rosenbrockStart);
 
             // Line search should require significantly fewer iterations
             Assert.IsTrue(resultLS.Success, "Line search optimization should succeed");

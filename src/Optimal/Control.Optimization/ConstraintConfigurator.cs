@@ -9,7 +9,6 @@
 using System;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
-using Optimal.NonLinear.Constrained;
 
 namespace Optimal.Control.Optimization
 {
@@ -19,7 +18,7 @@ namespace Optimal.Control.Optimization
     internal static class ConstraintConfigurator
     {
         /// <summary>
-        /// Adds defect constraints to the optimizer for Hermite-Simpson collocation.
+        /// Adds defect constraints to the constraint collection for Hermite-Simpson collocation.
         /// </summary>
         public static void AddDefectConstraints(
             ControlProblem problem,
@@ -27,7 +26,7 @@ namespace Optimal.Control.Optimization
             ParallelHermiteSimpsonTranscription transcription,
             int segments,
             bool hasAnalyticalGradients,
-            AugmentedLagrangianOptimizer optimizer)
+            ConstraintCollection constraints)
         {
             var dynamics = problem.Dynamics!;
             var totalDefects = segments * problem.StateDim;
@@ -35,7 +34,7 @@ namespace Optimal.Control.Optimization
             for (var i = 0; i < totalDefects; i++)
             {
                 var defectIndex = i;
-                optimizer.WithEqualityConstraint(z =>
+                constraints.AddEqualityConstraint(z =>
                 {
                     var allDefects = transcription.ComputeAllDefects(z, dynamics);
                     var gradient = ComputeDefectGradient(problem, grid, transcription, z, defectIndex, hasAnalyticalGradients, dynamics);
@@ -45,26 +44,26 @@ namespace Optimal.Control.Optimization
         }
 
         /// <summary>
-        /// Adds boundary constraints (initial and final state) to the optimizer.
+        /// Adds boundary constraints (initial and final state) to the constraint collection.
         /// </summary>
         public static void AddBoundaryConstraints(
             ControlProblem problem,
             ParallelHermiteSimpsonTranscription transcription,
             int segments,
-            AugmentedLagrangianOptimizer optimizer)
+            ConstraintCollection constraints)
         {
-            AddInitialStateConstraints(problem, transcription, optimizer);
-            AddFinalStateConstraints(problem, transcription, segments, optimizer);
+            AddInitialStateConstraints(problem, transcription, constraints);
+            AddFinalStateConstraints(problem, transcription, segments, constraints);
         }
 
         /// <summary>
-        /// Adds box constraints (bounds on states and controls) to the optimizer.
+        /// Adds box constraints (bounds on states and controls) to the constraint collection.
         /// </summary>
         public static void AddBoxConstraints(
             ControlProblem problem,
             ParallelHermiteSimpsonTranscription transcription,
             int segments,
-            AugmentedLagrangianOptimizer optimizer)
+            ConstraintCollection constraints)
         {
             if (problem.ControlLowerBounds == null || problem.ControlUpperBounds == null)
             {
@@ -91,18 +90,18 @@ namespace Optimal.Control.Optimization
                 }
             }
 
-            optimizer.WithBoxConstraints(lowerBounds, upperBounds);
+            constraints.SetBoxConstraints(lowerBounds, upperBounds);
         }
 
         /// <summary>
-        /// Adds path constraints (constraints at each collocation point) to the optimizer.
+        /// Adds path constraints (constraints at each collocation point) to the constraint collection.
         /// </summary>
         public static void AddPathConstraints(
             ControlProblem problem,
             CollocationGrid grid,
             ParallelHermiteSimpsonTranscription transcription,
             int segments,
-            AugmentedLagrangianOptimizer optimizer)
+            ConstraintCollection constraints)
         {
             if (problem.PathConstraints.Count == 0)
             {
@@ -118,7 +117,7 @@ namespace Optimal.Control.Optimization
                     var nodeIndex = k;
                     var timePoint = grid.TimePoints[k];
 
-                    optimizer.WithInequalityConstraint(z =>
+                    constraints.AddInequalityConstraint(z =>
                     {
                         var x = transcription.GetState(z, nodeIndex);
                         var u = transcription.GetControl(z, nodeIndex);
@@ -177,7 +176,7 @@ namespace Optimal.Control.Optimization
         private static void AddInitialStateConstraints(
             ControlProblem problem,
             ParallelHermiteSimpsonTranscription transcription,
-            AugmentedLagrangianOptimizer optimizer)
+            ConstraintCollection constraints)
         {
             if (problem.InitialState == null)
             {
@@ -194,7 +193,7 @@ namespace Optimal.Control.Optimization
                     continue; // Skip free initial state components
                 }
 
-                optimizer.WithEqualityConstraint(z =>
+                constraints.AddEqualityConstraint(z =>
                 {
                     var x = transcription.GetState(z, 0);
                     var gradient = NumericalGradients.ComputeConstraintGradient(
@@ -208,7 +207,7 @@ namespace Optimal.Control.Optimization
             ControlProblem problem,
             ParallelHermiteSimpsonTranscription transcription,
             int segments,
-            AugmentedLagrangianOptimizer optimizer)
+            ConstraintCollection constraints)
         {
             if (problem.FinalState == null)
             {
@@ -225,7 +224,7 @@ namespace Optimal.Control.Optimization
                     continue;
                 }
 
-                optimizer.WithEqualityConstraint(z =>
+                constraints.AddEqualityConstraint(z =>
                 {
                     var x = transcription.GetState(z, segments);
                     var gradient = NumericalGradients.ComputeConstraintGradient(

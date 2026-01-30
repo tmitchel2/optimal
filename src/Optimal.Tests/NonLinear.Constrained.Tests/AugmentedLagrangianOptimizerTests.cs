@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -8,6 +8,7 @@
 
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Optimal.NonLinear.Constraints;
 using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Tests;
 using Optimal.NonLinear.Unconstrained;
@@ -26,18 +27,21 @@ namespace Optimal.NonLinear.Constrained.Tests
         [TestMethod]
         public void CanMinimizeWithBoxConstraints()
         {
-            // Minimize Rosenbrock with box constraints: -0.5 ≤ x, y ≤ 0.5
+            // Minimize Rosenbrock with box constraints: -0.5 <= x, y <= 0.5
             // True minimum (1, 1) is outside box, should find boundary optimum
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(s_boxInitial);
-            optimizer.WithBoxConstraints(s_boxLower, s_boxUpper);
-            optimizer.WithTolerance(1e-4);
-            optimizer.WithConstraintTolerance(1e-6);
-            optimizer.WithMaxIterations(30);
+            var optimizer = new AugmentedLagrangianOptimizer(
+                new AugmentedLagrangianOptions
+                {
+                    Tolerance = 1e-4,
+                    ConstraintTolerance = 1e-6,
+                    MaxIterations = 30,
+                    BoxConstraints = new BoxConstraints(s_boxLower, s_boxUpper)
+                },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                s_boxInitial);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
 
@@ -51,19 +55,21 @@ namespace Optimal.NonLinear.Constrained.Tests
         [TestMethod]
         public void CanMinimizeWithEqualityConstraint()
         {
-            // Minimize (x - 1)² + (y - 1)² subject to x + y = 1
+            // Minimize (x - 1)^2 + (y - 1)^2 subject to x + y = 1
             // Solution: x = y = 0.5 (on the line, closest to (1,1))
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(s_equalityInitial);
-            optimizer.WithEqualityConstraint(x =>
-                TestObjectiveFunctionsGradients.LinearEqualityConstraintReverse(x[0], x[1]));
-            optimizer.WithTolerance(1e-4);
-            optimizer.WithConstraintTolerance(1e-6);
-            optimizer.WithMaxIterations(30);
+            var optimizer = new AugmentedLagrangianOptimizer(
+                new AugmentedLagrangianOptions
+                {
+                    Tolerance = 1e-4,
+                    ConstraintTolerance = 1e-6,
+                    MaxIterations = 30,
+                    EqualityConstraints = [x => TestObjectiveFunctionsGradients.LinearEqualityConstraintReverse(x[0], x[1])]
+                },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.DistanceFromTargetReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.DistanceFromTargetReverse(x[0], x[1]),
+                s_equalityInitial);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
 
@@ -80,36 +86,38 @@ Math.Abs(constraintValue), $"Equality constraint should be satisfied: x + y = {r
         [TestMethod]
         public void CanMinimizeWithInequalityConstraint()
         {
-            // Minimize (x - 1)² + (y - 1)² subject to x² + y² ≤ 1
-            // Solution: point on unit circle closest to (1,1), which is (√2/2, √2/2)
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(s_inequalityInitial);
-            optimizer.WithInequalityConstraint(x =>
-                TestObjectiveFunctionsGradients.UnitCircleConstraintReverse(x[0], x[1]));
-            optimizer.WithTolerance(1e-4);
-            optimizer.WithConstraintTolerance(1e-5);
-            optimizer.WithMaxIterations(30);
+            // Minimize (x - 1)^2 + (y - 1)^2 subject to x^2 + y^2 <= 1
+            // Solution: point on unit circle closest to (1,1), which is (sqrt(2)/2, sqrt(2)/2)
+            var optimizer = new AugmentedLagrangianOptimizer(
+                new AugmentedLagrangianOptions
+                {
+                    Tolerance = 1e-4,
+                    ConstraintTolerance = 1e-5,
+                    MaxIterations = 30,
+                    InequalityConstraints = [x => TestObjectiveFunctionsGradients.UnitCircleConstraintReverse(x[0], x[1])]
+                },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.DistanceFromTargetReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.DistanceFromTargetReverse(x[0], x[1]),
+                s_inequalityInitial);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
 
-            // Check constraint is satisfied: x² + y² ≤ 1
+            // Check constraint is satisfied: x^2 + y^2 <= 1
             var circleValue = result.OptimalPoint[0] * result.OptimalPoint[0] +
                              result.OptimalPoint[1] * result.OptimalPoint[1];
             Assert.IsLessThanOrEqualTo(1.0 + 1e-4,
-circleValue, $"Inequality constraint should be satisfied: x² + y² = {circleValue}, should be ≤ 1.0");
+circleValue, $"Inequality constraint should be satisfied: x^2 + y^2 = {circleValue}, should be <= 1.0");
 
             // Should be on the boundary (active constraint)
             Assert.AreEqual(1.0, circleValue, 1e-2, "Should be on unit circle boundary");
 
             // Check direction: should be toward (1,1) from origin
-            var expectedX = Math.Sqrt(2) / 2.0; // ≈ 0.707
+            var expectedX = Math.Sqrt(2) / 2.0; // ~= 0.707
             var expectedY = Math.Sqrt(2) / 2.0;
-            Assert.AreEqual(expectedX, result.OptimalPoint[0], 1e-1, "x should be near √2/2");
-            Assert.AreEqual(expectedY, result.OptimalPoint[1], 1e-1, "y should be near √2/2");
+            Assert.AreEqual(expectedX, result.OptimalPoint[0], 1e-1, "x should be near sqrt(2)/2");
+            Assert.AreEqual(expectedY, result.OptimalPoint[1], 1e-1, "y should be near sqrt(2)/2");
         }
 
         [TestMethod]
@@ -117,18 +125,19 @@ circleValue, $"Inequality constraint should be satisfied: x² + y² = {circleVal
         {
             // Minimize Rosenbrock subject to x + y = 1
             // This tests a more challenging equality-constrained problem
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(s_equalityInitial);
-            optimizer.WithEqualityConstraint(x =>
-                TestObjectiveFunctionsGradients.LinearEqualityConstraintReverse(x[0], x[1]));
-            optimizer.WithUnconstrainedOptimizer(new LBFGSOptimizer());
-            optimizer.WithTolerance(1e-4);
-            optimizer.WithConstraintTolerance(1e-6);
-            optimizer.WithMaxIterations(30);
+            var optimizer = new AugmentedLagrangianOptimizer(
+                new AugmentedLagrangianOptions
+                {
+                    Tolerance = 1e-4,
+                    ConstraintTolerance = 1e-6,
+                    MaxIterations = 30,
+                    EqualityConstraints = [x => TestObjectiveFunctionsGradients.LinearEqualityConstraintReverse(x[0], x[1])]
+                },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                s_equalityInitial);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
 
@@ -141,22 +150,23 @@ Math.Abs(constraintValue), $"Equality constraint should be satisfied: x + y = {r
         [TestMethod]
         public void CanMinimizeWithMixedConstraints()
         {
-            // Minimize (x - 1)² + (y - 1)² subject to:
+            // Minimize (x - 1)^2 + (y - 1)^2 subject to:
             //   x + y = 1 (equality)
-            //   x² + y² ≤ 1 (inequality)
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(s_inequalityInitial);
-            optimizer.WithEqualityConstraint(x =>
-                TestObjectiveFunctionsGradients.LinearEqualityConstraintReverse(x[0], x[1]));
-            optimizer.WithInequalityConstraint(x =>
-                TestObjectiveFunctionsGradients.UnitCircleConstraintReverse(x[0], x[1]));
-            optimizer.WithTolerance(1e-4);
-            optimizer.WithConstraintTolerance(1e-5);
-            optimizer.WithMaxIterations(30);
+            //   x^2 + y^2 <= 1 (inequality)
+            var optimizer = new AugmentedLagrangianOptimizer(
+                new AugmentedLagrangianOptions
+                {
+                    Tolerance = 1e-4,
+                    ConstraintTolerance = 1e-5,
+                    MaxIterations = 30,
+                    EqualityConstraints = [x => TestObjectiveFunctionsGradients.LinearEqualityConstraintReverse(x[0], x[1])],
+                    InequalityConstraints = [x => TestObjectiveFunctionsGradients.UnitCircleConstraintReverse(x[0], x[1])]
+                },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.DistanceFromTargetReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.DistanceFromTargetReverse(x[0], x[1]),
+                s_inequalityInitial);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
 
@@ -169,7 +179,7 @@ Math.Abs(constraintValue), $"Equality constraint should be satisfied: x + y = {r
             Assert.IsLessThanOrEqualTo(1.0 + 1e-4, circleValue, $"Inequality constraint violated: {circleValue}");
 
             // With x + y = 1, the solution should be (0.5, 0.5) since
-            // 0.5² + 0.5² = 0.5 < 1, so inequality is inactive
+            // 0.5^2 + 0.5^2 = 0.5 < 1, so inequality is inactive
             Assert.AreEqual(0.5, result.OptimalPoint[0], 1e-2, "x should be near 0.5");
             Assert.AreEqual(0.5, result.OptimalPoint[1], 1e-2, "y should be near 0.5");
         }
@@ -177,17 +187,19 @@ Math.Abs(constraintValue), $"Equality constraint should be satisfied: x + y = {r
         [TestMethod]
         public void ReturnsMaxIterationsWhenNotConverged()
         {
-            var optimizer = new AugmentedLagrangianOptimizer();
-            optimizer.WithInitialPoint(s_equalityInitial);
-            optimizer.WithEqualityConstraint(x =>
-                TestObjectiveFunctionsGradients.LinearEqualityConstraintReverse(x[0], x[1]));
-            optimizer.WithTolerance(1e-10); // Very tight
-            optimizer.WithConstraintTolerance(1e-10);
-            optimizer.WithMaxIterations(2); // Very few iterations
+            var optimizer = new AugmentedLagrangianOptimizer(
+                new AugmentedLagrangianOptions
+                {
+                    Tolerance = 1e-10, // Very tight
+                    ConstraintTolerance = 1e-10,
+                    MaxIterations = 2, // Very few iterations
+                    EqualityConstraints = [x => TestObjectiveFunctionsGradients.LinearEqualityConstraintReverse(x[0], x[1])]
+                },
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
-            var result = optimizer.Minimize(x =>
-                TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1])
-            );
+            var result = optimizer.Minimize(
+                x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
+                s_equalityInitial);
 
             Assert.IsFalse(result.Success, "Should not succeed with very few iterations");
             Assert.AreEqual(StoppingReason.MaxIterations, result.StoppingReason);
@@ -197,30 +209,30 @@ Math.Abs(constraintValue), $"Equality constraint should be satisfied: x + y = {r
         public void WorksWithDifferentUnconstrainedOptimizers()
         {
             // Test that we can use different unconstrained optimizers
-            var gdOptimizer = new GradientDescentOptimizer();
-            gdOptimizer.WithLineSearch(new BacktrackingLineSearch());
-
             var optimizers = new IOptimizer[]
             {
-                new LBFGSOptimizer(),
-                new ConjugateGradientOptimizer(),
-                gdOptimizer
+                new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()),
+                new ConjugateGradientOptimizer(new ConjugateGradientOptions(), new BacktrackingLineSearch()),
+                new GradientDescentOptimizer(
+                    new GradientDescentOptions(),
+                    new BacktrackingLineSearch())
             };
 
             foreach (var unconstrainedOpt in optimizers)
             {
-                var optimizer = new AugmentedLagrangianOptimizer();
-                optimizer.WithInitialPoint(s_equalityInitial);
-                optimizer.WithEqualityConstraint(x =>
-                    TestObjectiveFunctionsGradients.LinearEqualityConstraintReverse(x[0], x[1]));
-                optimizer.WithUnconstrainedOptimizer(unconstrainedOpt);
-                optimizer.WithTolerance(1e-3);
-                optimizer.WithConstraintTolerance(1e-4);
-                optimizer.WithMaxIterations(30);
+                var optimizer = new AugmentedLagrangianOptimizer(
+                    new AugmentedLagrangianOptions
+                    {
+                        Tolerance = 1e-3,
+                        ConstraintTolerance = 1e-4,
+                        MaxIterations = 30,
+                        EqualityConstraints = [x => TestObjectiveFunctionsGradients.LinearEqualityConstraintReverse(x[0], x[1])]
+                    },
+                    unconstrainedOpt);
 
-                var result = optimizer.Minimize(x =>
-                    TestObjectiveFunctionsGradients.DistanceFromTargetReverse(x[0], x[1])
-                );
+                var result = optimizer.Minimize(
+                    x => TestObjectiveFunctionsGradients.DistanceFromTargetReverse(x[0], x[1]),
+                    s_equalityInitial);
 
                 Assert.IsTrue(result.Success, $"Should succeed with {unconstrainedOpt.GetType().Name}");
 

@@ -11,6 +11,7 @@
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Solvers;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Core.Tests
@@ -81,7 +82,7 @@ namespace Optimal.Control.Core.Tests
                 .WithSegments(8)
                 .WithTolerance(1e-3)
                 .WithMaxIterations(50)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var multiSolver = new MultiPhaseSolver(baseSolver);
 
@@ -118,7 +119,7 @@ namespace Optimal.Control.Core.Tests
             var baseSolver = new HermiteSimpsonSolver()
                 .WithSegments(8)
                 .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var multiSolver = new MultiPhaseSolver(baseSolver);
 
@@ -147,7 +148,7 @@ namespace Optimal.Control.Core.Tests
             var baseSolver = new HermiteSimpsonSolver()
                 .WithSegments(8)
                 .WithTolerance(1e-3)
-                .WithInnerOptimizer(new LBFGSOptimizer());
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var multiSolver = new MultiPhaseSolver(baseSolver);
 
@@ -240,7 +241,7 @@ namespace Optimal.Control.Core.Tests
                 .WithSegments(12)
                 .WithTolerance(1e-3)
                 .WithMaxIterations(60)
-                .WithInnerOptimizer(new LBFGSOptimizer().WithTolerance(1e-4));
+                .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-4 }, new BacktrackingLineSearch()));
 
             var multiSolver = new MultiPhaseSolver(baseSolver);
 

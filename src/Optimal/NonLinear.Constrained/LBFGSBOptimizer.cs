@@ -16,153 +16,66 @@ namespace Optimal.NonLinear.Constrained
     /// Handles bound constraints directly in the optimization loop using
     /// projected gradient and subspace minimization.
     /// </summary>
-    public sealed class LBFGSBOptimizer : IBoxConstrainedOptimizer
+    public sealed class LBFGSBOptimizer : IOptimizer
     {
-        private double[] _x0 = Array.Empty<double>();
-        private double _tolerance = 1e-6;
-        private double _functionTolerance = 1e-8;
-        private double _parameterTolerance = 1e-8;
-        private int _maxIterations = 1000;
-        private int _maxFunctionEvaluations;
-        private bool _verbose;
-        private int _memorySize = 10;
-        private double[] _lower = Array.Empty<double>();
-        private double[] _upper = Array.Empty<double>();
-
-        /// <inheritdoc/>
-        public IBoxConstrainedOptimizer WithBounds(double[] lower, double[] upper)
-        {
-            if (lower.Length != upper.Length)
-            {
-                throw new ArgumentException("Lower and upper bounds must have the same length");
-            }
-
-            for (var i = 0; i < lower.Length; i++)
-            {
-                if (lower[i] > upper[i])
-                {
-                    throw new ArgumentException($"Lower bound at index {i} ({lower[i]}) exceeds upper bound ({upper[i]})");
-                }
-            }
-
-            _lower = (double[])lower.Clone();
-            _upper = (double[])upper.Clone();
-            return this;
-        }
+        private readonly LBFGSBOptions _options;
 
         /// <summary>
-        /// Sets the memory size (number of correction pairs to store).
+        /// Creates a new L-BFGS-B optimizer with the specified options.
         /// </summary>
-        /// <param name="memorySize">Memory size (typically 3-20, default 10).</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public LBFGSBOptimizer WithMemorySize(int memorySize)
+        /// <param name="options">Optimizer options including bounds.</param>
+        public LBFGSBOptimizer(LBFGSBOptions options)
         {
-            if (memorySize <= 0)
-            {
-                throw new ArgumentException("Memory size must be positive", nameof(memorySize));
-            }
-
-            _memorySize = memorySize;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the function value change tolerance for convergence.
-        /// </summary>
-        /// <param name="tolerance">The function change tolerance.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public LBFGSBOptimizer WithFunctionTolerance(double tolerance)
-        {
-            _functionTolerance = tolerance;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the parameter change tolerance for convergence.
-        /// </summary>
-        /// <param name="tolerance">The parameter change tolerance.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public LBFGSBOptimizer WithParameterTolerance(double tolerance)
-        {
-            _parameterTolerance = tolerance;
-            return this;
-        }
-
-        /// <summary>
-        /// Sets the maximum number of function evaluations.
-        /// </summary>
-        /// <param name="maxEvaluations">The maximum number of function evaluations.</param>
-        /// <returns>This optimizer instance for method chaining.</returns>
-        public LBFGSBOptimizer WithMaxFunctionEvaluations(int maxEvaluations)
-        {
-            _maxFunctionEvaluations = maxEvaluations;
-            return this;
+            _options = options;
         }
 
         /// <inheritdoc/>
-        public IOptimizer WithInitialPoint(double[] x0)
+        public OptimizerResult Minimize(
+            Func<double[], (double value, double[] gradient)> objective,
+            double[] initialPoint)
         {
-            _x0 = x0;
-            return this;
-        }
+            var n = initialPoint.Length;
 
-        /// <inheritdoc/>
-        public IOptimizer WithTolerance(double tolerance)
-        {
-            _tolerance = tolerance;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public IOptimizer WithMaxIterations(int maxIterations)
-        {
-            _maxIterations = maxIterations;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public IOptimizer WithVerbose(bool verbose = true)
-        {
-            _verbose = verbose;
-            return this;
-        }
-
-        /// <inheritdoc/>
-        public OptimizerResult Minimize(Func<double[], (double value, double[] gradient)> objective)
-        {
-            var n = _x0.Length;
-
-            // Validate bounds
-            if (_lower.Length == 0)
+            // Get bounds from options, defaulting to infinite bounds if not set
+            double[] lower;
+            double[] upper;
+            if (_options.LowerBounds.Length == 0)
             {
                 // No bounds set - use infinite bounds
-                _lower = new double[n];
-                _upper = new double[n];
+                lower = new double[n];
+                upper = new double[n];
                 for (var i = 0; i < n; i++)
                 {
-                    _lower[i] = double.NegativeInfinity;
-                    _upper[i] = double.PositiveInfinity;
+                    lower[i] = double.NegativeInfinity;
+                    upper[i] = double.PositiveInfinity;
                 }
             }
-            else if (_lower.Length != n)
+            else
             {
-                throw new InvalidOperationException($"Bounds dimension ({_lower.Length}) does not match initial point dimension ({n})");
+                if (_options.LowerBounds.Length != n)
+                {
+                    throw new InvalidOperationException($"Bounds dimension ({_options.LowerBounds.Length}) does not match initial point dimension ({n})");
+                }
+                lower = _options.LowerBounds;
+                upper = _options.UpperBounds;
             }
 
             // Project initial point onto feasible region
-            var x = ProjectedGradient.Project(_x0, _lower, _upper);
+            var x = ProjectedGradient.Project(initialPoint, lower, upper);
             var functionEvaluations = 0;
 
             // Initialize L-BFGS memory
-            var memory = new LBFGSMemory(_memorySize, n);
+            var memory = new LBFGSMemory(_options.MemorySize, n);
 
             // Create convergence monitor
-            var effectiveMaxFunctionEvals = _maxFunctionEvaluations > 0 ? _maxFunctionEvaluations : _maxIterations * 20;
+            var effectiveMaxFunctionEvals = _options.MaxFunctionEvaluations > 0
+                ? _options.MaxFunctionEvaluations
+                : _options.MaxIterations * 20;
             var monitor = new ConvergenceMonitor(
-                gradientTolerance: _tolerance,
-                functionTolerance: _functionTolerance,
-                parameterTolerance: _parameterTolerance,
-                maxIterations: _maxIterations,
+                gradientTolerance: _options.Tolerance,
+                functionTolerance: _options.FunctionTolerance,
+                parameterTolerance: _options.ParameterTolerance,
+                maxIterations: _options.MaxIterations,
                 maxFunctionEvaluations: effectiveMaxFunctionEvals,
                 stallIterations: 10);
 
@@ -210,9 +123,9 @@ namespace Optimal.NonLinear.Constrained
                 }
             }
 
-            if (_verbose)
+            if (_options.Verbose)
             {
-                var projGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, _lower, _upper);
+                var projGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
                 Console.WriteLine($"L-BFGS-B Optimizer: Initial f={value:E6}, ||pg||_inf={projGradNorm:E3}");
             }
 
@@ -220,16 +133,16 @@ namespace Optimal.NonLinear.Constrained
             var xPrev = new double[n];
             var gradientPrev = new double[n];
 
-            for (var iter = 0; iter < _maxIterations; iter++)
+            for (var iter = 0; iter < _options.MaxIterations; iter++)
             {
                 // Check convergence using projected gradient norm (L-BFGS-B specific)
-                var projGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, _lower, _upper);
+                var projGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
 
-                if (projGradNorm < _tolerance)
+                if (projGradNorm < _options.Tolerance)
                 {
-                    if (_verbose)
+                    if (_options.Verbose)
                     {
-                        Console.WriteLine($"L-BFGS-B Converged: Projected gradient norm {projGradNorm:E6} < {_tolerance:E6}");
+                        Console.WriteLine($"L-BFGS-B Converged: Projected gradient norm {projGradNorm:E6} < {_options.Tolerance:E6}");
                     }
                     return new OptimizerResult
                     {
@@ -240,7 +153,7 @@ namespace Optimal.NonLinear.Constrained
                         FunctionEvaluations = functionEvaluations,
                         StoppingReason = StoppingReason.GradientTolerance,
                         Success = true,
-                        Message = $"Converged: projected gradient norm {projGradNorm:E6} < {_tolerance:E6}",
+                        Message = $"Converged: projected gradient norm {projGradNorm:E6} < {_options.Tolerance:E6}",
                         GradientNorm = projGradNorm,
                         FunctionChange = 0.0,
                         ParameterChange = 0.0
@@ -251,7 +164,7 @@ namespace Optimal.NonLinear.Constrained
                 var convergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
                 if (convergence.HasConverged || convergence.Reason.HasValue)
                 {
-                    if (_verbose)
+                    if (_options.Verbose)
                     {
                         Console.WriteLine($"L-BFGS-B Converged: {convergence.Message}");
                     }
@@ -276,15 +189,15 @@ namespace Optimal.NonLinear.Constrained
                 Array.Copy(gradient, gradientPrev, n);
 
                 // Step 1: Compute the generalized Cauchy point
-                var cauchyResult = CauchyPointCalculator.Compute(x, gradient, _lower, _upper, memory);
+                var cauchyResult = CauchyPointCalculator.Compute(x, gradient, lower, upper, memory);
 
                 // Step 2: Subspace minimization - compute search direction for free variables
                 var direction = SubspaceMinimization.ComputeSubspaceDirection(
                     cauchyResult.CauchyPoint,
                     gradient,
                     cauchyResult.FreeVariables,
-                    _lower,
-                    _upper,
+                    lower,
+                    upper,
                     memory);
 
                 // Compute the full direction from x to (cauchy point + subspace direction)
@@ -300,13 +213,13 @@ namespace Optimal.NonLinear.Constrained
                 {
                     // Not a descent direction - try projected gradient
                     fullDirection = SubspaceMinimization.ComputeProjectedGradientDirection(
-                        gradient, cauchyResult.FreeVariables, x, _lower, _upper);
+                        gradient, cauchyResult.FreeVariables, x, lower, upper);
 
                     gradDotDir = DotProduct(gradient, fullDirection);
                     if (gradDotDir >= 0 || AllZero(fullDirection))
                     {
                         // Still not descent - we may be at optimum
-                        if (_verbose)
+                        if (_options.Verbose)
                         {
                             Console.WriteLine("L-BFGS-B: No descent direction found");
                         }
@@ -331,7 +244,7 @@ namespace Optimal.NonLinear.Constrained
                 }
 
                 // Step 3: Bounded line search
-                var maxStep = ProjectedGradient.MaxFeasibleStep(x, fullDirection, _lower, _upper);
+                var maxStep = ProjectedGradient.MaxFeasibleStep(x, fullDirection, lower, upper);
                 var initialStep = Math.Min(1.0, maxStep * 0.99);
 
                 var alpha = BoundedLineSearch(objective, x, value, gradient, fullDirection, initialStep, maxStep, ref functionEvaluations);
@@ -342,7 +255,7 @@ namespace Optimal.NonLinear.Constrained
                     alpha = Math.Min(0.01, maxStep * 0.5);
                     if (alpha <= 1e-16)
                     {
-                        if (_verbose)
+                        if (_options.Verbose)
                         {
                             Console.WriteLine("L-BFGS-B: Line search failed");
                         }
@@ -370,7 +283,7 @@ namespace Optimal.NonLinear.Constrained
                 }
 
                 // Project to ensure strict feasibility (numerical safety)
-                ProjectedGradient.ProjectInPlace(x, _lower, _upper);
+                ProjectedGradient.ProjectInPlace(x, lower, upper);
 
                 // Evaluate at new point
                 (value, gradient) = objective(x);
@@ -416,9 +329,9 @@ namespace Optimal.NonLinear.Constrained
                     }
                 }
 
-                if (_verbose && (iter % 10 == 0 || iter < 5))
+                if (_options.Verbose && (iter % 10 == 0 || iter < 5))
                 {
-                    projGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, _lower, _upper);
+                    projGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
                     Console.WriteLine($"  Iter {iter + 1:D4}: f={value:E6}, ||pg||={projGradNorm:E3}, α={alpha:F6}");
                 }
 
@@ -436,15 +349,15 @@ namespace Optimal.NonLinear.Constrained
             }
 
             // Maximum iterations reached
-            var finalProjGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, _lower, _upper);
-            var finalConvergence = monitor.CheckConvergence(_maxIterations, functionEvaluations, x, value, gradient);
+            var finalProjGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
+            var finalConvergence = monitor.CheckConvergence(_options.MaxIterations, functionEvaluations, x, value, gradient);
 
             return new OptimizerResult
             {
                 OptimalPoint = x,
                 OptimalValue = value,
                 FinalGradient = gradient,
-                Iterations = _maxIterations,
+                Iterations = _options.MaxIterations,
                 FunctionEvaluations = functionEvaluations,
                 StoppingReason = StoppingReason.MaxIterations,
                 Success = false,

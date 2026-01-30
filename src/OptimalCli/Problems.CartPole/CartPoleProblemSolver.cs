@@ -11,6 +11,7 @@
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
 namespace OptimalCli.Problems.CartPole;
@@ -135,10 +136,12 @@ public sealed class CartPoleProblemSolver : ICommand
         {
             try
             {
-                var innerOptimizer = new LBFGSOptimizer()
-                    .WithTolerance(1e-6)
-                    .WithMaxIterations(150)
-                    .WithVerbose(true);
+                var innerOptimizer = new LBFGSOptimizer(new LBFGSOptions
+                {
+                    Tolerance = 1e-6,
+                    MaxIterations = 150,
+                    Verbose = true
+                }, new BacktrackingLineSearch());
 
                 ISolver solver = useLGL
                     ? new LegendreGaussLobattoSolver()
