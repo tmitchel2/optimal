@@ -129,7 +129,7 @@ namespace Optimal.Control.Solvers
                 }
                 else
                 {
-                    var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, _solver.GetSegments());
+                    var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, _solver.Options.Segments);
                     result = _solver.Solve(problem, initialGuess);
                 }
 
@@ -159,7 +159,7 @@ namespace Optimal.Control.Solvers
         private CollocationResult SolveWithWarmStart(ControlProblem problem, CollocationResult previousResult)
         {
             // Create grid for new problem
-            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _solver.GetSegments());
+            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _solver.Options.Segments);
 
             // Create warm start initial guess
             var initialGuess = WarmStart.InterpolateFromPrevious(previousResult, grid);
@@ -202,7 +202,7 @@ namespace Optimal.Control.Solvers
                 }
                 else
                 {
-                    var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, _solver.GetSegments());
+                    var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, _solver.Options.Segments);
                     result = _solver.Solve(problem, initialGuess);
                 }
 
@@ -216,34 +216,6 @@ namespace Optimal.Control.Solvers
             }
 
             return results;
-        }
-    }
-
-    /// <summary>
-    /// Extension methods for HermiteSimpsonSolver to support warm starting.
-    /// </summary>
-    public static class WarmStartExtensions
-    {
-        /// <summary>
-        /// Gets the number of segments configured in the solver.
-        /// </summary>
-        /// <param name="solver">The solver instance.</param>
-        /// <returns>Number of segments.</returns>
-        public static int GetSegments(this HermiteSimpsonSolver solver)
-        {
-            ArgumentNullException.ThrowIfNull(solver);
-
-            // Use reflection to access private field
-            var field = typeof(HermiteSimpsonSolver).GetField(
-                "_segments",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-            if (field == null)
-            {
-                throw new InvalidOperationException("Could not find _segments field.");
-            }
-
-            return (int)field.GetValue(solver)!;
         }
     }
 }

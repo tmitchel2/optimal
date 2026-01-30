@@ -12,8 +12,8 @@ using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
 using Optimal.NonLinear.Constrained;
-using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.Unconstrained;
 
 namespace OptimalCli.Problems.Corner;
@@ -225,7 +225,7 @@ public sealed class CornerProblemSolver : ICommand
             monitor);
     }
 
-    private ControlProblem CreateProblem(TrackGeometry trackGeometry)
+    private static ControlProblem CreateProblem(TrackGeometry trackGeometry)
     {
         var halfWidth = trackGeometry.HalfWidth;
         var totalLength = trackGeometry.TotalLength;

@@ -11,8 +11,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
-using Optimal.NonLinear.LineSearch;
-using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.Control.Solvers
 {
@@ -190,10 +188,10 @@ namespace Optimal.Control.Solvers
                 new HermiteSimpsonSolverOptions
                 {
                     Segments = phase.Segments,
-                    Tolerance = _phaseSolver.GetTolerance(),
-                    MaxIterations = _phaseSolver.GetMaxIterations()
+                    Tolerance = _phaseSolver.Options.Tolerance,
+                    MaxIterations = _phaseSolver.Options.MaxIterations
                 },
-                _phaseSolver.GetInnerOptimizer());
+                _phaseSolver.InnerOptimizer);
 
             var guess = initialGuess ?? InitialGuessFactory.CreateWithControlHeuristics(phase.Problem!, phase.Segments);
             return solver.Solve(phase.Problem!, guess);
@@ -218,10 +216,10 @@ namespace Optimal.Control.Solvers
                 new HermiteSimpsonSolverOptions
                 {
                     Segments = phase.Segments,
-                    Tolerance = _phaseSolver.GetTolerance(),
-                    MaxIterations = _phaseSolver.GetMaxIterations()
+                    Tolerance = _phaseSolver.Options.Tolerance,
+                    MaxIterations = _phaseSolver.Options.MaxIterations
                 },
-                _phaseSolver.GetInnerOptimizer());
+                _phaseSolver.InnerOptimizer);
 
             return solver.Solve(modifiedProblem, warmStart);
         }
@@ -300,64 +298,6 @@ namespace Optimal.Control.Solvers
             }
 
             return maxViolation;
-        }
-    }
-
-    /// <summary>
-    /// Extension methods to access private members of HermiteSimpsonSolver.
-    /// </summary>
-    public static class HermiteSimpsonSolverExtensions
-    {
-        /// <summary>
-        /// Gets the tolerance from the solver.
-        /// </summary>
-        public static double GetTolerance(this HermiteSimpsonSolver solver)
-        {
-            ArgumentNullException.ThrowIfNull(solver);
-
-            var optionsField = typeof(HermiteSimpsonSolver).GetField(
-                "_options",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-            if (optionsField?.GetValue(solver) is HermiteSimpsonSolverOptions options)
-            {
-                return options.Tolerance;
-            }
-
-            return 1e-6;
-        }
-
-        /// <summary>
-        /// Gets the max iterations from the solver.
-        /// </summary>
-        public static int GetMaxIterations(this HermiteSimpsonSolver solver)
-        {
-            ArgumentNullException.ThrowIfNull(solver);
-
-            var optionsField = typeof(HermiteSimpsonSolver).GetField(
-                "_options",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-            if (optionsField?.GetValue(solver) is HermiteSimpsonSolverOptions options)
-            {
-                return options.MaxIterations;
-            }
-
-            return 100;
-        }
-
-        /// <summary>
-        /// Gets the inner optimizer from the solver.
-        /// </summary>
-        public static IOptimizer GetInnerOptimizer(this HermiteSimpsonSolver solver)
-        {
-            ArgumentNullException.ThrowIfNull(solver);
-
-            var field = typeof(HermiteSimpsonSolver).GetField(
-                "_innerOptimizer",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-            return (IOptimizer)(field?.GetValue(solver) ?? new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
         }
     }
 }

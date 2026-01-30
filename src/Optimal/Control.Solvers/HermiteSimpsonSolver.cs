@@ -29,9 +29,18 @@ namespace Optimal.Control.Solvers
         private const double MinRefinementPercentage = 0.1;
         private const int MaxMeshSegments = 200;
 
-        private readonly HermiteSimpsonSolverOptions _options;
         private readonly IOptimizer _innerOptimizer;
         private readonly OptimisationMonitor? _monitor;
+
+        /// <summary>
+        /// Gets the solver options.
+        /// </summary>
+        public HermiteSimpsonSolverOptions Options { get; }
+
+        /// <summary>
+        /// Gets the inner optimizer used for NLP solving.
+        /// </summary>
+        public IOptimizer InnerOptimizer => _innerOptimizer;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="HermiteSimpsonSolver"/> class with the specified options.
@@ -44,7 +53,7 @@ namespace Optimal.Control.Solvers
             IOptimizer innerOptimizer,
             OptimisationMonitor? monitor = null)
         {
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            Options = options ?? throw new ArgumentNullException(nameof(options));
             _innerOptimizer = innerOptimizer ?? throw new ArgumentNullException(nameof(innerOptimizer));
             _monitor = monitor;
         }
@@ -82,26 +91,26 @@ namespace Optimal.Control.Solvers
                 return SolveWithScaling(problem, initialGuess, scaling);
             }
 
-            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _options.Segments);
-            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _options.EnableParallelization);
+            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, Options.Segments);
+            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, Options.EnableParallelization);
             var z0 = transcription.ToDecisionVector(initialGuess);
 
-            if (_options.EnableMeshRefinement)
+            if (Options.EnableMeshRefinement)
             {
                 return SolveWithMeshRefinement(problem, z0);
             }
 
-            return SolveOnFixedGrid(problem, _options.Segments, z0);
+            return SolveOnFixedGrid(problem, Options.Segments, z0);
         }
 
         private VariableScaling? GetScaling(ControlProblem problem)
         {
-            if (_options.Scaling != null)
+            if (Options.Scaling != null)
             {
-                return _options.Scaling;
+                return Options.Scaling;
             }
 
-            if (!_options.AutoScaling)
+            if (!Options.AutoScaling)
             {
                 return null;
             }
@@ -110,7 +119,7 @@ namespace Optimal.Control.Solvers
             if (problem.StateLowerBounds == null || problem.StateUpperBounds == null ||
                 problem.ControlLowerBounds == null || problem.ControlUpperBounds == null)
             {
-                if (_options.Verbose)
+                if (Options.Verbose)
                 {
                     Console.WriteLine("Auto-scaling disabled: bounds not fully specified");
                 }
@@ -127,7 +136,7 @@ namespace Optimal.Control.Solvers
 
         private CollocationResult SolveWithScaling(ControlProblem problem, InitialGuess initialGuess, VariableScaling scaling)
         {
-            if (_options.Verbose)
+            if (Options.Verbose)
             {
                 Console.WriteLine("Solving with variable scaling enabled");
                 LogScalingInfo(scaling);
@@ -141,19 +150,19 @@ namespace Optimal.Control.Solvers
             var scaledGuess = scaledProblem.ScaleInitialGuess(initialGuess);
 
             // Create transcription for scaled problem
-            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _options.Segments);
-            var transcription = new ParallelHermiteSimpsonTranscription(scaledControlProblem, grid, _options.EnableParallelization);
+            var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, Options.Segments);
+            var transcription = new ParallelHermiteSimpsonTranscription(scaledControlProblem, grid, Options.EnableParallelization);
             var z0 = transcription.ToDecisionVector(scaledGuess);
 
             // Solve in scaled space
             CollocationResult scaledResult;
-            if (_options.EnableMeshRefinement)
+            if (Options.EnableMeshRefinement)
             {
                 scaledResult = SolveWithMeshRefinement(scaledControlProblem, z0);
             }
             else
             {
-                scaledResult = SolveOnFixedGrid(scaledControlProblem, _options.Segments, z0);
+                scaledResult = SolveOnFixedGrid(scaledControlProblem, Options.Segments, z0);
             }
 
             // Unscale the solution
@@ -194,11 +203,11 @@ namespace Optimal.Control.Solvers
         /// </summary>
         private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[] initialGuess)
         {
-            var currentSegments = _options.Segments;
+            var currentSegments = Options.Segments;
             CollocationResult? result = null;
             var previousSolution = initialGuess;
 
-            for (var iteration = 0; iteration < _options.MaxRefinementIterations; iteration++)
+            for (var iteration = 0; iteration < Options.MaxRefinementIterations; iteration++)
             {
                 LogMeshRefinementIteration(iteration, currentSegments);
 
@@ -233,7 +242,7 @@ namespace Optimal.Control.Solvers
 
         private void LogMeshRefinementIteration(int iteration, int segments)
         {
-            if (_options.Verbose)
+            if (Options.Verbose)
             {
                 Console.WriteLine($"Mesh refinement iteration {iteration + 1}, segments = {segments}");
             }
@@ -241,7 +250,7 @@ namespace Optimal.Control.Solvers
 
         private void LogConvergenceFailure()
         {
-            if (_options.Verbose)
+            if (Options.Verbose)
             {
                 Console.WriteLine("Failed to converge on current mesh");
             }
@@ -249,7 +258,7 @@ namespace Optimal.Control.Solvers
 
         private void LogMaxDefect(double maxDefect)
         {
-            if (_options.Verbose)
+            if (Options.Verbose)
             {
                 Console.WriteLine($"  Max defect: {maxDefect:E2}");
             }
@@ -257,8 +266,8 @@ namespace Optimal.Control.Solvers
 
         private bool HasConverged(double maxDefect)
         {
-            var converged = maxDefect < _options.RefinementDefectThreshold;
-            if (converged && _options.Verbose)
+            var converged = maxDefect < Options.RefinementDefectThreshold;
+            if (converged && Options.Verbose)
             {
                 Console.WriteLine($"Converged with max defect {maxDefect:E2}");
             }
@@ -269,16 +278,16 @@ namespace Optimal.Control.Solvers
             ControlProblem problem, CollocationResult result, int currentSegments, double[] currentSolution)
         {
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, currentSegments);
-            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _options.EnableParallelization);
+            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, Options.EnableParallelization);
 
             var z = RebuildSolutionVector(transcription, result, currentSegments);
             var defects = transcription.ComputeAllDefects(z, problem.Dynamics!);
 
-            var meshRefinement = new MeshRefinement(_options.RefinementDefectThreshold, maxSegments: MaxMeshSegments);
+            var meshRefinement = new MeshRefinement(Options.RefinementDefectThreshold, maxSegments: MaxMeshSegments);
             var shouldRefine = meshRefinement.IdentifySegmentsForRefinement(defects, problem.StateDim);
             var refinementPct = MeshRefinement.ComputeRefinementPercentage(shouldRefine);
 
-            if (_options.Verbose)
+            if (Options.Verbose)
             {
                 Console.WriteLine($"  Refining {refinementPct:F1}% of segments");
             }
@@ -321,7 +330,7 @@ namespace Optimal.Control.Solvers
         private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segmentCount, double[] initialGuess)
         {
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, segmentCount);
-            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, _options.EnableParallelization);
+            var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, Options.EnableParallelization);
 
             var z0 = initialGuess;
             var hasAnalyticalGradients = CheckAnalyticalGradientCapability(problem, segmentCount);
@@ -330,7 +339,7 @@ namespace Optimal.Control.Solvers
             var nlpObjective = CreateObjectiveFunction(problem, grid, transcription, segmentCount, iterationCount);
             var constrainedOptimizer = ConfigureOptimizer(problem, grid, transcription, segmentCount, hasAnalyticalGradients);
 
-            if (_options.Verbose)
+            if (Options.Verbose)
             {
                 LogInitialDiagnostics(problem, transcription, segmentCount, z0, nlpObjective);
             }
@@ -376,7 +385,7 @@ namespace Optimal.Control.Solvers
 
         private void LogGradientMode(bool useAnalytical)
         {
-            if (_options.Verbose)
+            if (Options.Verbose)
             {
                 Console.WriteLine(useAnalytical
                     ? "Using analytical gradients from AutoDiff"
@@ -396,7 +405,7 @@ namespace Optimal.Control.Solvers
                 var cost = ObjectiveFunctionFactory.ComputeTotalCost(problem, transcription, z);
                 var gradient = ObjectiveFunctionFactory.ComputeObjectiveGradient(problem, grid, transcription, z);
 
-                if (_options.Verbose)
+                if (Options.Verbose)
                 {
                     LogObjectiveWarnings(cost, gradient);
                 }
@@ -428,7 +437,7 @@ namespace Optimal.Control.Solvers
             Func<DynamicsInput, DynamicsResult> dynamics,
             int[] iterationCount)
         {
-            if (_options.ProgressCallback == null)
+            if (Options.ProgressCallback == null)
             {
                 return;
             }
@@ -443,7 +452,7 @@ namespace Optimal.Control.Solvers
             }
 
             var maxViolation = ComputeMaxViolation(transcription, z, dynamics);
-            _options.ProgressCallback(iterationCount[0], cost, states, controls, grid.TimePoints, maxViolation, _options.Tolerance);
+            Options.ProgressCallback(iterationCount[0], cost, states, controls, grid.TimePoints, maxViolation, Options.Tolerance);
         }
 
         private static double ComputeMaxViolation(ParallelHermiteSimpsonTranscription transcription, double[] z, Func<DynamicsInput, DynamicsResult> dynamics)
@@ -470,11 +479,11 @@ namespace Optimal.Control.Solvers
             // Create options with collected constraints
             var options = new AugmentedLagrangianOptions
             {
-                Tolerance = _options.Tolerance,
-                MaxIterations = _options.MaxIterations,
-                Verbose = _options.Verbose,
-                PenaltyParameter = _options.InitialPenalty,
-                ConstraintTolerance = _options.Tolerance,
+                Tolerance = Options.Tolerance,
+                MaxIterations = Options.MaxIterations,
+                Verbose = Options.Verbose,
+                PenaltyParameter = Options.InitialPenalty,
+                ConstraintTolerance = Options.Tolerance,
                 EqualityConstraints = constraints.EqualityConstraints,
                 InequalityConstraints = constraints.InequalityConstraints,
                 BoxConstraints = constraints.BoxConstraints
