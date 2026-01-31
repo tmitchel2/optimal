@@ -11,28 +11,52 @@ using Optimal;
 namespace OptimalCli.Problems.BrachistochroneAlternate
 {
     /// <summary>
-    /// Brachistochrone problem dynamics with arc-length parameterization.
+    /// Brachistochrone problem dynamics with reference-line-aligned coordinate system.
     ///
-    /// This formulation mirrors the CornerProblemSolver structure but simplified for
-    /// the Brachistochrone problem (finding the curve of fastest descent under gravity).
+    /// This formulation uses a rotated coordinate system where:
+    /// - s: distance along the straight reference line connecting start to end points
+    /// - n: perpendicular distance from that reference line (positive = "below" line)
+    /// - alpha: heading angle relative to reference line direction
+    ///
+    /// Reference line geometry:
+    /// - From (0,0) to (Xf=10, Nf=5) in Cartesian coordinates
+    /// - Reference angle: theta_ref = atan(Nf/Xf) ≈ 26.57°
+    /// - Total line distance: S_total = sqrt(Xf² + Nf²) ≈ 11.18m
     ///
     /// State: [v, n, alpha, t]
     ///   - v: Speed (m/s)
-    ///   - n: Vertical position below start (m, positive downward = descended)
-    ///   - alpha: Heading angle from horizontal (rad, positive = descending)
+    ///   - n: Perpendicular distance from reference line (m, positive = below line)
+    ///   - alpha: Heading angle relative to reference line (rad)
     ///   - t: Elapsed time (s)
     ///
     /// Control: [k]
     ///   - k: Path curvature = dalpha/ds (rad/m)
     ///
-    /// Independent variable: s (horizontal distance from start)
+    /// Independent variable: s (distance along reference line from start)
     ///
-    /// Key insight: All dynamics are dx/ds where s = horizontal position x.
-    /// The transformation is: df/ds = (df/dt) / (ds/dt) = (df/dt) / (v * cos(alpha))
+    /// Coordinate transformation from (s, n) to Cartesian (x, y_down):
+    ///   x = s * cos(theta_ref) - n * sin(theta_ref)
+    ///   y_down = s * sin(theta_ref) + n * cos(theta_ref)
     /// </summary>
     [OptimalCode]
     public static class BrachistochroneAlternateDynamics
     {
+        // Reference line geometry
+        private const double Xf = 10.0;
+        private const double Nf = 5.0;
+
+        /// <summary>
+        /// Reference angle: angle of the straight line from start to end point.
+        /// theta_ref = atan2(Nf, Xf) ≈ 0.4636 rad ≈ 26.57°
+        /// </summary>
+        public static readonly double ThetaRef = Math.Atan2(Nf, Xf);
+
+        /// <summary>
+        /// Total distance along the reference line from start to end.
+        /// S_total = sqrt(Xf² + Nf²) ≈ 11.18m
+        /// </summary>
+        public static readonly double STotal = Math.Sqrt(Xf * Xf + Nf * Nf);
+
         // === Arc-length transformation ===
 
         /// <summary>
@@ -51,14 +75,21 @@ namespace OptimalCli.Problems.BrachistochroneAlternate
 
         /// <summary>
         /// dv/ds - Speed rate due to gravity component along trajectory.
-        /// dv/dt = g * sin(alpha), so dv/ds = g * sin(alpha) / (v * cos(alpha)) = g * tan(alpha) / v
+        ///
+        /// In the rotated frame, alpha is measured relative to the reference line direction.
+        /// The actual world angle (from horizontal) is alpha + thetaRef.
+        ///
+        /// Gravity acceleration along velocity = g * sin(alpha_world) = g * sin(alpha + thetaRef)
+        /// The arc-length rate ds/dt = v * cos(alpha) (movement along reference line direction)
+        ///
+        /// Therefore: dv/ds = (dv/dt) / (ds/dt) = g * sin(alpha + thetaRef) / (v * cos(alpha))
         /// </summary>
-        public static double SpeedRateS(double v, double alpha, double g)
+        public static double SpeedRateS(double v, double alpha, double g, double thetaRef)
         {
             var safeV = v < 0.01 ? 0.01 : v;
             var cosAlpha = Math.Cos(alpha);
             var safeCos = Math.Abs(cosAlpha) < 0.1 ? (cosAlpha >= 0 ? 0.1 : -0.1) : cosAlpha;
-            return g * Math.Sin(alpha) / (safeV * safeCos);
+            return g * Math.Sin(alpha + thetaRef) / (safeV * safeCos);
         }
 
         /// <summary>

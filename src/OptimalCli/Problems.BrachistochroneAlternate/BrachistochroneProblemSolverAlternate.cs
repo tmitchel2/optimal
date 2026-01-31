@@ -37,9 +37,11 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
 {
     // Problem constants
     private const double Gravity = 9.80665; // Standard gravity m/s²
-    private const double Xf = 10.0;         // Final horizontal position (m)
-    private const double Nf = 5.0;          // Vertical drop (m) - how far below start
     private const double V0 = 0.5;          // Initial velocity (m/s) - small but non-zero
+
+    // Reference line geometry from dynamics
+    private static readonly double STotal = BrachistochroneAlternateDynamics.STotal;
+    private static readonly double ThetaRef = BrachistochroneAlternateDynamics.ThetaRef;
 
     // State indices
     private const int IdxV = 0;
@@ -60,10 +62,10 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         Console.WriteLine("Finding the curve of fastest descent under gravity");
         Console.WriteLine("(Johann Bernoulli, 1696)");
         Console.WriteLine();
-        Console.WriteLine("Arc-length parameterized formulation:");
+        Console.WriteLine("Reference-line-aligned coordinate system:");
         Console.WriteLine($"  Gravity: {Gravity} m/s²");
-        Console.WriteLine($"  Horizontal distance (Xf): {Xf} m");
-        Console.WriteLine($"  Vertical drop (Nf): {Nf} m");
+        Console.WriteLine($"  Reference line distance (STotal): {STotal:F2} m");
+        Console.WriteLine($"  Reference angle (ThetaRef): {ThetaRef * 180.0 / Math.PI:F2} degrees");
         Console.WriteLine($"  Initial velocity: {V0} m/s");
         Console.WriteLine();
 
@@ -76,25 +78,25 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
     /// </summary>
     private static ControlProblem CreateProblem()
     {
-        // Initial angle - start with a moderate descent angle
-        var alpha0 = Math.PI / 6.0; // 30 degrees
+        // Initial angle - start with a moderate descent angle relative to reference line
+        var alpha0 = Math.PI / 6.0; // 30 degrees relative to reference line
 
-        // Initial state: [v, n, alpha, t]
+        // Initial state: [v, n, alpha, t] - on reference line (n=0)
         var initialState = new double[] { V0, 0.0, alpha0, 0.0 };
 
-        // Final state: [v=free, n=Nf, alpha=free, t=free]
-        var finalState = new double[] { double.NaN, Nf, double.NaN, double.NaN };
+        // Final state: [v=free, n=0, alpha=free, t=free] - back on reference line
+        var finalState = new double[] { double.NaN, 0.0, double.NaN, double.NaN };
 
         return new ControlProblem()
             .WithStateSize(4) // [v, n, alpha, t]
             .WithControlSize(1) // [k] curvature
-            .WithTimeHorizon(0.0, Xf) // s from 0 to Xf (horizontal distance)
+            .WithTimeHorizon(0.0, STotal) // s from 0 to STotal (line distance)
             .WithInitialCondition(initialState)
             .WithFinalCondition(finalState)
             .WithControlBounds([-2.0], [2.0]) // Curvature bounds (rad/m)
             .WithStateBounds(
-                [0.01, -1.0, -Math.PI / 2.5, 0.0],  // Lower bounds: v>0, n can be slightly negative, alpha bounded, t>=0
-                [30.0, 20.0, Math.PI / 2.5, 10.0])  // Upper bounds
+                [0.01, -5.0, -Math.PI / 2.5, 0.0],  // Lower bounds: v>0, n can be negative (above line), alpha bounded, t>=0
+                [30.0,  5.0,  Math.PI / 2.5, 10.0]) // Upper bounds: n can be positive (below line)
             .WithDynamics(ComputeDynamics)
             .WithRunningCost(ComputeRunningCost);
     }
@@ -109,7 +111,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         var k = u[IdxK];
 
         // Compute state derivatives using BrachistochroneAlternateDynamics
-        var dVds = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity);
+        var dVds = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
         var dNds = BrachistochroneAlternateDynamics.VerticalRateS(alpha);
         var dAlphads = BrachistochroneAlternateDynamics.AlphaRateS(k);
         var dTds = BrachistochroneAlternateDynamics.TimeRateS(v, alpha);
@@ -171,7 +173,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
 
         return
         [
-            BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity),
+            BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef),
             BrachistochroneAlternateDynamics.VerticalRateS(alpha),
             BrachistochroneAlternateDynamics.AlphaRateS(k),
             BrachistochroneAlternateDynamics.TimeRateS(v, alpha)
@@ -337,8 +339,8 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
     /// <summary>
     /// Creates a custom initial guess for Hermite-Simpson solver.
     /// Hermite-Simpson requires 2*segments + 1 points.
-    /// Uses a straight-line path from start to end, with velocity from energy conservation
-    /// and time integrated using the dynamics.
+    /// Uses a straight-line path along the reference line (n=0 throughout),
+    /// with velocity from energy conservation and time integrated using the dynamics.
     /// </summary>
     private static InitialGuess CreateCustomInitialGuess(ControlProblem problem, int segments)
     {
@@ -349,17 +351,12 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         // Get problem bounds
         var s0 = problem.InitialTime;
         var sf = problem.FinalTime;
-        var totalHorizontal = sf - s0;
-        var ds = totalHorizontal / (numPoints - 1);
+        var totalLineDistance = sf - s0;
+        var ds = totalLineDistance / (numPoints - 1);
 
         // Initial state values
         var v0 = problem.InitialState![IdxV];
-        var n0 = problem.InitialState[IdxN];
         var t0 = problem.InitialState[IdxT];
-
-        // Final state value (only n is constrained)
-        var nf = problem.FinalState![IdxN];
-        var totalVertical = nf - n0;
 
         // State bounds
         var vMin = problem.StateLowerBounds![IdxV];
@@ -375,9 +372,8 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         var kMin = problem.ControlLowerBounds![IdxK];
         var kMax = problem.ControlUpperBounds![IdxK];
 
-        // For a straight line from (s=0, n=n0) to (s=sf, n=nf):
-        // The constant descent angle is arctan((nf - n0) / (sf - s0))
-        var straightLineAlpha = Math.Atan2(totalVertical, totalHorizontal);
+        // For a straight line along the reference line: alpha = 0 (following the line)
+        var straightLineAlpha = 0.0;
         straightLineAlpha = Math.Clamp(straightLineAlpha, alphaMin, alphaMax);
 
         // For a straight line, curvature k = 0 (no change in angle)
@@ -385,12 +381,14 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
 
         // Initialize state for integration
         var v = v0;
-        var n = n0;
+        var n = 0.0; // On the reference line
         var alpha = straightLineAlpha;
         var t = t0;
 
         for (var i = 0; i < numPoints; i++)
         {
+            var s = s0 + i * ds;
+
             // Clamp states to bounds
             var vClamped = Math.Clamp(v, vMin, vMax);
             var nClamped = Math.Clamp(n, nMin, nMax);
@@ -403,11 +401,14 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
             // Integrate to next point using the dynamics
             if (i < numPoints - 1)
             {
-                // For a straight line, n increases linearly with s
-                var nNext = n0 + (i + 1) * totalVertical / (numPoints - 1);
+                var sNext = s0 + (i + 1) * ds;
 
-                // Use energy conservation for velocity: v² = v0² + 2*g*n
-                var vNext = Math.Sqrt(v0 * v0 + 2.0 * Gravity * nNext);
+                // For straight line along reference: n stays 0
+                // Actual vertical drop from Cartesian perspective = s * sin(ThetaRef)
+                var actualVerticalDrop = sNext * Math.Sin(ThetaRef);
+
+                // Use energy conservation for velocity: v² = v0² + 2*g*(vertical drop)
+                var vNext = Math.Sqrt(v0 * v0 + 2.0 * Gravity * actualVerticalDrop);
                 vNext = Math.Max(vNext, vMin);
 
                 // Integrate time using trapezoidal rule: dt/ds = 1/(v*cos(alpha))
@@ -417,7 +418,6 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
 
                 // Alpha stays constant for a straight line
                 v = vNext;
-                n = nNext;
                 t = tNext;
             }
         }
@@ -457,20 +457,29 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         // State summary
         Console.WriteLine("FINAL STATE:");
         Console.WriteLine($"  Speed (v): {result.States[^1][IdxV]:F3} m/s");
-        Console.WriteLine($"  Vertical drop (n): {result.States[^1][IdxN]:F3} m");
-        Console.WriteLine($"  Heading angle (alpha): {result.States[^1][IdxAlpha] * 180.0 / Math.PI:F2} degrees");
+        Console.WriteLine($"  Perpendicular offset (n): {result.States[^1][IdxN]:F3} m");
+        Console.WriteLine($"  Heading angle (alpha, rel to ref line): {result.States[^1][IdxAlpha] * 180.0 / Math.PI:F2} degrees");
         Console.WriteLine($"  Elapsed time (t): {result.States[^1][IdxT]:F4} s");
         Console.WriteLine();
 
         // Energy conservation check
+        // In the rotated coordinate system, actual vertical drop from (s, n) is:
+        // y_down = s * sin(ThetaRef) + n * cos(ThetaRef)
         var v0 = result.States[0][IdxV];
+        var s0 = result.Times[0];
         var n0 = result.States[0][IdxN];
         var vf = result.States[^1][IdxV];
+        var sf = result.Times[^1];
         var nf = result.States[^1][IdxN];
-        var expectedVf = Math.Sqrt(v0 * v0 + 2 * Gravity * (nf - n0));
+
+        var yDown0 = s0 * Math.Sin(ThetaRef) + n0 * Math.Cos(ThetaRef);
+        var yDownF = sf * Math.Sin(ThetaRef) + nf * Math.Cos(ThetaRef);
+        var actualVerticalDrop = yDownF - yDown0;
+        var expectedVf = Math.Sqrt(v0 * v0 + 2 * Gravity * actualVerticalDrop);
+
         Console.WriteLine("ENERGY CONSERVATION CHECK:");
-        Console.WriteLine($"  Initial n: {n0:F3} m, Final n: {nf:F3} m");
-        Console.WriteLine($"  Vertical drop: {nf - n0:F3} m");
+        Console.WriteLine($"  Initial (s={s0:F2}m, n={n0:F3}m), Final (s={sf:F2}m, n={nf:F3}m)");
+        Console.WriteLine($"  Actual vertical drop (Cartesian): {actualVerticalDrop:F3} m");
         Console.WriteLine($"  Expected final velocity (energy): {expectedVf:F3} m/s");
         Console.WriteLine($"  Actual final velocity: {vf:F3} m/s");
         Console.WriteLine($"  Velocity error: {Math.Abs(vf - expectedVf):F3} m/s ({100.0 * Math.Abs(vf - expectedVf) / expectedVf:F1}%)");
