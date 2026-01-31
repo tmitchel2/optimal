@@ -9,22 +9,6 @@
 namespace OptimalCli;
 
 /// <summary>
-/// Type of collocation solver to use.
-/// </summary>
-public enum SolverType
-{
-    /// <summary>
-    /// Hermite-Simpson collocation (recommended, more robust).
-    /// </summary>
-    HS,
-
-    /// <summary>
-    /// Legendre-Gauss-Lobatto collocation (higher order accuracy).
-    /// </summary>
-    LGL
-}
-
-/// <summary>
 /// Brachistochrone problem variant.
 /// </summary>
 public enum BrachistochroneVariant
@@ -67,13 +51,11 @@ public enum GoddardRocketVariant
 /// Options for running CLI commands.
 /// </summary>
 /// <param name="Headless">Run without visualization windows.</param>
-/// <param name="Solver">Type of collocation solver to use.</param>
 /// <param name="Variant">Brachistochrone problem variant.</param>
 /// <param name="GoddardVariant">Goddard rocket problem variant.</param>
 /// <param name="DebugViz">Debug visualization mode - shows track without optimization.</param>
 public record CommandOptions(
     bool Headless = false,
-    SolverType Solver = SolverType.HS,
     BrachistochroneVariant Variant = BrachistochroneVariant.FreeFinalTime,
     GoddardRocketVariant GoddardVariant = GoddardRocketVariant.FreeFinalTime,
     bool DebugViz = false);

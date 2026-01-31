@@ -74,7 +74,7 @@ public sealed class VanDerPolProblemSolver : ICommand
             });
 
         Console.WriteLine("Solver configuration:");
-        Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");
+        Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
         Console.WriteLine("  Segments: 25");
         Console.WriteLine("  Max iterations: 100");
         Console.WriteLine("  Inner optimizer: L-BFGS-B");
@@ -84,27 +84,17 @@ public sealed class VanDerPolProblemSolver : ICommand
 
         var innerOptimizer = new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch());
 
-        ISolver solver = options.Solver == SolverType.LGL
-            ? new LegendreGaussLobattoSolver(
-                new LegendreGaussLobattoSolverOptions
-                {
-                    Order = 5,
-                    Segments = 25,
-                    Tolerance = 1e-3,
-                    MaxIterations = 100
-                },
-                innerOptimizer)
-            : new HermiteSimpsonSolver(
-                new HermiteSimpsonSolverOptions
-                {
-                    Segments = 25,
-                    Tolerance = 1e-3,
-                    MaxIterations = 100,
-                    EnableMeshRefinement = true,
-                    MaxRefinementIterations = 5,
-                    RefinementDefectThreshold = 1e-3
-                },
-                innerOptimizer);
+        var solver = new HermiteSimpsonSolver(
+            new HermiteSimpsonSolverOptions
+            {
+                Segments = 25,
+                Tolerance = 1e-3,
+                MaxIterations = 100,
+                EnableMeshRefinement = true,
+                MaxRefinementIterations = 5,
+                RefinementDefectThreshold = 1e-3
+            },
+            innerOptimizer);
 
         var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 25);
         var result = solver.Solve(problem, initialGuess);

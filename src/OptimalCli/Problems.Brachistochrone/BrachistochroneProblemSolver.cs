@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -282,7 +282,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
         return (problem, description);
     }
 
-    private static ISolver CreateSolver(CommandOptions options, ProgressCallback? progressCallback = null)
+    private static ISolver CreateSolver(int segments, ProgressCallback? progressCallback = null)
     {
         var innerOptimizer = new LBFGSOptimizer(new LBFGSOptions
         {
@@ -291,30 +291,17 @@ public sealed class BrachistochroneProblemSolver : ICommand
         }, new BacktrackingLineSearch());
 
         Console.WriteLine("Solver configuration:");
-        Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");
-        Console.WriteLine("  Segments: 20");
+        Console.WriteLine($"  Segments: {segments}");
         Console.WriteLine("  Order: 5 (LGL only)");
         Console.WriteLine("  Max iterations: 100");
         Console.WriteLine("  Inner optimizer: L-BFGS");
         Console.WriteLine("  Tolerance: 5e-3");
         Console.WriteLine();
 
-        return options.Solver == SolverType.LGL
-            ? new LegendreGaussLobattoSolver(
-                new LegendreGaussLobattoSolverOptions
-                {
-                    Order = 5,
-                    Segments = 20,
-                    Tolerance = 5e-3,
-                    MaxIterations = 100,
-                    Verbose = true,
-                    ProgressCallback = progressCallback
-                },
-                innerOptimizer)
-            : new HermiteSimpsonSolver(
+        return new HermiteSimpsonSolver(
                 new HermiteSimpsonSolverOptions
                 {
-                    Segments = 50,
+                    Segments = segments,
                     Tolerance = 1e-2,
                     MaxIterations = 200,
                     Verbose = true,
@@ -334,21 +321,18 @@ public sealed class BrachistochroneProblemSolver : ICommand
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
-        var segments = options.Solver == SolverType.LGL ? 20 : 50;
-        var order = 5;
-        var initialGuess = options.Solver == SolverType.LGL
-            ? InitialGuessFactory.CreateForLGL(problem, segments, order)
-            : InitialGuessFactory.CreateWithControlHeuristics(problem, segments);
+        var segments = 5;
+        var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, segments);
 
         if (options.Headless)
         {
-            var solver = CreateSolver(options);
+            var solver = CreateSolver(segments);
             var headlessResult = solver.Solve(problem, initialGuess);
             PrintSolutionSummary(headlessResult, options.Variant);
             return;
         }
 
-        var solverWithCallback = CreateSolver(options, CreateProgressCallback());
+        var solverWithCallback = CreateSolver(segments, CreateProgressCallback());
         var optimizationTask = Task.Run(() =>
         {
             try

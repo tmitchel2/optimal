@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -13,11 +13,17 @@ using OptimalCli.Problems.Brachistochrone;
 namespace Optimal.Problems.Brachistochrone.Tests
 {
     /// <summary>
-    /// Phase 1 verification tests for Brachistochrone dynamics and gradients.
-    /// These tests verify that:
+    /// Verification tests for arc-length parameterized Brachistochrone dynamics.
+    ///
+    /// Arc-length formulation:
+    /// - Independent variable: s (horizontal distance)
+    /// - State: [v, n, alpha, t]
+    /// - Control: [k] curvature
+    ///
+    /// These tests verify:
     /// 1. Physical dynamics values are correct
-    /// 2. AutoDiff gradients match numerical finite differences
-    /// 3. Time-scaled dynamics for free final time work correctly
+    /// 2. Numerical gradients match expected analytical gradients
+    /// 3. Energy conservation is satisfied
     /// </summary>
     [TestClass]
     public sealed class BrachistochroneDynamicsVerificationTests
@@ -26,404 +32,393 @@ namespace Optimal.Problems.Brachistochrone.Tests
         private const double Epsilon = 1e-7;
         private const double GradientTolerance = 1e-5;
 
-        #region Task 1.1: Physical Dynamics Values
+        #region Physical Dynamics Values
 
         [TestMethod]
-        public void XRateIsCorrectForKnownInputs()
+        public void TimeRateSIsCorrectForKnownInputs()
         {
-            // ẋ = v·cos(θ)
+            // dt/ds = 1/(v*cos(alpha))
             var v = 5.0;
-            var theta = Math.PI / 4.0; // 45 degrees
-            var expected = v * Math.Cos(theta); // 5 * 0.707... = 3.535...
+            var alpha = Math.PI / 6.0; // 30 degrees
+            var expected = 1.0 / (v * Math.Cos(alpha));
 
-            var (actual, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
+            var actual = BrachistochroneDynamics.TimeRateS(v, alpha);
 
-            Assert.AreEqual(expected, actual, 1e-10, "XRate should be v·cos(θ)");
+            Assert.AreEqual(expected, actual, 1e-10, "TimeRateS should be 1/(v*cos(alpha))");
         }
 
         [TestMethod]
-        public void YRateIsCorrectForKnownInputs()
+        public void SpeedRateSIsCorrectForKnownInputs()
         {
-            // ẏ = -v·sin(θ) (negative for descent)
+            // dv/ds = g*sin(alpha)/(v*cos(alpha)) = g*tan(alpha)/v
             var v = 5.0;
-            var theta = Math.PI / 4.0;
-            var expected = -v * Math.Sin(theta); // -3.535...
+            var alpha = Math.PI / 6.0;
+            var expected = Gravity * Math.Tan(alpha) / v;
 
-            var (actual, _) = BrachistochroneDynamicsGradients.YRateReverse(0, 0, v, theta, Gravity);
+            var actual = BrachistochroneDynamics.SpeedRateS(v, alpha, Gravity);
 
-            Assert.AreEqual(expected, actual, 1e-10, "YRate should be -v·sin(θ)");
+            Assert.AreEqual(expected, actual, 1e-10, "SpeedRateS should be g*tan(alpha)/v");
         }
 
         [TestMethod]
-        public void VRateIsCorrectForKnownInputs()
+        public void VerticalRateSIsCorrectForKnownInputs()
         {
-            // v̇ = g·sin(θ)
-            var theta = Math.PI / 6.0; // 30 degrees
-            var expected = Gravity * Math.Sin(theta); // 9.8 * 0.5 = 4.9
+            // dn/ds = tan(alpha)
+            var alpha = Math.PI / 4.0; // 45 degrees
+            var expected = Math.Tan(alpha);
 
-            var (actual, _) = BrachistochroneDynamicsGradients.VRateReverse(0, 0, 0, theta, Gravity);
+            var actual = BrachistochroneDynamics.VerticalRateS(alpha);
 
-            Assert.AreEqual(expected, actual, 1e-10, "VRate should be g·sin(θ)");
+            Assert.AreEqual(expected, actual, 1e-10, "VerticalRateS should be tan(alpha)");
         }
 
         [TestMethod]
-        public void VRateIsZeroForHorizontalMotion()
+        public void AlphaRateSIsCorrectForKnownInputs()
         {
-            // When θ = 0 (horizontal), no acceleration
-            var theta = 0.0;
-            var (actual, _) = BrachistochroneDynamicsGradients.VRateReverse(0, 0, 5, theta, Gravity);
+            // dalpha/ds = k (curvature)
+            var k = 0.3;
+            var expected = k;
 
-            Assert.AreEqual(0.0, actual, 1e-10, "VRate should be zero for horizontal motion");
+            var actual = BrachistochroneDynamics.AlphaRateS(k);
+
+            Assert.AreEqual(expected, actual, 1e-10, "AlphaRateS should equal curvature k");
         }
 
         [TestMethod]
-        public void VRateIsMaxForVerticalDescent()
+        public void RunningCostSIsCorrectForKnownInputs()
         {
-            // When θ = π/2 (straight down), maximum acceleration
-            var theta = Math.PI / 2.0;
-            var (actual, _) = BrachistochroneDynamicsGradients.VRateReverse(0, 0, 0, theta, Gravity);
+            // Running cost = dt/ds = 1/(v*cos(alpha))
+            var v = 5.0;
+            var alpha = Math.PI / 6.0;
+            var expected = 1.0 / (v * Math.Cos(alpha));
 
-            Assert.AreEqual(Gravity, actual, 1e-10, "VRate should be g for vertical descent");
-        }
+            var actual = BrachistochroneDynamics.RunningCostS(v, alpha);
 
-        #endregion
-
-        #region Task 1.1: Dynamics Gradient Verification
-
-        [TestMethod]
-        public void XRateGradientMatchesNumericalDerivative()
-        {
-            var v = 3.0;
-            var theta = Math.PI / 4.0;
-
-            var (value, gradients) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
-
-            // Numerical gradients
-            var (valuePlusV, _) = BrachistochroneDynamicsGradients.XRateReverse(v + Epsilon, theta);
-            var (valuePlusTheta, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta + Epsilon);
-
-            var numGradV = (valuePlusV - value) / Epsilon;
-            var numGradTheta = (valuePlusTheta - value) / Epsilon;
-
-            // XRateReverse returns gradients = [∂/∂v, ∂/∂theta]
-            // Note: XRate = v·cos(θ) has no x,y dependence
-            Assert.AreEqual(numGradV, gradients[0], GradientTolerance, "∂XRate/∂v mismatch");
-            Assert.AreEqual(numGradTheta, gradients[1], GradientTolerance, "∂XRate/∂theta mismatch");
+            Assert.AreEqual(expected, actual, 1e-10, "RunningCostS should equal TimeRateS");
         }
 
         [TestMethod]
-        public void YRateGradientMatchesNumericalDerivative()
+        public void SpeedRateSIsZeroForHorizontalMotion()
         {
-            var x = 5.0;
-            var y = 7.5;
-            var v = 3.0;
-            var theta = Math.PI / 4.0;
+            // When alpha = 0 (horizontal), no gravity component, dv/ds = 0
+            var v = 5.0;
+            var alpha = 0.0;
 
-            var (value, gradients) = BrachistochroneDynamicsGradients.YRateReverse(x, y, v, theta, Gravity);
+            var actual = BrachistochroneDynamics.SpeedRateS(v, alpha, Gravity);
 
-            var (valuePlusV, _) = BrachistochroneDynamicsGradients.YRateReverse(x, y, v + Epsilon, theta, Gravity);
-            var (valuePlusTheta, _) = BrachistochroneDynamicsGradients.YRateReverse(x, y, v, theta + Epsilon, Gravity);
-
-            var numGradV = (valuePlusV - value) / Epsilon;
-            var numGradTheta = (valuePlusTheta - value) / Epsilon;
-
-            Assert.AreEqual(0.0, gradients[0], GradientTolerance, "∂YRate/∂x should be 0");
-            Assert.AreEqual(0.0, gradients[1], GradientTolerance, "∂YRate/∂y should be 0");
-            Assert.AreEqual(numGradV, gradients[2], GradientTolerance, "∂YRate/∂v mismatch");
-            Assert.AreEqual(numGradTheta, gradients[3], GradientTolerance, "∂YRate/∂theta mismatch");
+            Assert.AreEqual(0.0, actual, 1e-10, "SpeedRateS should be zero for horizontal motion");
         }
 
         [TestMethod]
-        public void VRateGradientMatchesNumericalDerivative()
+        public void VerticalRateSIsZeroForHorizontalMotion()
         {
-            var x = 5.0;
-            var y = 7.5;
-            var v = 3.0;
-            var theta = Math.PI / 4.0;
+            // When alpha = 0, dn/ds = tan(0) = 0
+            var alpha = 0.0;
 
-            var (value, gradients) = BrachistochroneDynamicsGradients.VRateReverse(x, y, v, theta, Gravity);
+            var actual = BrachistochroneDynamics.VerticalRateS(alpha);
 
-            var (valuePlusTheta, _) = BrachistochroneDynamicsGradients.VRateReverse(x, y, v, theta + Epsilon, Gravity);
-
-            var numGradTheta = (valuePlusTheta - value) / Epsilon;
-
-            Assert.AreEqual(0.0, gradients[0], GradientTolerance, "∂VRate/∂x should be 0");
-            Assert.AreEqual(0.0, gradients[1], GradientTolerance, "∂VRate/∂y should be 0");
-            Assert.AreEqual(0.0, gradients[2], GradientTolerance, "∂VRate/∂v should be 0");
-            Assert.AreEqual(numGradTheta, gradients[3], GradientTolerance, "∂VRate/∂theta mismatch");
+            Assert.AreEqual(0.0, actual, 1e-10, "VerticalRateS should be zero for horizontal motion");
         }
 
         #endregion
 
-        #region Task 1.2 & 1.3: Time-Scaled Dynamics for Free Final Time
+        #region Numerical Safeguards
 
         [TestMethod]
-        public void TimeScaledDynamicsScalesByTf()
+        public void TimeRateSHandlesSmallVelocity()
         {
-            // Time-scaled dynamics: dx/dτ = T_f · (dx/dt)
-            var v = 3.0;
-            var theta = Math.PI / 4.0;
-            var Tf = 2.0;
+            var alpha = Math.PI / 6.0;
 
-            var (xratePhys, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
-            var xrateScaled = Tf * xratePhys;
+            var dtds = BrachistochroneDynamics.TimeRateS(0.001, alpha);
 
-            // For τ ∈ [0, 1], we need: x(1) - x(0) = ∫₀¹ T_f · ẋ dτ = T_f · ẋ (for constant ẋ)
-            // This should give the same displacement as integrating for time T_f
-            Assert.AreEqual(Tf * xratePhys, xrateScaled, 1e-10, "Time-scaled dynamics should multiply by T_f");
+            Assert.IsFalse(double.IsNaN(dtds), "TimeRateS should not be NaN for small velocity");
+            Assert.IsFalse(double.IsInfinity(dtds), "TimeRateS should not be infinite for small velocity");
+            Assert.IsGreaterThan(0.0, dtds, "TimeRateS should be positive");
         }
 
         [TestMethod]
-        public void TimeScaledDynamicsGradientWrtTfEqualsPhysicalDynamics()
+        public void SpeedRateSHandlesSmallVelocity()
         {
-            // ∂(T_f · f)/∂T_f = f (the physical dynamics value)
-            var v = 3.0;
-            var theta = Math.PI / 4.0;
-            var Tf = 2.0;
+            var alpha = Math.PI / 6.0;
 
-            var (xratePhys, _) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
-            var (yratePhys, _) = BrachistochroneDynamicsGradients.YRateReverse(0, 0, v, theta, Gravity);
-            var (vratePhys, _) = BrachistochroneDynamicsGradients.VRateReverse(0, 0, v, theta, Gravity);
+            var dvds = BrachistochroneDynamics.SpeedRateS(0.001, alpha, Gravity);
 
-            // Time-scaled dynamics
-            var xrateScaled = Tf * xratePhys;
-            var yrateScaled = Tf * yratePhys;
-            var vrateScaled = Tf * vratePhys;
-
-            // Numerical derivative w.r.t. T_f
-            var TfPlus = Tf + Epsilon;
-            var xrateScaledPlus = TfPlus * xratePhys;
-            var yrateScaledPlus = TfPlus * yratePhys;
-            var vrateScaledPlus = TfPlus * vratePhys;
-
-            var dxrate_dTf_numerical = (xrateScaledPlus - xrateScaled) / Epsilon;
-            var dyrate_dTf_numerical = (yrateScaledPlus - yrateScaled) / Epsilon;
-            var dvrate_dTf_numerical = (vrateScaledPlus - vrateScaled) / Epsilon;
-
-            Assert.AreEqual(xratePhys, dxrate_dTf_numerical, GradientTolerance, "∂(T_f·ẋ)/∂T_f should equal ẋ");
-            Assert.AreEqual(yratePhys, dyrate_dTf_numerical, GradientTolerance, "∂(T_f·ẏ)/∂T_f should equal ẏ");
-            Assert.AreEqual(vratePhys, dvrate_dTf_numerical, GradientTolerance, "∂(T_f·v̇)/∂T_f should equal v̇");
+            Assert.IsFalse(double.IsNaN(dvds), "SpeedRateS should not be NaN for small velocity");
+            Assert.IsFalse(double.IsInfinity(dvds), "SpeedRateS should not be infinite for small velocity");
         }
 
         [TestMethod]
-        public void TimeScaledDynamicsGradientWrtStateScalesByTf()
+        public void TimeRateSHandlesLargeAngle()
         {
-            // ∂(T_f · f)/∂x = T_f · ∂f/∂x
-            var v = 3.0;
-            var theta = Math.PI / 4.0;
-            var Tf = 2.0;
+            var v = 5.0;
+            var alpha = Math.PI / 2.5; // Large angle near singularity
 
-            var (_, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
-            var (_, yrateGrad) = BrachistochroneDynamicsGradients.YRateReverse(0, 0, v, theta, Gravity);
-            var (_, vrateGrad) = BrachistochroneDynamicsGradients.VRateReverse(0, 0, v, theta, Gravity);
+            var dtds = BrachistochroneDynamics.TimeRateS(v, alpha);
 
-            // Time-scaled gradients should be T_f times the physical gradients
-            // For example: ∂(T_f·ẋ)/∂v = T_f · ∂ẋ/∂v
-            // XRateReverse returns [∂/∂v, ∂/∂theta]
-            var scaledGrad_xrate_v = Tf * xrateGrad[0];     // ∂ẋ/∂v = cos(θ)
-            var scaledGrad_xrate_theta = Tf * xrateGrad[1]; // ∂ẋ/∂θ = -v·sin(θ)
-
-            // Verify scaling is correct
-            Assert.AreEqual(Tf * Math.Cos(theta), scaledGrad_xrate_v, GradientTolerance, "Scaled ∂ẋ/∂v");
-            Assert.AreEqual(Tf * (-v * Math.Sin(theta)), scaledGrad_xrate_theta, GradientTolerance, "Scaled ∂ẋ/∂θ");
+            Assert.IsFalse(double.IsNaN(dtds), "TimeRateS should not be NaN for large angle");
+            Assert.IsFalse(double.IsInfinity(dtds), "TimeRateS should not be infinite for large angle");
         }
 
         [TestMethod]
-        public void TfRateShouldBeZero()
+        public void RunningCostSHandlesEdgeCases()
         {
-            // T_f is constant over the trajectory: dT_f/dτ = 0
-            // This is explicitly set in the problem formulation
-            var Tfrate = 0.0; // As defined in CreateFreeFinalTimeProblem
+            // Small velocity
+            var cost1 = BrachistochroneDynamics.RunningCostS(0.001, Math.PI / 6.0);
+            Assert.IsFalse(double.IsNaN(cost1), "RunningCostS should handle small velocity");
+            Assert.IsFalse(double.IsInfinity(cost1), "RunningCostS should be finite for small velocity");
 
-            Assert.AreEqual(0.0, Tfrate, 1e-10, "dT_f/dτ should be 0");
+            // Large angle
+            var cost2 = BrachistochroneDynamics.RunningCostS(5.0, Math.PI / 2.5);
+            Assert.IsFalse(double.IsNaN(cost2), "RunningCostS should handle large angle");
+            Assert.IsFalse(double.IsInfinity(cost2), "RunningCostS should be finite for large angle");
         }
 
         #endregion
 
-        #region Task 1.2: Running Cost Gradient Verification
+        #region Energy Conservation
 
         [TestMethod]
-        public void RunningCostForFixedTimeIsConstantOne()
+        public void DynamicsSatisfyEnergyConservation()
         {
-            // L = 1 for fixed time problem
-            var (cost, gradients) = BrachistochroneDynamicsGradients.RunningCostReverse(0, 0, 0, 0);
+            // Energy: E = 0.5*v² - g*n (kinetic + potential, n positive = descended)
+            // dE/ds = v*(dv/ds) - g*(dn/ds)
+            //       = v * [g*tan(alpha)/v] - g * tan(alpha)
+            //       = g*tan(alpha) - g*tan(alpha) = 0
+            var v = 5.0;
+            var alpha = Math.PI / 6.0;
 
-            Assert.AreEqual(1.0, cost, 1e-10, "Running cost should be 1");
-            Assert.AreEqual(0.0, gradients[0], 1e-10, "∂L/∂x should be 0");
-            Assert.AreEqual(0.0, gradients[1], 1e-10, "∂L/∂y should be 0");
-            Assert.AreEqual(0.0, gradients[2], 1e-10, "∂L/∂v should be 0");
-            Assert.AreEqual(0.0, gradients[3], 1e-10, "∂L/∂θ should be 0");
+            var dvds = BrachistochroneDynamics.SpeedRateS(v, alpha, Gravity);
+            var dnds = BrachistochroneDynamics.VerticalRateS(alpha);
+
+            var dKE_ds = v * dvds;
+            var dPE_ds = Gravity * dnds;
+
+            Assert.AreEqual(dPE_ds, dKE_ds, 1e-6, "Energy should be conserved: dKE/ds = dPE/ds");
         }
 
         [TestMethod]
-        public void RunningCostForFreeTimeIsTfWithCorrectGradient()
+        public void EnergyConservationHoldsForVariousStates()
         {
-            // L = T_f for free time problem with running cost
-            // Gradient: ∂L/∂T_f = 1
-            var Tf = 1.8;
-
-            // Simulating the running cost evaluation as in the problem
-            var cost = Tf;
-            var gradients = new double[6]; // [x, y, v, T_f, theta, tau]
-            gradients[3] = 1.0; // ∂L/∂T_f = 1
-
-            Assert.AreEqual(Tf, cost, 1e-10, "Running cost should be T_f");
-            Assert.AreEqual(1.0, gradients[3], 1e-10, "∂L/∂T_f should be 1");
-        }
-
-        [TestMethod]
-        public void IntegratedRunningCostEqualsTf()
-        {
-            // ∫₀¹ T_f dτ = T_f (since T_f is constant)
-            var Tf = 2.5;
-            var numPoints = 100;
-            var dtau = 1.0 / (numPoints - 1);
-
-            var integratedCost = 0.0;
-            for (var i = 0; i < numPoints - 1; i++)
+            foreach (var v in new[] { 1.0, 3.0, 5.0, 10.0 })
             {
-                // Trapezoidal integration
-                integratedCost += 0.5 * (Tf + Tf) * dtau;
+                foreach (var alphaDeg in new[] { 10.0, 20.0, 30.0, 45.0, 60.0 })
+                {
+                    var alpha = alphaDeg * Math.PI / 180.0;
+
+                    var dvds = BrachistochroneDynamics.SpeedRateS(v, alpha, Gravity);
+                    var dnds = BrachistochroneDynamics.VerticalRateS(alpha);
+
+                    var dKE_ds = v * dvds;
+                    var dPE_ds = Gravity * dnds;
+
+                    Assert.AreEqual(dPE_ds, dKE_ds, 1e-6,
+                        $"Energy conservation failed for v={v}, alpha={alphaDeg} degrees");
+                }
             }
-
-            Assert.AreEqual(Tf, integratedCost, 1e-6, "Integrated cost should equal T_f");
         }
 
         #endregion
 
-        #region Task 1.3: Terminal Cost Gradient Verification
+        #region Gradient Verification
 
         [TestMethod]
-        public void TerminalCostForFreeTimeIsTfWithCorrectGradient()
+        public void SpeedRateSGradientWrtVelocity()
         {
-            // Φ = T_f for free time problem with terminal cost
-            // Gradient: ∂Φ/∂T_f = 1
-            var Tf = 1.8;
+            var v = 5.0;
+            var alpha = Math.PI / 6.0;
 
-            // Simulating the terminal cost evaluation as in the problem
-            var cost = Tf;
-            var gradients = new double[5]; // [x, y, v, T_f, tau]
-            gradients[3] = 1.0; // ∂Φ/∂T_f = 1
+            var f0 = BrachistochroneDynamics.SpeedRateS(v, alpha, Gravity);
+            var fPlus = BrachistochroneDynamics.SpeedRateS(v + Epsilon, alpha, Gravity);
+            var numericalGradient = (fPlus - f0) / Epsilon;
 
-            Assert.AreEqual(Tf, cost, 1e-10, "Terminal cost should be T_f");
-            Assert.AreEqual(1.0, gradients[3], 1e-10, "∂Φ/∂T_f should be 1");
+            // Analytical: d/dv[g*tan(alpha)/v] = -g*tan(alpha)/v²
+            var analyticalGradient = -Gravity * Math.Tan(alpha) / (v * v);
+
+            Assert.AreEqual(analyticalGradient, numericalGradient, GradientTolerance,
+                "SpeedRateS gradient w.r.t. v is incorrect");
+        }
+
+        [TestMethod]
+        public void SpeedRateSGradientWrtAlpha()
+        {
+            var v = 5.0;
+            var alpha = Math.PI / 6.0;
+
+            var f0 = BrachistochroneDynamics.SpeedRateS(v, alpha, Gravity);
+            var fPlus = BrachistochroneDynamics.SpeedRateS(v, alpha + Epsilon, Gravity);
+            var numericalGradient = (fPlus - f0) / Epsilon;
+
+            // Analytical: d/dalpha[g*tan(alpha)/v] = g*sec²(alpha)/v
+            var cosAlpha = Math.Cos(alpha);
+            var analyticalGradient = Gravity / (v * cosAlpha * cosAlpha);
+
+            Assert.AreEqual(analyticalGradient, numericalGradient, GradientTolerance,
+                "SpeedRateS gradient w.r.t. alpha is incorrect");
+        }
+
+        [TestMethod]
+        public void TimeRateSGradientWrtVelocity()
+        {
+            var v = 5.0;
+            var alpha = Math.PI / 6.0;
+
+            var f0 = BrachistochroneDynamics.TimeRateS(v, alpha);
+            var fPlus = BrachistochroneDynamics.TimeRateS(v + Epsilon, alpha);
+            var numericalGradient = (fPlus - f0) / Epsilon;
+
+            // Analytical: d/dv[1/(v*cos(alpha))] = -1/(v²*cos(alpha))
+            var cosAlpha = Math.Cos(alpha);
+            var analyticalGradient = -1.0 / (v * v * cosAlpha);
+
+            Assert.AreEqual(analyticalGradient, numericalGradient, GradientTolerance,
+                "TimeRateS gradient w.r.t. v is incorrect");
+        }
+
+        [TestMethod]
+        public void TimeRateSGradientWrtAlpha()
+        {
+            var v = 5.0;
+            var alpha = Math.PI / 6.0;
+
+            var f0 = BrachistochroneDynamics.TimeRateS(v, alpha);
+            var fPlus = BrachistochroneDynamics.TimeRateS(v, alpha + Epsilon);
+            var numericalGradient = (fPlus - f0) / Epsilon;
+
+            // Analytical: d/dalpha[1/(v*cos(alpha))] = sin(alpha)/(v*cos²(alpha))
+            var cosAlpha = Math.Cos(alpha);
+            var sinAlpha = Math.Sin(alpha);
+            var analyticalGradient = sinAlpha / (v * cosAlpha * cosAlpha);
+
+            Assert.AreEqual(analyticalGradient, numericalGradient, GradientTolerance,
+                "TimeRateS gradient w.r.t. alpha is incorrect");
+        }
+
+        [TestMethod]
+        public void VerticalRateSGradientWrtAlpha()
+        {
+            var alpha = Math.PI / 6.0;
+
+            var f0 = BrachistochroneDynamics.VerticalRateS(alpha);
+            var fPlus = BrachistochroneDynamics.VerticalRateS(alpha + Epsilon);
+            var numericalGradient = (fPlus - f0) / Epsilon;
+
+            // Analytical: d/dalpha[tan(alpha)] = sec²(alpha) = 1/cos²(alpha)
+            var cosAlpha = Math.Cos(alpha);
+            var analyticalGradient = 1.0 / (cosAlpha * cosAlpha);
+
+            Assert.AreEqual(analyticalGradient, numericalGradient, GradientTolerance,
+                "VerticalRateS gradient w.r.t. alpha is incorrect");
         }
 
         #endregion
 
-        #region Complete Dynamics Function Test (as used in solver)
+        #region Running Cost Integration
 
         [TestMethod]
-        public void CompleteDynamicsFunctionForFixedTimeReturnsCorrectValuesAndGradients()
+        public void RunningCostIntegratesCorrectlyForConstantState()
         {
-            // Test the complete dynamics function as configured in the problem
-            var x = new double[] { 5.0, 7.5, 3.0 }; // [x, y, v]
-            var u = new double[] { Math.PI / 4.0 }; // [theta]
-            _ = 0.5; // t (unused but shown for clarity)
+            // For constant v and alpha over horizontal distance s:
+            // Time = integral of dt/ds from 0 to s = s / (v * cos(alpha))
+            var v = 5.0;
+            var alpha = Math.PI / 6.0;
+            var horizontalDistance = 10.0;
 
-            // Evaluate dynamics as in fixed time problem
-            var v = x[2];
-            var theta = u[0];
+            var costRate = BrachistochroneDynamics.RunningCostS(v, alpha);
+            var integratedTime = costRate * horizontalDistance;
+            var expectedTime = horizontalDistance / (v * Math.Cos(alpha));
 
-            var (xrate, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
-            var (yrate, yrateGrad) = BrachistochroneDynamicsGradients.YRateReverse(x[0], x[1], v, theta, Gravity);
-            var (vrate, vrateGrad) = BrachistochroneDynamicsGradients.VRateReverse(x[0], x[1], v, theta, Gravity);
-
-            var value = new[] { xrate, yrate, vrate };
-
-            // Build gradients as expected by solver
-            // gradients[0] = df/dx (3x3 flattened row-major)
-            // gradients[1] = df/du (3x1)
-            // XRateReverse returns [∂/∂v, ∂/∂theta] - no x,y dependence
-            // YRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
-            // VRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
-            var stateGradients = new double[] {
-                0.0, 0.0, xrateGrad[0],                    // ∂ẋ/∂(x,y,v) - XRate has no x,y dependence
-                yrateGrad[0], yrateGrad[1], yrateGrad[2],  // ∂ẏ/∂(x,y,v)
-                vrateGrad[0], vrateGrad[1], vrateGrad[2]   // ∂v̇/∂(x,y,v)
-            };
-            var controlGradients = new double[] { xrateGrad[1], yrateGrad[3], vrateGrad[3] }; // ∂f/∂θ
-
-            // Verify values
-            Assert.AreEqual(v * Math.Cos(theta), value[0], 1e-10, "ẋ value");
-            Assert.AreEqual(-v * Math.Sin(theta), value[1], 1e-10, "ẏ value");
-            Assert.AreEqual(Gravity * Math.Sin(theta), value[2], 1e-10, "v̇ value");
-
-            // Verify gradient structure
-            Assert.HasCount(9, stateGradients, "State gradient should be 3x3=9 elements");
-            Assert.HasCount(3, controlGradients, "Control gradient should be 3x1=3 elements");
-
-            // Verify key gradient values
-            Assert.AreEqual(Math.Cos(theta), stateGradients[2], GradientTolerance, "∂ẋ/∂v = cos(θ)");
-            Assert.AreEqual(-Math.Sin(theta), stateGradients[5], GradientTolerance, "∂ẏ/∂v = -sin(θ)");
-            Assert.AreEqual(-v * Math.Sin(theta), controlGradients[0], GradientTolerance, "∂ẋ/∂θ = -v·sin(θ)");
-            Assert.AreEqual(-v * Math.Cos(theta), controlGradients[1], GradientTolerance, "∂ẏ/∂θ = -v·cos(θ)");
-            Assert.AreEqual(Gravity * Math.Cos(theta), controlGradients[2], GradientTolerance, "∂v̇/∂θ = g·cos(θ)");
+            Assert.AreEqual(expectedTime, integratedTime, 1e-10,
+                "Integrated running cost should equal expected time");
         }
 
         [TestMethod]
-        public void CompleteDynamicsFunctionForFreeTimeReturnsCorrectValuesAndGradients()
+        public void RunningCostEqualsTimeRate()
         {
-            // Test the complete dynamics function as configured in free final time problem
-            var state = new double[] { 5.0, 7.5, 3.0, 1.8 }; // [x, y, v, T_f]
-            var control = new double[] { Math.PI / 4.0 }; // [theta]
-            _ = 0.5; // tau (unused but shown for clarity)
+            var v = 5.0;
+            var alpha = Math.PI / 6.0;
 
-            var v = state[2];
-            var Tf = state[3];
-            var theta = control[0];
+            var runningCost = BrachistochroneDynamics.RunningCostS(v, alpha);
+            var timeRate = BrachistochroneDynamics.TimeRateS(v, alpha);
 
-            // Time-scaled dynamics
-            var (xratePhys, xrateGrad) = BrachistochroneDynamicsGradients.XRateReverse(v, theta);
-            var (yratePhys, yrateGrad) = BrachistochroneDynamicsGradients.YRateReverse(state[0], state[1], v, theta, Gravity);
-            var (vratePhys, vrateGrad) = BrachistochroneDynamicsGradients.VRateReverse(state[0], state[1], v, theta, Gravity);
+            Assert.AreEqual(timeRate, runningCost, 1e-10,
+                "Running cost should equal time rate");
+        }
 
-            var xrate = Tf * xratePhys;
-            var yrate = Tf * yratePhys;
-            var vrate = Tf * vratePhys;
-            var Tfrate = 0.0;
+        #endregion
 
-            var value = new[] { xrate, yrate, vrate, Tfrate };
+        #region Complete Dynamics Function Test
 
-            // Build gradients for 4-state system
-            // gradients[0] = df/dx (4x4 flattened row-major)
-            // gradients[1] = df/du (4x1)
-            // XRateReverse returns [∂/∂v, ∂/∂theta] - no x,y dependence
-            // YRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
-            // VRateReverse returns [∂/∂x, ∂/∂y, ∂/∂v, ∂/∂theta, ∂/∂g]
-            var stateGradients = new double[] {
-                0.0, 0.0, Tf * xrateGrad[0], xratePhys,                              // ∂ẋ_scaled/∂(x,y,v,Tf) - XRate has no x,y dependence
-                Tf * yrateGrad[0], Tf * yrateGrad[1], Tf * yrateGrad[2], yratePhys,  // ∂ẏ_scaled/∂(x,y,v,Tf)
-                Tf * vrateGrad[0], Tf * vrateGrad[1], Tf * vrateGrad[2], vratePhys,  // ∂v̇_scaled/∂(x,y,v,Tf)
-                0.0, 0.0, 0.0, 0.0                                                    // ∂Ṫf/∂(x,y,v,Tf)
+        [TestMethod]
+        public void CompleteDynamicsFunctionReturnsCorrectValues()
+        {
+            // State: [v, n, alpha, t]
+            var state = new double[] { 5.0, 2.0, Math.PI / 6.0, 0.5 };
+            var control = new double[] { 0.1 }; // k = curvature
+
+            var v = state[0];
+            var alpha = state[2];
+            var k = control[0];
+
+            // Compute all dynamics
+            var dVds = BrachistochroneDynamics.SpeedRateS(v, alpha, Gravity);
+            var dNds = BrachistochroneDynamics.VerticalRateS(alpha);
+            var dAlphads = BrachistochroneDynamics.AlphaRateS(k);
+            var dTds = BrachistochroneDynamics.TimeRateS(v, alpha);
+
+            // Verify individual values
+            Assert.AreEqual(Gravity * Math.Tan(alpha) / v, dVds, 1e-10, "dv/ds value");
+            Assert.AreEqual(Math.Tan(alpha), dNds, 1e-10, "dn/ds value");
+            Assert.AreEqual(k, dAlphads, 1e-10, "dalpha/ds value");
+            Assert.AreEqual(1.0 / (v * Math.Cos(alpha)), dTds, 1e-10, "dt/ds value");
+        }
+
+        [TestMethod]
+        public void NumericalGradientsMatchForCompleteDynamics()
+        {
+            var state = new double[] { 5.0, 2.0, Math.PI / 6.0, 0.5 };
+            var control = new double[] { 0.1 };
+
+            // Compute base derivatives
+            var f0 = ComputeDerivatives(state, control);
+
+            // Numerical gradients for dv/ds w.r.t. v (state[0])
+            var statePlusV = (double[])state.Clone();
+            statePlusV[0] += Epsilon;
+            var fPlusV = ComputeDerivatives(statePlusV, control);
+            var dfdv_numerical = (fPlusV[0] - f0[0]) / Epsilon;
+
+            // Analytical: d(g*tan(alpha)/v)/dv = -g*tan(alpha)/v²
+            var v = state[0];
+            var alpha = state[2];
+            var dfdv_analytical = -Gravity * Math.Tan(alpha) / (v * v);
+
+            Assert.AreEqual(dfdv_analytical, dfdv_numerical, GradientTolerance,
+                "d(dv/ds)/dv numerical gradient mismatch");
+
+            // Numerical gradient for dalpha/ds w.r.t. k (control[0])
+            var controlPlusK = (double[])control.Clone();
+            controlPlusK[0] += Epsilon;
+            var fPlusK = ComputeDerivatives(state, controlPlusK);
+            var dfdk_numerical = (fPlusK[2] - f0[2]) / Epsilon;
+
+            // Analytical: d(k)/dk = 1
+            Assert.AreEqual(1.0, dfdk_numerical, GradientTolerance,
+                "d(dalpha/ds)/dk should be 1");
+        }
+
+        private static double[] ComputeDerivatives(double[] state, double[] control)
+        {
+            var v = state[0];
+            var alpha = state[2];
+            var k = control[0];
+
+            return new[]
+            {
+                BrachistochroneDynamics.SpeedRateS(v, alpha, Gravity),
+                BrachistochroneDynamics.VerticalRateS(alpha),
+                BrachistochroneDynamics.AlphaRateS(k),
+                BrachistochroneDynamics.TimeRateS(v, alpha)
             };
-            var controlGradients = new double[] {
-                Tf * xrateGrad[1],  // ∂ẋ_scaled/∂θ
-                Tf * yrateGrad[3],
-                Tf * vrateGrad[3],
-                0.0 // ∂Ṫf/∂θ = 0
-            };
-
-            // Verify values
-            Assert.AreEqual(Tf * v * Math.Cos(theta), value[0], 1e-10, "ẋ_scaled value");
-            Assert.AreEqual(Tf * (-v * Math.Sin(theta)), value[1], 1e-10, "ẏ_scaled value");
-            Assert.AreEqual(Tf * Gravity * Math.Sin(theta), value[2], 1e-10, "v̇_scaled value");
-            Assert.AreEqual(0.0, value[3], 1e-10, "Ṫf should be 0");
-
-            // Verify gradient structure
-            Assert.HasCount(16, stateGradients, "State gradient should be 4x4=16 elements");
-            Assert.HasCount(4, controlGradients, "Control gradient should be 4x1=4 elements");
-
-            // Verify key gradient values (∂f/∂Tf = f_physical)
-            Assert.AreEqual(xratePhys, stateGradients[3], GradientTolerance, "∂ẋ_scaled/∂Tf = ẋ_physical");
-            Assert.AreEqual(yratePhys, stateGradients[7], GradientTolerance, "∂ẏ_scaled/∂Tf = ẏ_physical");
-            Assert.AreEqual(vratePhys, stateGradients[11], GradientTolerance, "∂v̇_scaled/∂Tf = v̇_physical");
-
-            // Verify ∂ẋ_scaled/∂v = Tf * cos(θ)
-            Assert.AreEqual(Tf * Math.Cos(theta), stateGradients[2], GradientTolerance, "∂ẋ_scaled/∂v");
-
-            // Verify control gradients are scaled
-            Assert.AreEqual(Tf * (-v * Math.Sin(theta)), controlGradients[0], GradientTolerance, "∂ẋ_scaled/∂θ");
         }
 
         #endregion

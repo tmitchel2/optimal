@@ -117,7 +117,7 @@ public sealed class CartPoleProblemSolver : ICommand
             });
 
         Console.WriteLine("Solver configuration:");
-        Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");
+        Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
         Console.WriteLine("  Segments: 20");
         Console.WriteLine("  Max iterations: 100");
         Console.WriteLine("  Inner optimizer: L-BFGS-B");
@@ -128,8 +128,6 @@ public sealed class CartPoleProblemSolver : ICommand
         Console.WriteLine("(Close window when done viewing)");
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
-
-        var useLGL = options.Solver == SolverType.LGL;
 
         // Run the optimizer in a background task
         var optimizationTask = Task.Run(() =>
@@ -154,31 +152,19 @@ public sealed class CartPoleProblemSolver : ICommand
                     RadiantCartPoleVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, L);
                 };
 
-                ISolver solver = useLGL
-                    ? new LegendreGaussLobattoSolver(
-                        new LegendreGaussLobattoSolverOptions
-                        {
-                            Order = 5,
-                            Segments = 20,
-                            Tolerance = 1e-5,
-                            MaxIterations = 100,
-                            Verbose = true,
-                            ProgressCallback = progressCallback
-                        },
-                        innerOptimizer)
-                    : new HermiteSimpsonSolver(
-                        new HermiteSimpsonSolverOptions
-                        {
-                            Segments = 20,
-                            Tolerance = 1e-5,
-                            MaxIterations = 100,
-                            EnableMeshRefinement = true,
-                            MaxRefinementIterations = 5,
-                            RefinementDefectThreshold = 1e-5,
-                            Verbose = true,
-                            ProgressCallback = progressCallback
-                        },
-                        innerOptimizer);
+                var solver = new HermiteSimpsonSolver(
+                    new HermiteSimpsonSolverOptions
+                    {
+                        Segments = 20,
+                        Tolerance = 1e-5,
+                        MaxIterations = 100,
+                        EnableMeshRefinement = true,
+                        MaxRefinementIterations = 5,
+                        RefinementDefectThreshold = 1e-5,
+                        Verbose = true,
+                        ProgressCallback = progressCallback
+                    },
+                    innerOptimizer);
 
                 var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 20);
                 var result = solver.Solve(problem, initialGuess);

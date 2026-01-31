@@ -51,41 +51,24 @@ public sealed class GoddardRocketProblemSolver : ICommand
         Console.WriteLine();
 
         Console.WriteLine("Solver configuration:");
-        Console.WriteLine($"  Algorithm: {(options.Solver == SolverType.LGL ? "Legendre-Gauss-Lobatto" : "Hermite-Simpson")} direct collocation");
-        Console.WriteLine("  Segments: 30");
-        Console.WriteLine("  Max iterations: 200");
+        Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
+        Console.WriteLine("  Segments: 100");
+        Console.WriteLine("  Max iterations: 300");
         Console.WriteLine("  Inner optimizer: L-BFGS-B with parallel line search");
         Console.WriteLine("  Parallel line search: 4 candidates per batch");
         Console.WriteLine("  Tolerance: 1e-3");
         Console.WriteLine();
 
-        var useLGL = options.Solver == SolverType.LGL;
-
         // Create initial guess using physics-based simulation
         Console.WriteLine("Creating initial guess using physics-based simulation...");
         const int segments = 100;
-        const int lglOrder = 5;
         var grid = new CollocationGrid(0.0, problem.FinalTime, segments);
 
         // Generate initial guess by simulating rocket trajectory
         var goddardParams = GoddardInitialGuess.CreateYOptParameters();
 
-        // Use appropriate initial guess format for the chosen solver
-        double[][] initialStates;
-        double[][] initialControls;
-
-        if (useLGL)
-        {
-            // LGL solver needs more points (order * segments - (segments-1) = N*(order-1)+1)
-            var lglTimePoints = GoddardInitialGuess.GenerateLGLTimePoints(grid, lglOrder);
-            (initialStates, initialControls) = GoddardInitialGuess.GenerateSimulatedTrajectoryAtTimes(lglTimePoints, goddardParams);
-            Console.WriteLine($"  LGL collocation points: {lglTimePoints.Length}");
-        }
-        else
-        {
-            // Hermite-Simpson uses grid points directly
-            (initialStates, initialControls) = GoddardInitialGuess.GenerateSimulatedTrajectory(grid, goddardParams);
-        }
+        // Hermite-Simpson uses grid points directly
+        var (initialStates, initialControls) = GoddardInitialGuess.GenerateSimulatedTrajectory(grid, goddardParams);
 
         var initialGuess = new InitialGuess(initialStates, initialControls);
 
@@ -118,27 +101,16 @@ public sealed class GoddardRocketProblemSolver : ICommand
         // Headless mode - run synchronously without visualization
         if (options.Headless)
         {
-            ISolver headlessSolver = useLGL
-                ? new LegendreGaussLobattoSolver(
-                    new LegendreGaussLobattoSolverOptions
-                    {
-                        Order = 5,
-                        Segments = segments,
-                        Tolerance = 0.0001,
-                        MaxIterations = 150,
-                        Verbose = true
-                    },
-                    lbfgInnerOptimizer)
-                : new HermiteSimpsonSolver(
-                    new HermiteSimpsonSolverOptions
-                    {
-                        Segments = segments,
-                        Tolerance = 0.001,
-                        MaxIterations = 300,
-                        EnableMeshRefinement = false,
-                        Verbose = true
-                    },
-                    lbfgInnerOptimizer);
+            var headlessSolver = new HermiteSimpsonSolver(
+                new HermiteSimpsonSolverOptions
+                {
+                    Segments = segments,
+                    Tolerance = 0.001,
+                    MaxIterations = 300,
+                    EnableMeshRefinement = false,
+                    Verbose = true
+                },
+                lbfgInnerOptimizer);
 
             var result = headlessSolver.Solve(problem, initialGuess);
             PrintSolutionSummary(result, problemParams);
@@ -157,29 +129,17 @@ public sealed class GoddardRocketProblemSolver : ICommand
             RadiantGoddardRocketVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, problemParams.H0);
         };
 
-        ISolver solver = useLGL
-            ? new LegendreGaussLobattoSolver(
-                new LegendreGaussLobattoSolverOptions
-                {
-                    Order = 5,
-                    Segments = segments,
-                    Tolerance = 0.0001,
-                    MaxIterations = 150,
-                    Verbose = true,
-                    ProgressCallback = progressCallback
-                },
-                lbfgInnerOptimizer)
-            : new HermiteSimpsonSolver(
-                new HermiteSimpsonSolverOptions
-                {
-                    Segments = segments,
-                    Tolerance = 0.001,
-                    MaxIterations = 300,
-                    EnableMeshRefinement = false,
-                    Verbose = true,
-                    ProgressCallback = progressCallback
-                },
-                lbfgInnerOptimizer);
+        var solver = new HermiteSimpsonSolver(
+            new HermiteSimpsonSolverOptions
+            {
+                Segments = segments,
+                Tolerance = 0.001,
+                MaxIterations = 300,
+                EnableMeshRefinement = false,
+                Verbose = true,
+                ProgressCallback = progressCallback
+            },
+            lbfgInnerOptimizer);
 
         var optimizationTask = Task.Run(() =>
         {
