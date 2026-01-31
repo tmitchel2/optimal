@@ -86,6 +86,8 @@ public sealed class CornerProblemSolver : ICommand
         var initialGuess = CreateInitialGuess(trackGeometry);
 
         // Create optimization monitor for gradient verification and smoothness monitoring
+        var useMonitor = false;
+
         var monitor = new OptimisationMonitor()
             .WithGradientVerification(testStep: 1e-6)
             .WithSmoothnessMonitoring();
@@ -94,7 +96,7 @@ public sealed class CornerProblemSolver : ICommand
         {
             try
             {
-                var solver = CreateSolver(visualizer, monitor);
+                var solver = CreateSolver(visualizer, useMonitor ? monitor : null);
                 var result = solver.Solve(problem, initialGuess);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return result;
@@ -185,7 +187,7 @@ public sealed class CornerProblemSolver : ICommand
 
     private static HermiteSimpsonSolver CreateSolver(
         RadiantCornerVisualizer visualizer,
-        OptimisationMonitor monitor,
+        OptimisationMonitor? monitor = null,
         bool useLBFGSB = true)
     {
         // Use L-BFGS-B for native box constraint support, or standard L-BFGS

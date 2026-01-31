@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -330,7 +330,7 @@ namespace Optimal.Control.Collocation
 
             var z = new double[_decisionVectorSize];
 
-            for (var k = 0; k <= _grid.Segments; k++)
+            for (var k = 0; k < _grid.Segments; k++)
             {
                 SetState(z, k, initialGuess.StateTrajectory[k]);
                 SetControl(z, k, initialGuess.ControlTrajectory[k]);
