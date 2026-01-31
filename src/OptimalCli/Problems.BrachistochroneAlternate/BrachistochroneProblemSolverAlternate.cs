@@ -221,7 +221,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         return gradients;
     }
 
-    private static ISolver CreateSolver(ProgressCallback? progressCallback = null)
+    private static ISolver CreateSolver(int segments, ProgressCallback? progressCallback = null)
     {
         var innerOptimizer = new LBFGSOptimizer(new LBFGSOptions
         {
@@ -231,7 +231,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
 
         Console.WriteLine("Solver configuration:");
         Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
-        Console.WriteLine("  Segments: 30");
+        Console.WriteLine($"  Segments: {segments}");
         Console.WriteLine("  Max iterations: 200");
         Console.WriteLine("  Inner optimizer: L-BFGS");
         Console.WriteLine("  Tolerance: 1e-2");
@@ -240,7 +240,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         return new HermiteSimpsonSolver(
             new HermiteSimpsonSolverOptions
             {
-                Segments = 30,
+                Segments = segments,
                 Tolerance = 1e-2,
                 MaxIterations = 200,
                 Verbose = true,
@@ -260,18 +260,18 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
-        var segments = 30;
+        var segments = 5;
         var initialGuess = CreateCustomInitialGuess(problem, segments);
 
         if (options.Headless)
         {
-            var solver = CreateSolver();
+            var solver = CreateSolver(segments);
             var headlessResult = solver.Solve(problem, initialGuess);
             PrintSolutionSummary(headlessResult);
             return;
         }
 
-        var solverWithCallback = CreateSolver(CreateProgressCallback());
+        var solverWithCallback = CreateSolver(segments, CreateProgressCallback());
         var optimizationTask = Task.Run(() =>
         {
             try
@@ -337,6 +337,8 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
     /// <summary>
     /// Creates a custom initial guess for Hermite-Simpson solver.
     /// Hermite-Simpson requires 2*segments + 1 points.
+    /// Uses a straight-line path from start to end, with velocity from energy conservation
+    /// and time integrated using the dynamics.
     /// </summary>
     private static InitialGuess CreateCustomInitialGuess(ControlProblem problem, int segments)
     {
@@ -344,40 +346,80 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         var states = new double[numPoints][];
         var controls = new double[numPoints][];
 
-        // Initial conditions
+        // Get problem bounds
+        var s0 = problem.InitialTime;
+        var sf = problem.FinalTime;
+        var totalHorizontal = sf - s0;
+        var ds = totalHorizontal / (numPoints - 1);
+
+        // Initial state values
         var v0 = problem.InitialState![IdxV];
         var n0 = problem.InitialState[IdxN];
-        var alpha0 = problem.InitialState[IdxAlpha];
         var t0 = problem.InitialState[IdxT];
 
-        // Final conditions (only n is constrained)
+        // Final state value (only n is constrained)
         var nf = problem.FinalState![IdxN];
+        var totalVertical = nf - n0;
+
+        // State bounds
+        var vMin = problem.StateLowerBounds![IdxV];
+        var vMax = problem.StateUpperBounds![IdxV];
+        var nMin = problem.StateLowerBounds[IdxN];
+        var nMax = problem.StateUpperBounds[IdxN];
+        var alphaMin = problem.StateLowerBounds[IdxAlpha];
+        var alphaMax = problem.StateUpperBounds[IdxAlpha];
+        var tMin = problem.StateLowerBounds[IdxT];
+        var tMax = problem.StateUpperBounds[IdxT];
+
+        // Control bounds
+        var kMin = problem.ControlLowerBounds![IdxK];
+        var kMax = problem.ControlUpperBounds![IdxK];
+
+        // For a straight line from (s=0, n=n0) to (s=sf, n=nf):
+        // The constant descent angle is arctan((nf - n0) / (sf - s0))
+        var straightLineAlpha = Math.Atan2(totalVertical, totalHorizontal);
+        straightLineAlpha = Math.Clamp(straightLineAlpha, alphaMin, alphaMax);
+
+        // For a straight line, curvature k = 0 (no change in angle)
+        var k = Math.Clamp(0.0, kMin, kMax);
+
+        // Initialize state for integration
+        var v = v0;
+        var n = n0;
+        var alpha = straightLineAlpha;
+        var t = t0;
 
         for (var i = 0; i < numPoints; i++)
         {
-            var tau = (double)i / (numPoints - 1);
-            var s = tau * Xf;
+            // Clamp states to bounds
+            var vClamped = Math.Clamp(v, vMin, vMax);
+            var nClamped = Math.Clamp(n, nMin, nMax);
+            var alphaClamped = Math.Clamp(alpha, alphaMin, alphaMax);
+            var tClamped = Math.Clamp(t, tMin, tMax);
 
-            // Linear interpolation for n
-            var n = n0 + tau * (nf - n0);
-
-            // Estimate alpha based on descent profile
-            // Start steep, gradually flatten
-            var alpha = alpha0 * (1.0 - 0.5 * tau);
-
-            // Estimate velocity using energy conservation: v² = v0² + 2*g*n
-            var v = Math.Sqrt(v0 * v0 + 2.0 * Gravity * n);
-            v = Math.Max(v, 0.1); // Ensure positive
-
-            // Estimate time using average velocity
-            var vAvg = (v0 + v) / 2.0;
-            var t = s / (vAvg * Math.Cos(alpha0));
-
-            states[i] = [v, n, alpha, t];
-
-            // Initial curvature guess - slight curve to transition
-            var k = -alpha0 / Xf * 0.5; // Gradual reduction of angle
+            states[i] = [vClamped, nClamped, alphaClamped, tClamped];
             controls[i] = [k];
+
+            // Integrate to next point using the dynamics
+            if (i < numPoints - 1)
+            {
+                // For a straight line, n increases linearly with s
+                var nNext = n0 + (i + 1) * totalVertical / (numPoints - 1);
+
+                // Use energy conservation for velocity: v² = v0² + 2*g*n
+                var vNext = Math.Sqrt(v0 * v0 + 2.0 * Gravity * nNext);
+                vNext = Math.Max(vNext, vMin);
+
+                // Integrate time using trapezoidal rule: dt/ds = 1/(v*cos(alpha))
+                var dtdsCurrent = BrachistochroneAlternateDynamics.TimeRateS(vClamped, alphaClamped);
+                var dtdsNext = BrachistochroneAlternateDynamics.TimeRateS(vNext, straightLineAlpha);
+                var tNext = t + ds * (dtdsCurrent + dtdsNext) / 2.0;
+
+                // Alpha stays constant for a straight line
+                v = vNext;
+                n = nNext;
+                t = tNext;
+            }
         }
 
         return new InitialGuess(states, controls);
