@@ -12,7 +12,9 @@ using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
 using Optimal.NonLinear.Constrained;
+using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Monitoring;
+using Optimal.NonLinear.Unconstrained;
 
 namespace OptimalCli.Problems.BrachistochroneAlternate;
 
@@ -233,12 +235,18 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         Action<int, double, double, double, int, double[]>? innerProgressCallback = null,
         OptimisationMonitor? monitor = null)
     {
-        var innerOptimizer = new LBFGSBOptimizer(new LBFGSBOptions
-        {
-            MemorySize = 10,
-            Tolerance = 1e-4,
-            MaxIterations = 500
-        });
+        var innerOptimizer = false ? (IOptimizer)
+            new LBFGSBOptimizer(new LBFGSBOptions
+            {
+                MemorySize = 10,
+                Tolerance = 1e-6,
+                MaxIterations = 1000
+            }) : new LBFGSOptimizer(new LBFGSOptions
+            {
+                MemorySize = 10,
+                Tolerance = 1e-6,
+                MaxIterations = 1000
+            }, new BacktrackingLineSearch());
 
         Console.WriteLine("Solver configuration:");
         Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
@@ -252,10 +260,11 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
             new HermiteSimpsonSolverOptions
             {
                 Segments = segments,
-                Tolerance = 1e-2,
-                MaxIterations = 200,
+                Tolerance = 1e-5,
+                MaxIterations = 1000,
                 Verbose = true,
                 ProgressCallback = progressCallback,
+                AutoScaling = true,
                 InnerProgressCallback = innerProgressCallback
             },
             innerOptimizer,
@@ -273,7 +282,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
-        var segments = 5;
+        var segments = 20;
         var initialGuess = CreateCustomInitialGuess(problem, segments);
 
         // Create optimization monitor for gradient verification and smoothness monitoring
