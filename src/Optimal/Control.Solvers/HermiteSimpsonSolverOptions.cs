@@ -6,6 +6,7 @@
  *
  */
 
+using System;
 using Optimal.Control.Core;
 using Optimal.Control.Scaling;
 
@@ -33,5 +34,12 @@ namespace Optimal.Control.Solvers
         /// If set, overrides auto-scaling.
         /// </summary>
         public VariableScaling? Scaling { get; init; }
+
+        /// <summary>
+        /// Gets the optional callback invoked after each inner Augmented Lagrangian iteration.
+        /// Fires once per AL outer iteration (less frequent than ProgressCallback).
+        /// Parameters: (outerIteration, objectiveValue, maxViolation, penaltyParameter, innerIterations, currentPoint).
+        /// </summary>
+        public Action<int, double, double, double, int, double[]>? InnerProgressCallback { get; init; }
     }
 }

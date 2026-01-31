@@ -486,7 +486,8 @@ namespace Optimal.Control.Solvers
                 ConstraintTolerance = Options.Tolerance,
                 EqualityConstraints = constraints.EqualityConstraints,
                 InequalityConstraints = constraints.InequalityConstraints,
-                BoxConstraints = constraints.BoxConstraints
+                BoxConstraints = constraints.BoxConstraints,
+                ProgressCallback = Options.InnerProgressCallback
             };
 
             // Create optimizer with constructor DI

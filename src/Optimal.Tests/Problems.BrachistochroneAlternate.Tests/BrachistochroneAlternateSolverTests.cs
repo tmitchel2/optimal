@@ -288,36 +288,42 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
 
         private static double[][] ComputeDynamicsGradientsNumerically(double[] x, double[] u)
         {
-            const double eps = 1e-7;
+            const double eps = 1e-6; // Slightly larger epsilon for central differences
             const int stateDim = 4;
             const int controlDim = 1;
 
             var stateGradients = new double[stateDim * stateDim];
             var controlGradients = new double[stateDim * controlDim];
 
-            var f0 = ComputeDerivatives(x, u);
-
+            // Central differences for state gradients
             for (var j = 0; j < stateDim; j++)
             {
-                var xPerturbed = (double[])x.Clone();
-                xPerturbed[j] += eps;
-                var fPerturbed = ComputeDerivatives(xPerturbed, u);
+                var xPlus = (double[])x.Clone();
+                var xMinus = (double[])x.Clone();
+                xPlus[j] += eps;
+                xMinus[j] -= eps;
+                var fPlus = ComputeDerivatives(xPlus, u);
+                var fMinus = ComputeDerivatives(xMinus, u);
 
                 for (var i = 0; i < stateDim; i++)
                 {
-                    stateGradients[i * stateDim + j] = (fPerturbed[i] - f0[i]) / eps;
+                    stateGradients[i * stateDim + j] = (fPlus[i] - fMinus[i]) / (2.0 * eps);
                 }
             }
 
+            // Central differences for control gradients
             for (var j = 0; j < controlDim; j++)
             {
-                var uPerturbed = (double[])u.Clone();
-                uPerturbed[j] += eps;
-                var fPerturbed = ComputeDerivatives(x, uPerturbed);
+                var uPlus = (double[])u.Clone();
+                var uMinus = (double[])u.Clone();
+                uPlus[j] += eps;
+                uMinus[j] -= eps;
+                var fPlus = ComputeDerivatives(x, uPlus);
+                var fMinus = ComputeDerivatives(x, uMinus);
 
                 for (var i = 0; i < stateDim; i++)
                 {
-                    controlGradients[i * controlDim + j] = (fPerturbed[i] - f0[i]) / eps;
+                    controlGradients[i * controlDim + j] = (fPlus[i] - fMinus[i]) / (2.0 * eps);
                 }
             }
 
@@ -353,19 +359,21 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
 
         private static double[] ComputeRunningCostGradientsNumerically(double[] x)
         {
-            const double eps = 1e-7;
+            const double eps = 1e-6; // Slightly larger epsilon for central differences
             var gradients = new double[6]; // [dL/dx (4), dL/du (1), dL/ds (1)]
 
             var v = x[IdxV];
             var alpha = x[IdxAlpha];
 
-            var L0 = BrachistochroneAlternateDynamics.RunningCostS(v, alpha);
+            // Central differences for dL/dv
+            var LPlus = BrachistochroneAlternateDynamics.RunningCostS(v + eps, alpha);
+            var LMinus = BrachistochroneAlternateDynamics.RunningCostS(v - eps, alpha);
+            gradients[IdxV] = (LPlus - LMinus) / (2.0 * eps);
 
-            var Lp = BrachistochroneAlternateDynamics.RunningCostS(v + eps, alpha);
-            gradients[IdxV] = (Lp - L0) / eps;
-
-            Lp = BrachistochroneAlternateDynamics.RunningCostS(v, alpha + eps);
-            gradients[IdxAlpha] = (Lp - L0) / eps;
+            // Central differences for dL/dalpha
+            LPlus = BrachistochroneAlternateDynamics.RunningCostS(v, alpha + eps);
+            LMinus = BrachistochroneAlternateDynamics.RunningCostS(v, alpha - eps);
+            gradients[IdxAlpha] = (LPlus - LMinus) / (2.0 * eps);
 
             return gradients;
         }

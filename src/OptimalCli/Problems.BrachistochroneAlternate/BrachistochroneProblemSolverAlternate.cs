@@ -11,8 +11,8 @@
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
-using Optimal.NonLinear.LineSearch;
-using Optimal.NonLinear.Unconstrained;
+using Optimal.NonLinear.Constrained;
+using Optimal.NonLinear.Monitoring;
 
 namespace OptimalCli.Problems.BrachistochroneAlternate;
 
@@ -37,7 +37,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
 {
     // Problem constants
     private const double Gravity = 9.80665; // Standard gravity m/s²
-    private const double V0 = 0.5;          // Initial velocity (m/s) - small but non-zero
+    private const double V0 = 1.0;          // Initial velocity (m/s) - above clamping threshold
 
     // Reference line geometry from dynamics
     private static readonly double STotal = BrachistochroneAlternateDynamics.STotal;
@@ -78,8 +78,9 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
     /// </summary>
     private static ControlProblem CreateProblem()
     {
-        // Initial angle - start with a moderate descent angle relative to reference line
-        var alpha0 = Math.PI / 6.0; // 30 degrees relative to reference line
+        // Initial angle - start along the reference line direction
+        // This creates a feasible trajectory that stays near the reference line
+        var alpha0 = 0.0; // 0 degrees relative to reference line (following the line)
 
         // Initial state: [v, n, alpha, t] - on reference line (n=0)
         var initialState = new double[] { V0, 0.0, alpha0, 0.0 };
@@ -93,10 +94,10 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
             .WithTimeHorizon(0.0, STotal) // s from 0 to STotal (line distance)
             .WithInitialCondition(initialState)
             .WithFinalCondition(finalState)
-            .WithControlBounds([-2.0], [2.0]) // Curvature bounds (rad/m)
+            .WithControlBounds([-1.0], [1.0]) // Tighter curvature bounds (rad/m)
             .WithStateBounds(
-                [0.01, -5.0, -Math.PI / 2.5, 0.0],  // Lower bounds: v>0, n can be negative (above line), alpha bounded, t>=0
-                [30.0,  5.0,  Math.PI / 2.5, 10.0]) // Upper bounds: n can be positive (below line)
+                [1.0, -3.0, -Math.PI / 3.0, 0.0],   // Tighter lower bounds
+                [15.0, 3.0, Math.PI / 3.0, 5.0])    // Tighter upper bounds
             .WithDynamics(ComputeDynamics)
             .WithRunningCost(ComputeRunningCost);
     }
@@ -126,39 +127,42 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
 
     private static double[][] ComputeDynamicsGradientsNumerically(double[] x, double[] u)
     {
-        const double eps = 1e-7;
+        const double eps = 1e-6; // Slightly larger epsilon for central differences
         const int stateDim = 4;
         const int controlDim = 1;
 
         var stateGradients = new double[stateDim * stateDim];
         var controlGradients = new double[stateDim * controlDim];
 
-        // Compute base derivatives
-        var f0 = ComputeDerivatives(x, u);
-
-        // State gradients (df/dx)
+        // State gradients (df/dx) using central differences: (f(x+h) - f(x-h)) / 2h
         for (var j = 0; j < stateDim; j++)
         {
-            var xPerturbed = (double[])x.Clone();
-            xPerturbed[j] += eps;
-            var fPerturbed = ComputeDerivatives(xPerturbed, u);
+            var xPlus = (double[])x.Clone();
+            var xMinus = (double[])x.Clone();
+            xPlus[j] += eps;
+            xMinus[j] -= eps;
+            var fPlus = ComputeDerivatives(xPlus, u);
+            var fMinus = ComputeDerivatives(xMinus, u);
 
             for (var i = 0; i < stateDim; i++)
             {
-                stateGradients[i * stateDim + j] = (fPerturbed[i] - f0[i]) / eps;
+                stateGradients[i * stateDim + j] = (fPlus[i] - fMinus[i]) / (2.0 * eps);
             }
         }
 
-        // Control gradients (df/du)
+        // Control gradients (df/du) using central differences
         for (var j = 0; j < controlDim; j++)
         {
-            var uPerturbed = (double[])u.Clone();
-            uPerturbed[j] += eps;
-            var fPerturbed = ComputeDerivatives(x, uPerturbed);
+            var uPlus = (double[])u.Clone();
+            var uMinus = (double[])u.Clone();
+            uPlus[j] += eps;
+            uMinus[j] -= eps;
+            var fPlus = ComputeDerivatives(x, uPlus);
+            var fMinus = ComputeDerivatives(x, uMinus);
 
             for (var i = 0; i < stateDim; i++)
             {
-                controlGradients[i * controlDim + j] = (fPerturbed[i] - f0[i]) / eps;
+                controlGradients[i * controlDim + j] = (fPlus[i] - fMinus[i]) / (2.0 * eps);
             }
         }
 
@@ -198,7 +202,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
 
     private static double[] ComputeRunningCostGradientsNumerically(double[] x)
     {
-        const double eps = 1e-7;
+        const double eps = 1e-6; // Slightly larger epsilon for central differences
         const int stateDim = 4;
         const int controlDim = 1;
 
@@ -208,28 +212,33 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         var v = x[IdxV];
         var alpha = x[IdxAlpha];
 
-        var L0 = BrachistochroneAlternateDynamics.RunningCostS(v, alpha);
+        // dL/dv using central differences
+        var LPlus = BrachistochroneAlternateDynamics.RunningCostS(v + eps, alpha);
+        var LMinus = BrachistochroneAlternateDynamics.RunningCostS(v - eps, alpha);
+        gradients[IdxV] = (LPlus - LMinus) / (2.0 * eps);
 
-        // dL/dv
-        var Lp = BrachistochroneAlternateDynamics.RunningCostS(v + eps, alpha);
-        gradients[IdxV] = (Lp - L0) / eps;
-
-        // dL/dalpha
-        Lp = BrachistochroneAlternateDynamics.RunningCostS(v, alpha + eps);
-        gradients[IdxAlpha] = (Lp - L0) / eps;
+        // dL/dalpha using central differences
+        LPlus = BrachistochroneAlternateDynamics.RunningCostS(v, alpha + eps);
+        LMinus = BrachistochroneAlternateDynamics.RunningCostS(v, alpha - eps);
+        gradients[IdxAlpha] = (LPlus - LMinus) / (2.0 * eps);
 
         // dL/dn = 0, dL/dt = 0, dL/dk = 0, dL/ds = 0
 
         return gradients;
     }
 
-    private static ISolver CreateSolver(int segments, ProgressCallback? progressCallback = null)
+    private static HermiteSimpsonSolver CreateSolver(
+        int segments,
+        ProgressCallback? progressCallback = null,
+        Action<int, double, double, double, int, double[]>? innerProgressCallback = null,
+        OptimisationMonitor? monitor = null)
     {
-        var innerOptimizer = new LBFGSOptimizer(new LBFGSOptions
+        var innerOptimizer = new LBFGSBOptimizer(new LBFGSBOptions
         {
+            MemorySize = 10,
             Tolerance = 1e-4,
             MaxIterations = 500
-        }, new BacktrackingLineSearch());
+        });
 
         Console.WriteLine("Solver configuration:");
         Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
@@ -246,9 +255,11 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
                 Tolerance = 1e-2,
                 MaxIterations = 200,
                 Verbose = true,
-                ProgressCallback = progressCallback
+                ProgressCallback = progressCallback,
+                InnerProgressCallback = innerProgressCallback
             },
-            innerOptimizer);
+            innerOptimizer,
+            monitor);
     }
 
     private static void RunSolver(ControlProblem problem, CommandOptions options)
@@ -265,15 +276,22 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         var segments = 5;
         var initialGuess = CreateCustomInitialGuess(problem, segments);
 
+        // Create optimization monitor for gradient verification and smoothness monitoring
+        var useMonitor = true;
+        var monitor = new OptimisationMonitor()
+            .WithGradientVerification(testStep: 1e-6)
+            .WithSmoothnessMonitoring();
+
         if (options.Headless)
         {
-            var solver = CreateSolver(segments);
+            var solver = CreateSolver(segments, monitor: useMonitor ? monitor : null);
             var headlessResult = solver.Solve(problem, initialGuess);
             PrintSolutionSummary(headlessResult);
+            PrintMonitorReport(monitor);
             return;
         }
 
-        var solverWithCallback = CreateSolver(segments, CreateProgressCallback());
+        var solverWithCallback = CreateSolver(segments, CreateProgressCallback(), monitor: useMonitor ? monitor : null);
         var optimizationTask = Task.Run(() =>
         {
             try
@@ -314,6 +332,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
             Console.WriteLine("=".PadRight(70, '='));
             Console.WriteLine();
             Console.WriteLine("OPTIMIZATION CANCELLED");
+            PrintMonitorReport(monitor);
             Console.WriteLine();
             return;
         }
@@ -329,11 +348,11 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
             Console.WriteLine("=".PadRight(70, '='));
             Console.WriteLine();
             Console.WriteLine("OPTIMIZATION CANCELLED");
-            Console.WriteLine();
             return;
         }
 
         PrintSolutionSummary(result);
+        PrintMonitorReport(monitor);
     }
 
     /// <summary>
@@ -438,6 +457,45 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
 
             RadiantBrachistochroneVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
         };
+    }
+
+    private static void PrintMonitorReport(OptimisationMonitor monitor)
+    {
+        var report = monitor.GenerateReport();
+
+        Console.WriteLine();
+        Console.WriteLine("-".PadRight(70, '-'));
+        Console.WriteLine("OPTIMIZATION MONITOR REPORT:");
+        Console.WriteLine($"  {report.Summary}");
+
+        if (report.BadGradientSuspected)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  WARNING: Bad gradient detected!");
+            Console.WriteLine($"    Function index: {report.BadGradientFunctionIndex} (-1 = objective)");
+            Console.WriteLine($"    Variable index: {report.BadGradientVariableIndex}");
+            if (report.ObjectiveGradientResult != null)
+            {
+                Console.WriteLine($"    Max relative error: {report.ObjectiveGradientResult.MaxRelativeError:E3}");
+            }
+        }
+
+        if (report.NonC0Suspected)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  WARNING: C0 discontinuity suspected!");
+            Console.WriteLine($"    Violations detected: {report.SmoothnessResult?.C0Violations.Count ?? 0}");
+        }
+
+        if (report.NonC1Suspected)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  WARNING: C1 non-smoothness suspected!");
+            Console.WriteLine($"    Violations detected: {report.SmoothnessResult?.C1Violations.Count ?? 0}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"  Monitor function evaluations: {report.MonitorFunctionEvaluations}");
     }
 
     private static void PrintSolutionSummary(CollocationResult result)

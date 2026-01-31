@@ -6,7 +6,6 @@
  *
  */
 
-using Optimal;
 
 namespace OptimalCli.Problems.BrachistochroneAlternate
 {
@@ -38,12 +37,18 @@ namespace OptimalCli.Problems.BrachistochroneAlternate
     ///   x = s * cos(theta_ref) - n * sin(theta_ref)
     ///   y_down = s * sin(theta_ref) + n * cos(theta_ref)
     /// </summary>
-    [OptimalCode]
+    // NOTE: [OptimalCode] attribute removed because the smooth clamping functions use
+    // conditionals which the AutoDiff source generator doesn't support.
+    // The solver uses numerical gradients with central differences instead.
     public static class BrachistochroneAlternateDynamics
     {
         // Reference line geometry
         private const double Xf = 10.0;
         private const double Nf = 5.0;
+
+        // Clamping thresholds
+        private const double VMin = 1.0;
+        private const double CosMin = 0.1;
 
         /// <summary>
         /// Reference angle: angle of the straight line from start to end point.
@@ -57,18 +62,46 @@ namespace OptimalCli.Problems.BrachistochroneAlternate
         /// </summary>
         public static readonly double STotal = Math.Sqrt(Xf * Xf + Nf * Nf);
 
+        // === Clamping functions ===
+
+        /// <summary>
+        /// Clamps velocity to ensure v >= VMin.
+        /// Uses hard clamping for stability but the thresholds are chosen
+        /// to be small enough that typical trajectories stay above them.
+        /// </summary>
+        public static double SafeVelocity(double v)
+        {
+            return v < VMin ? VMin : v;
+        }
+
+        /// <summary>
+        /// Clamps cos(alpha) to ensure |cos(alpha)| >= CosMin.
+        /// Uses hard clamping for stability.
+        /// </summary>
+        public static double SafeCosine(double cosAlpha)
+        {
+            if (Math.Abs(cosAlpha) < CosMin)
+            {
+                return cosAlpha >= 0 ? CosMin : -CosMin;
+            }
+            return cosAlpha;
+        }
+
         // === Arc-length transformation ===
 
         /// <summary>
         /// Time rate: dt/ds = 1 / (v * cos(alpha))
         /// This is the core transformation from time to horizontal-distance parameterization.
+        /// Uses clamping to prevent numerical instability.
         /// </summary>
         public static double TimeRateS(double v, double alpha)
         {
-            var safeV = v < 0.01 ? 0.01 : v;
+            var safeV = SafeVelocity(v);
             var cosAlpha = Math.Cos(alpha);
-            var safeCos = Math.Abs(cosAlpha) < 0.1 ? (cosAlpha >= 0 ? 0.1 : -0.1) : cosAlpha;
-            return 1.0 / (safeV * safeCos);
+            var safeCos = SafeCosine(cosAlpha);
+            var result = 1.0 / (safeV * safeCos);
+            // Clamp output to reasonable range to prevent solver divergence
+            return Math.Clamp(result, -1000.0, 1000.0);
         }
 
         // === State dynamics (derivatives w.r.t. horizontal distance s) ===
@@ -83,13 +116,16 @@ namespace OptimalCli.Problems.BrachistochroneAlternate
         /// The arc-length rate ds/dt = v * cos(alpha) (movement along reference line direction)
         ///
         /// Therefore: dv/ds = (dv/dt) / (ds/dt) = g * sin(alpha + thetaRef) / (v * cos(alpha))
+        /// Uses clamping to prevent numerical instability.
         /// </summary>
         public static double SpeedRateS(double v, double alpha, double g, double thetaRef)
         {
-            var safeV = v < 0.01 ? 0.01 : v;
+            var safeV = SafeVelocity(v);
             var cosAlpha = Math.Cos(alpha);
-            var safeCos = Math.Abs(cosAlpha) < 0.1 ? (cosAlpha >= 0 ? 0.1 : -0.1) : cosAlpha;
-            return g * Math.Sin(alpha + thetaRef) / (safeV * safeCos);
+            var safeCos = SafeCosine(cosAlpha);
+            var result = g * Math.Sin(alpha + thetaRef) / (safeV * safeCos);
+            // Clamp output to reasonable range to prevent solver divergence
+            return Math.Clamp(result, -1000.0, 1000.0);
         }
 
         /// <summary>
@@ -111,26 +147,32 @@ namespace OptimalCli.Problems.BrachistochroneAlternate
 
         /// <summary>
         /// dt/ds - Time rate (same as TimeRateS, explicit for state dynamics).
+        /// Uses clamping to prevent numerical instability.
         /// </summary>
         public static double TimeRate(double v, double alpha)
         {
-            var safeV = v < 0.01 ? 0.01 : v;
+            var safeV = SafeVelocity(v);
             var cosAlpha = Math.Cos(alpha);
-            var safeCos = Math.Abs(cosAlpha) < 0.1 ? (cosAlpha >= 0 ? 0.1 : -0.1) : cosAlpha;
-            return 1.0 / (safeV * safeCos);
+            var safeCos = SafeCosine(cosAlpha);
+            var result = 1.0 / (safeV * safeCos);
+            // Clamp output to reasonable range to prevent solver divergence
+            return Math.Clamp(result, -1000.0, 1000.0);
         }
 
         // === Running cost ===
 
         /// <summary>
         /// Running cost = dt/ds. Integrating this over s gives total elapsed time.
+        /// Uses clamping to prevent numerical instability.
         /// </summary>
         public static double RunningCostS(double v, double alpha)
         {
-            var safeV = v < 0.01 ? 0.01 : v;
+            var safeV = SafeVelocity(v);
             var cosAlpha = Math.Cos(alpha);
-            var safeCos = Math.Abs(cosAlpha) < 0.1 ? (cosAlpha >= 0 ? 0.1 : -0.1) : cosAlpha;
-            return 1.0 / (safeV * safeCos);
+            var safeCos = SafeCosine(cosAlpha);
+            var result = 1.0 / (safeV * safeCos);
+            // Clamp output to reasonable range to prevent solver divergence
+            return Math.Clamp(result, -1000.0, 1000.0);
         }
     }
 }

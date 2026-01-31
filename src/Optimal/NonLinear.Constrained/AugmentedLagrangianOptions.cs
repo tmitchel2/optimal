@@ -43,5 +43,11 @@ namespace Optimal.NonLinear.Constrained
         /// Box constraints (optional).
         /// </summary>
         public BoxConstraints? BoxConstraints { get; init; }
+
+        /// <summary>
+        /// Optional callback invoked after each outer Augmented Lagrangian iteration.
+        /// Parameters: (outerIteration, objectiveValue, maxViolation, penaltyParameter, innerIterations, currentPoint).
+        /// </summary>
+        public Action<int, double, double, double, int, double[]>? ProgressCallback { get; init; }
     }
 }

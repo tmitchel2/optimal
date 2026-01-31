@@ -235,6 +235,19 @@ namespace Optimal.NonLinear.Constrained
                     maxViolation = Math.Max(maxViolation, _options.BoxConstraints.MaxViolation(x));
                 }
 
+                // Invoke progress callback if configured
+                if (_options.ProgressCallback != null)
+                {
+                    var (fVal, _) = objective(x);
+                    _options.ProgressCallback(
+                        outerIter + 1,
+                        fVal,
+                        maxViolation,
+                        mu,
+                        subResult.Iterations,
+                        (double[])x.Clone());
+                }
+
                 if (_options.Verbose)
                 {
                     var (fVal, _) = objective(x);
