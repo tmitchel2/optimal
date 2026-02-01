@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Threading;
 
 namespace Optimal.NonLinear.Unconstrained
 {
@@ -23,9 +24,11 @@ namespace Optimal.NonLinear.Unconstrained
         /// the function value and gradient vector.
         /// </param>
         /// <param name="initialPoint">The initial parameter vector.</param>
+        /// <param name="cancellationToken">Optional cancellation token to stop optimization early.</param>
         /// <returns>The optimization result.</returns>
         OptimizerResult Minimize(
             Func<double[], (double value, double[] gradient)> objective,
-            double[] initialPoint);
+            double[] initialPoint,
+            CancellationToken cancellationToken);
     }
 }

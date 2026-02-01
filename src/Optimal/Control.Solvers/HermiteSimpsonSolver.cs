@@ -8,6 +8,7 @@
 
 using System;
 using System.Linq;
+using System.Threading;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Optimization;
@@ -73,8 +74,9 @@ namespace Optimal.Control.Solvers
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
         /// <param name="initialGuess">Initial guess for state and control trajectories.</param>
+        /// <param name="cancellationToken">Optional cancellation token to stop optimization early.</param>
         /// <returns>The optimal control solution.</returns>
-        public CollocationResult Solve(ControlProblem problem, InitialGuess initialGuess)
+        public CollocationResult Solve(ControlProblem problem, InitialGuess initialGuess, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(problem);
             ArgumentNullException.ThrowIfNull(initialGuess);
@@ -88,7 +90,7 @@ namespace Optimal.Control.Solvers
             var scaling = GetScaling(problem);
             if (scaling != null)
             {
-                return SolveWithScaling(problem, initialGuess, scaling);
+                return SolveWithScaling(problem, initialGuess, scaling, cancellationToken);
             }
 
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, Options.Segments);
@@ -97,10 +99,10 @@ namespace Optimal.Control.Solvers
 
             if (Options.EnableMeshRefinement)
             {
-                return SolveWithMeshRefinement(problem, z0);
+                return SolveWithMeshRefinement(problem, z0, cancellationToken);
             }
 
-            return SolveOnFixedGrid(problem, Options.Segments, z0);
+            return SolveOnFixedGrid(problem, Options.Segments, z0, cancellationToken);
         }
 
         private VariableScaling? GetScaling(ControlProblem problem)
@@ -134,7 +136,7 @@ namespace Optimal.Control.Solvers
                 problem.ControlUpperBounds);
         }
 
-        private CollocationResult SolveWithScaling(ControlProblem problem, InitialGuess initialGuess, VariableScaling scaling)
+        private CollocationResult SolveWithScaling(ControlProblem problem, InitialGuess initialGuess, VariableScaling scaling, CancellationToken cancellationToken)
         {
             if (Options.Verbose)
             {
@@ -158,11 +160,11 @@ namespace Optimal.Control.Solvers
             CollocationResult scaledResult;
             if (Options.EnableMeshRefinement)
             {
-                scaledResult = SolveWithMeshRefinement(scaledControlProblem, z0);
+                scaledResult = SolveWithMeshRefinement(scaledControlProblem, z0, cancellationToken);
             }
             else
             {
-                scaledResult = SolveOnFixedGrid(scaledControlProblem, Options.Segments, z0);
+                scaledResult = SolveOnFixedGrid(scaledControlProblem, Options.Segments, z0, cancellationToken);
             }
 
             // Unscale the solution
@@ -201,7 +203,7 @@ namespace Optimal.Control.Solvers
         /// <summary>
         /// Solves with adaptive mesh refinement.
         /// </summary>
-        private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[] initialGuess)
+        private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[] initialGuess, CancellationToken cancellationToken)
         {
             var currentSegments = Options.Segments;
             CollocationResult? result = null;
@@ -211,7 +213,7 @@ namespace Optimal.Control.Solvers
             {
                 LogMeshRefinementIteration(iteration, currentSegments);
 
-                result = SolveOnFixedGrid(problem, currentSegments, previousSolution);
+                result = SolveOnFixedGrid(problem, currentSegments, previousSolution, cancellationToken);
 
                 if (!result.Success)
                 {
@@ -327,7 +329,7 @@ namespace Optimal.Control.Solvers
         /// <summary>
         /// Solves on a fixed grid (no refinement).
         /// </summary>
-        private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segmentCount, double[] initialGuess)
+        private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segmentCount, double[] initialGuess, CancellationToken cancellationToken)
         {
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, segmentCount);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, Options.EnableParallelization);
@@ -344,7 +346,7 @@ namespace Optimal.Control.Solvers
                 LogInitialDiagnostics(problem, transcription, segmentCount, z0, nlpObjective);
             }
 
-            var nlpResult = constrainedOptimizer.Minimize(nlpObjective, z0);
+            var nlpResult = constrainedOptimizer.Minimize(nlpObjective, z0, cancellationToken);
             return ExtractSolution(problem, grid, transcription, segmentCount, nlpResult);
         }
 

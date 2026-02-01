@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Threading;
 using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
 
@@ -36,7 +37,8 @@ namespace Optimal.NonLinear
         /// <inheritdoc/>
         public OptimizerResult Minimize(
             Func<double[], (double value, double[] gradient)> objective,
-            double[] initialPoint)
+            double[] initialPoint,
+            CancellationToken cancellationToken)
         {
             var x = (double[])initialPoint.Clone();
             var n = x.Length;
@@ -63,6 +65,27 @@ namespace Optimal.NonLinear
 
             for (var iter = 0; iter < _options.MaxIterations; iter++)
             {
+                // Check for cancellation
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    var (cancelValue, cancelGradient) = objective(x);
+                    var cancelConvergence = monitor.CheckConvergence(iter, functionEvaluations, x, cancelValue, cancelGradient);
+                    return new OptimizerResult
+                    {
+                        OptimalPoint = x,
+                        OptimalValue = cancelValue,
+                        FinalGradient = cancelGradient,
+                        Iterations = iter,
+                        FunctionEvaluations = functionEvaluations,
+                        StoppingReason = StoppingReason.UserRequested,
+                        Success = false,
+                        Message = "Optimization cancelled by user request",
+                        GradientNorm = cancelConvergence.GradientNorm,
+                        FunctionChange = cancelConvergence.FunctionChange,
+                        ParameterChange = cancelConvergence.ParameterChange
+                    };
+                }
+
                 var (value, gradient) = objective(x);
                 functionEvaluations++;
 

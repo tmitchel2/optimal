@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Threading;
 using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Monitoring;
 
@@ -41,7 +42,8 @@ namespace Optimal.NonLinear.Unconstrained
         /// <inheritdoc/>
         public OptimizerResult Minimize(
             Func<double[], (double value, double[] gradient)> objective,
-            double[] initialPoint)
+            double[] initialPoint,
+            CancellationToken cancellationToken)
         {
             var x = (double[])initialPoint.Clone();
             var n = x.Length;
@@ -127,6 +129,26 @@ namespace Optimal.NonLinear.Unconstrained
 
             for (var iter = 0; iter < _options.MaxIterations; iter++)
             {
+                // Check for cancellation
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    var cancelConvergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
+                    return new OptimizerResult
+                    {
+                        OptimalPoint = x,
+                        OptimalValue = value,
+                        FinalGradient = gradient,
+                        Iterations = iter,
+                        FunctionEvaluations = functionEvaluations,
+                        StoppingReason = StoppingReason.UserRequested,
+                        Success = false,
+                        Message = "Optimization cancelled by user request",
+                        GradientNorm = cancelConvergence.GradientNorm,
+                        FunctionChange = cancelConvergence.FunctionChange,
+                        ParameterChange = cancelConvergence.ParameterChange
+                    };
+                }
+
                 // Check convergence
                 var convergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
 

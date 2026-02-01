@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -143,7 +143,7 @@ public sealed class PendulumSwingUpProblemSolver : ICommand
                     innerOptimizer);
 
                 var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 25);
-                var result = solver.Solve(problem, initialGuess);
+                var result = solver.Solve(problem, initialGuess, RadiantPendulumVisualizer.CancellationToken);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return result;
             }

@@ -9,6 +9,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Optimization;
@@ -65,8 +66,9 @@ namespace Optimal.Control.Solvers
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
         /// <param name="initialGuess">Initial guess for state and control trajectories.</param>
+        /// <param name="cancellationToken">Optional cancellation token to stop optimization early.</param>
         /// <returns>The collocation result containing the optimal trajectory.</returns>
-        public CollocationResult Solve(ControlProblem problem, InitialGuess initialGuess)
+        public CollocationResult Solve(ControlProblem problem, InitialGuess initialGuess, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(problem);
             ArgumentNullException.ThrowIfNull(initialGuess);
@@ -84,10 +86,10 @@ namespace Optimal.Control.Solvers
 
             if (Options.EnableMeshRefinement)
             {
-                return SolveWithMeshRefinement(problem, z0);
+                return SolveWithMeshRefinement(problem, z0, cancellationToken);
             }
 
-            return SolveOnFixedGrid(problem, Options.Segments, z0);
+            return SolveOnFixedGrid(problem, Options.Segments, z0, cancellationToken);
         }
 
         /// <summary>
@@ -96,8 +98,9 @@ namespace Optimal.Control.Solvers
         /// <param name="problem">The control problem to solve.</param>
         /// <param name="segments">Number of segments to use.</param>
         /// <param name="initialGuess">Initial guess decision vector.</param>
+        /// <param name="cancellationToken">Cancellation token to stop optimization early.</param>
         /// <returns>The collocation result containing the optimal trajectory.</returns>
-        private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segments, double[] initialGuess)
+        private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segments, double[] initialGuess, CancellationToken cancellationToken)
         {
             if (Options.Verbose)
             {
@@ -641,7 +644,7 @@ namespace Optimal.Control.Solvers
                 _monitor);
 
             // Solve the NLP
-            var nlpResult = constrainedOptimizer.Minimize(nlpObjective, z0);
+            var nlpResult = constrainedOptimizer.Minimize(nlpObjective, z0, cancellationToken);
 
             // Extract solution
             var zOpt = nlpResult.OptimalPoint;
@@ -706,8 +709,9 @@ namespace Optimal.Control.Solvers
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
         /// <param name="initialGuess">Initial guess decision vector.</param>
+        /// <param name="cancellationToken">Cancellation token to stop optimization early.</param>
         /// <returns>The collocation result containing the optimal trajectory.</returns>
-        private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[] initialGuess)
+        private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[] initialGuess, CancellationToken cancellationToken)
         {
             var currentSegments = Options.Segments;
             CollocationResult? result = null;
@@ -721,7 +725,7 @@ namespace Optimal.Control.Solvers
                 }
 
                 // Solve on current grid
-                result = SolveOnFixedGrid(problem, currentSegments, previousSolution);
+                result = SolveOnFixedGrid(problem, currentSegments, previousSolution, cancellationToken);
 
                 if (!result.Success)
                 {

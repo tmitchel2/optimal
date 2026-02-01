@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -8,6 +8,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Optimal.NonLinear.Constraints;
 using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.Unconstrained;
@@ -45,7 +46,8 @@ namespace Optimal.NonLinear.Constrained
         /// <inheritdoc/>
         public OptimizerResult Minimize(
             Func<double[], (double value, double[] gradient)> objective,
-            double[] initialPoint)
+            double[] initialPoint,
+            CancellationToken cancellationToken)
         {
             var n = initialPoint.Length;
             var x = (double[])initialPoint.Clone();
@@ -103,6 +105,29 @@ namespace Optimal.NonLinear.Constrained
 
             for (var outerIter = 0; outerIter < _options.MaxIterations; outerIter++)
             {
+                // Check for cancellation
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    var (cancelValue, cancelGrad) = objective(x);
+                    var cancelGradNorm = ComputeNorm(cancelGrad);
+                    var cancelResult = new OptimizerResult
+                    {
+                        OptimalPoint = x,
+                        OptimalValue = cancelValue,
+                        FinalGradient = cancelGrad,
+                        Iterations = outerIter,
+                        FunctionEvaluations = totalFunctionEvaluations,
+                        StoppingReason = StoppingReason.UserRequested,
+                        Success = false,
+                        Message = "Optimization cancelled by user request",
+                        GradientNorm = cancelGradNorm,
+                        FunctionChange = 0.0,
+                        ParameterChange = 0.0
+                    };
+                    _monitor?.OnOptimizationEnd(cancelResult);
+                    return cancelResult;
+                }
+
                 // Build augmented Lagrangian function
                 (double value, double[] gradient) AugmentedLagrangian(double[] xAug)
                 {
@@ -178,9 +203,31 @@ namespace Optimal.NonLinear.Constrained
                 }
 
                 // Solve unconstrained subproblem
-                var subResult = _unconstrainedOptimizer.Minimize(AugmentedLagrangian, x);
+                var subResult = _unconstrainedOptimizer.Minimize(AugmentedLagrangian, x, cancellationToken);
 
-                // Check if inner optimizer encountered numerical error
+                // Check if inner optimizer was cancelled or encountered numerical error
+                if (subResult.StoppingReason == StoppingReason.UserRequested)
+                {
+                    var (cancelValue, cancelGrad) = objective(x);
+                    var cancelGradNorm = ComputeNorm(cancelGrad);
+                    var cancelResult = new OptimizerResult
+                    {
+                        OptimalPoint = subResult.OptimalPoint,
+                        OptimalValue = cancelValue,
+                        FinalGradient = cancelGrad,
+                        Iterations = outerIter + 1,
+                        FunctionEvaluations = totalFunctionEvaluations + subResult.FunctionEvaluations,
+                        StoppingReason = StoppingReason.UserRequested,
+                        Success = false,
+                        Message = "Optimization cancelled by user request",
+                        GradientNorm = cancelGradNorm,
+                        FunctionChange = 0.0,
+                        ParameterChange = 0.0
+                    };
+                    _monitor?.OnOptimizationEnd(cancelResult);
+                    return cancelResult;
+                }
+
                 if (subResult.StoppingReason == StoppingReason.NumericalError)
                 {
                     return new OptimizerResult

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -167,7 +167,7 @@ public sealed class CartPoleProblemSolver : ICommand
                     innerOptimizer);
 
                 var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 20);
-                var result = solver.Solve(problem, initialGuess);
+                var result = solver.Solve(problem, initialGuess, RadiantCartPoleVisualizer.CancellationToken);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return result;
             }

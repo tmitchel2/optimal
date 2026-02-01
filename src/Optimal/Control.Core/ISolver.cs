@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -6,6 +6,7 @@
  *
  */
 
+using System.Threading;
 using Optimal.Control.Collocation;
 using Optimal.NonLinear.Monitoring;
 
@@ -21,8 +22,9 @@ namespace Optimal.Control.Core
         /// </summary>
         /// <param name="problem">The control problem to solve.</param>
         /// <param name="initialGuess">Initial guess for state and control trajectories.</param>
+        /// <param name="cancellationToken">Optional cancellation token to stop optimization early.</param>
         /// <returns>The optimal control solution.</returns>
-        CollocationResult Solve(ControlProblem problem, InitialGuess initialGuess);
+        CollocationResult Solve(ControlProblem problem, InitialGuess initialGuess, CancellationToken cancellationToken);
 
         /// <summary>
         /// Gets the optimization monitor report after solving.

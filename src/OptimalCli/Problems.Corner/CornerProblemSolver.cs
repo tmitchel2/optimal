@@ -97,7 +97,7 @@ public sealed class CornerProblemSolver : ICommand
             try
             {
                 var solver = CreateSolver(visualizer, useMonitor ? monitor : null);
-                var result = solver.Solve(problem, initialGuess);
+                var result = solver.Solve(problem, initialGuess, visualizer.CancellationToken);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return result;
             }

@@ -292,10 +292,14 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
             .WithSmoothnessMonitoring()
             .WithConditioningMonitoring(threshold: 1e4);
 
+        // Create cancellation token source for stopping optimization when visualization window closes
+        using var cancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = cancellationTokenSource.Token;
+
         if (options.Headless)
         {
             var solver = CreateSolver(segments, monitor: useMonitor ? monitor : null);
-            var headlessResult = solver.Solve(problem, initialGuess);
+            var headlessResult = solver.Solve(problem, initialGuess, cancellationToken);
             PrintSolutionSummary(headlessResult);
             PrintMonitorReport(monitor);
             return;
@@ -306,7 +310,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         {
             try
             {
-                var taskResult = solverWithCallback.Solve(problem, initialGuess);
+                var taskResult = solverWithCallback.Solve(problem, initialGuess, cancellationToken);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return taskResult;
             }
@@ -320,9 +324,9 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
                 Console.WriteLine($"[SOLVER] Exception during solve: {ex.GetType().Name}: {ex.Message}");
                 throw;
             }
-        }, RadiantBrachistochroneVisualizer.CancellationToken);
+        }, cancellationToken);
 
-        RadiantBrachistochroneVisualizer.RunVisualizationWindow();
+        RadiantBrachistochroneVisualizer.RunVisualizationWindow(cancellationTokenSource);
 
         if (!optimizationTask.IsCompleted)
         {
@@ -458,13 +462,6 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
     {
         return (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
         {
-            var token = RadiantBrachistochroneVisualizer.CancellationToken;
-            if (token.IsCancellationRequested)
-            {
-                Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, stopping optimization...");
-                throw new OperationCanceledException(token);
-            }
-
             RadiantBrachistochroneVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
         };
     }

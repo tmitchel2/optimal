@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -8,6 +8,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 
@@ -99,7 +100,7 @@ namespace Optimal.Control.Solvers
         /// </summary>
         /// <param name="problemGenerator">Function that generates a control problem for a given lambda.</param>
         /// <returns>The solution to the target problem (lambda = 1).</returns>
-        public CollocationResult Solve(Func<double, ControlProblem> problemGenerator)
+        public CollocationResult Solve(Func<double, ControlProblem> problemGenerator, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(problemGenerator);
 
@@ -125,12 +126,12 @@ namespace Optimal.Control.Solvers
                 CollocationResult result;
                 if (previousResult != null)
                 {
-                    result = SolveWithWarmStart(problem, previousResult);
+                    result = SolveWithWarmStart(problem, previousResult, cancellationToken);
                 }
                 else
                 {
                     var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, _solver.Options.Segments);
-                    result = _solver.Solve(problem, initialGuess);
+                    result = _solver.Solve(problem, initialGuess, cancellationToken);
                 }
 
                 if (!result.Success)
@@ -156,7 +157,7 @@ namespace Optimal.Control.Solvers
         /// <summary>
         /// Solves a problem with warm start from previous solution.
         /// </summary>
-        private CollocationResult SolveWithWarmStart(ControlProblem problem, CollocationResult previousResult)
+        private CollocationResult SolveWithWarmStart(ControlProblem problem, CollocationResult previousResult, CancellationToken cancellationToken)
         {
             // Create grid for new problem
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, _solver.Options.Segments);
@@ -165,7 +166,7 @@ namespace Optimal.Control.Solvers
             var initialGuess = WarmStart.InterpolateFromPrevious(previousResult, grid);
 
             // Solve using the warm start
-            return _solver.Solve(problem, initialGuess);
+            return _solver.Solve(problem, initialGuess, cancellationToken);
         }
 
         /// <summary>
@@ -174,7 +175,7 @@ namespace Optimal.Control.Solvers
         /// </summary>
         /// <param name="problems">Sequence of control problems to solve.</param>
         /// <returns>Array of solutions for each problem.</returns>
-        public CollocationResult[] SolveSequence(params ControlProblem[] problems)
+        public CollocationResult[] SolveSequence(ControlProblem[] problems, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(problems);
 
@@ -198,12 +199,12 @@ namespace Optimal.Control.Solvers
                 CollocationResult result;
                 if (previousResult != null)
                 {
-                    result = SolveWithWarmStart(problem, previousResult);
+                    result = SolveWithWarmStart(problem, previousResult, cancellationToken);
                 }
                 else
                 {
                     var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, _solver.Options.Segments);
-                    result = _solver.Solve(problem, initialGuess);
+                    result = _solver.Solve(problem, initialGuess, cancellationToken);
                 }
 
                 if (!result.Success && _verbose)

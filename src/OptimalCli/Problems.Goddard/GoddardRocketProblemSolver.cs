@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -112,7 +112,7 @@ public sealed class GoddardRocketProblemSolver : ICommand
                 },
                 lbfgInnerOptimizer);
 
-            var result = headlessSolver.Solve(problem, initialGuess);
+            var result = headlessSolver.Solve(problem, initialGuess, CancellationToken.None);
             PrintSolutionSummary(result, problemParams);
             return;
         }
@@ -145,7 +145,7 @@ public sealed class GoddardRocketProblemSolver : ICommand
         {
             try
             {
-                var result = solver.Solve(problem, initialGuess);
+                var result = solver.Solve(problem, initialGuess, RadiantGoddardRocketVisualizer.CancellationToken);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return result;
             }

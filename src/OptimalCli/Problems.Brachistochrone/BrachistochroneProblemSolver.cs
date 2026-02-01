@@ -334,7 +334,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
         {
             var solver = CreateSolver(segments, monitor: monitor);
             monitor.OnOptimizationStart(initialGuess.StateTrajectory[0]);
-            var headlessResult = solver.Solve(problem, initialGuess);
+            var headlessResult = solver.Solve(problem, initialGuess, CancellationToken.None);
             PrintSolutionSummary(headlessResult, options.Variant);
             PrintMonitorReport(monitor);
             return;
@@ -346,7 +346,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
         {
             try
             {
-                var taskResult = solverWithCallback.Solve(problem, initialGuess);
+                var taskResult = solverWithCallback.Solve(problem, initialGuess, RadiantBrachistochroneVisualizer.CancellationToken);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
                 return taskResult;
             }

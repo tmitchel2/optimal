@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -9,6 +9,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 
@@ -48,7 +49,7 @@ namespace Optimal.Control.Solvers
         /// </summary>
         /// <param name="multiPhaseProblem">The multi-phase problem to solve.</param>
         /// <returns>Multi-phase result.</returns>
-        public MultiPhaseResult Solve(MultiPhaseControlProblem multiPhaseProblem)
+        public MultiPhaseResult Solve(MultiPhaseControlProblem multiPhaseProblem, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(multiPhaseProblem);
 
@@ -76,7 +77,7 @@ namespace Optimal.Control.Solvers
                     Console.WriteLine($"\nPhase {i + 1}: {phase.Name}");
                 }
 
-                var result = SolvePhase(phase, null);
+                var result = SolvePhase(phase, null, cancellationToken);
                 phaseResults[i] = result;
                 phaseDurations[i] = phase.Duration;
 
@@ -132,7 +133,7 @@ namespace Optimal.Control.Solvers
                         var modifiedProblem = CreateModifiedProblem(phase.Problem!, finalStatePrev);
 
                         // Solve with warm start
-                        var result = SolvePhaseWithWarmStart(phase, phaseResults[i], modifiedProblem);
+                        var result = SolvePhaseWithWarmStart(phase, phaseResults[i], modifiedProblem, cancellationToken);
 
                         if (result.Success && result.MaxDefect < phaseResults[i].MaxDefect)
                         {
@@ -182,7 +183,7 @@ namespace Optimal.Control.Solvers
         /// <summary>
         /// Solves a single phase.
         /// </summary>
-        private CollocationResult SolvePhase(ControlPhase phase, InitialGuess? initialGuess)
+        private CollocationResult SolvePhase(ControlPhase phase, InitialGuess? initialGuess, CancellationToken cancellationToken = default)
         {
             var solver = new HermiteSimpsonSolver(
                 new HermiteSimpsonSolverOptions
@@ -194,7 +195,7 @@ namespace Optimal.Control.Solvers
                 _phaseSolver.InnerOptimizer);
 
             var guess = initialGuess ?? InitialGuessFactory.CreateWithControlHeuristics(phase.Problem!, phase.Segments);
-            return solver.Solve(phase.Problem!, guess);
+            return solver.Solve(phase.Problem!, guess, cancellationToken);
         }
 
         /// <summary>
@@ -203,7 +204,8 @@ namespace Optimal.Control.Solvers
         private CollocationResult SolvePhaseWithWarmStart(
             ControlPhase phase,
             CollocationResult previousSolution,
-            ControlProblem modifiedProblem)
+            ControlProblem modifiedProblem,
+            CancellationToken cancellationToken)
         {
             var grid = new CollocationGrid(
                 modifiedProblem.InitialTime,
@@ -221,7 +223,7 @@ namespace Optimal.Control.Solvers
                 },
                 _phaseSolver.InnerOptimizer);
 
-            return solver.Solve(modifiedProblem, warmStart);
+            return solver.Solve(modifiedProblem, warmStart, cancellationToken);
         }
 
         /// <summary>

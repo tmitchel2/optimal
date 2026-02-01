@@ -62,14 +62,6 @@ internal static class RadiantBrachistochroneVisualizer
     private static double s_nextConstraintTolerance;
     private static bool s_hasNextTrajectory;
 
-    // Cancellation token for stopping optimization when window closes
-    private static CancellationTokenSource? s_cancellationTokenSource;
-
-    /// <summary>
-    /// Gets the cancellation token that signals when the visualization window is closed.
-    /// </summary>
-    public static CancellationToken CancellationToken => s_cancellationTokenSource?.Token ?? CancellationToken.None;
-
     /// <summary>
     /// Updates the trajectory being displayed (called from optimization progress callback).
     /// </summary>
@@ -97,10 +89,9 @@ internal static class RadiantBrachistochroneVisualizer
     /// <summary>
     /// Runs the visualization window and blocks until closed.
     /// </summary>
-    public static void RunVisualizationWindow()
+    /// <param name="cancellationTokenSource">The cancellation token source to signal when the window is closed.</param>
+    public static void RunVisualizationWindow(CancellationTokenSource cancellationTokenSource)
     {
-        s_cancellationTokenSource = new CancellationTokenSource();
-
         try
         {
             using var app = new RadiantApplication();
@@ -108,14 +99,11 @@ internal static class RadiantBrachistochroneVisualizer
         }
         finally
         {
-            if (s_cancellationTokenSource != null && !s_cancellationTokenSource.IsCancellationRequested)
+            if (!cancellationTokenSource.IsCancellationRequested)
             {
                 Console.WriteLine("[VIZ] Window closed - requesting optimization cancellation");
-                s_cancellationTokenSource.Cancel();
+                cancellationTokenSource.Cancel();
             }
-
-            s_cancellationTokenSource?.Dispose();
-            s_cancellationTokenSource = null;
         }
     }
 

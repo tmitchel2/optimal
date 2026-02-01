@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Threading;
 using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.Unconstrained;
 
@@ -36,7 +37,8 @@ namespace Optimal.NonLinear.Constrained
         /// <inheritdoc/>
         public OptimizerResult Minimize(
             Func<double[], (double value, double[] gradient)> objective,
-            double[] initialPoint)
+            double[] initialPoint,
+            CancellationToken cancellationToken)
         {
             var n = initialPoint.Length;
 
@@ -139,6 +141,27 @@ namespace Optimal.NonLinear.Constrained
 
             for (var iter = 0; iter < _options.MaxIterations; iter++)
             {
+                // Check for cancellation
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    var cancelProjGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
+                    var cancelConvergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
+                    return new OptimizerResult
+                    {
+                        OptimalPoint = x,
+                        OptimalValue = value,
+                        FinalGradient = gradient,
+                        Iterations = iter,
+                        FunctionEvaluations = functionEvaluations,
+                        StoppingReason = StoppingReason.UserRequested,
+                        Success = false,
+                        Message = "Optimization cancelled by user request",
+                        GradientNorm = cancelProjGradNorm,
+                        FunctionChange = cancelConvergence.FunctionChange,
+                        ParameterChange = cancelConvergence.ParameterChange
+                    };
+                }
+
                 // Check convergence using projected gradient norm (L-BFGS-B specific)
                 var projGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
 
