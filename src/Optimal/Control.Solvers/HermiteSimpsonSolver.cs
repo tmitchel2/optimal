@@ -331,6 +331,9 @@ namespace Optimal.Control.Solvers
         /// </summary>
         private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segmentCount, double[] initialGuess, CancellationToken cancellationToken)
         {
+            // Reset monitor for new grid size (important for mesh refinement iterations)
+            _monitor?.Reset();
+
             var grid = new CollocationGrid(problem.InitialTime, problem.FinalTime, segmentCount);
             var transcription = new ParallelHermiteSimpsonTranscription(problem, grid, Options.EnableParallelization);
 

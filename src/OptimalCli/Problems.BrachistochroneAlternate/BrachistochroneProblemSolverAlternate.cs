@@ -239,19 +239,25 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
             new LBFGSBOptimizer(new LBFGSBOptions
             {
                 MemorySize = 10,
-                Tolerance = 1e-6,
+                Tolerance = 1e-3,
                 MaxIterations = 1000
             }, monitor) : new LBFGSOptimizer(new LBFGSOptions
             {
                 MemorySize = 10,
-                Tolerance = 1e-6,
+                Preconditioning = new LBFGSPreconditioningOptions
+                {
+                    EnableAutomaticPreconditioning = true,
+                    PreconditioningThreshold = 1e3,
+                    Type = PreconditioningType.Regularization
+                },
+                Tolerance = 1e-4,
                 MaxIterations = 1000
             }, new BacktrackingLineSearch(), monitor);
 
         Console.WriteLine("Solver configuration:");
         Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
         Console.WriteLine($"  Segments: {segments}");
-        Console.WriteLine("  Max iterations: 200");
+        Console.WriteLine("  Max iterations: 1000");
         Console.WriteLine("  Inner optimizer: L-BFGS");
         Console.WriteLine("  Tolerance: 1e-2");
         Console.WriteLine();
@@ -260,11 +266,12 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
             new HermiteSimpsonSolverOptions
             {
                 Segments = segments,
-                Tolerance = 1e-5,
+                Tolerance = 1e-3,
                 MaxIterations = 1000,
                 Verbose = true,
                 ProgressCallback = progressCallback,
                 AutoScaling = true,
+                EnableMeshRefinement = true,
                 InnerProgressCallback = innerProgressCallback
             },
             innerOptimizer,
@@ -282,7 +289,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
-        var segments = 5;
+        var segments = 20;
         var initialGuess = CreateCustomInitialGuess(problem, segments);
 
         // Create optimization monitor for gradient verification, smoothness, and conditioning monitoring

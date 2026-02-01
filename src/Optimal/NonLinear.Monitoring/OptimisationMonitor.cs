@@ -377,6 +377,7 @@ namespace Optimal.NonLinear.Monitoring
             _objectiveGradientResult = null;
             _constraintGradientResults = null;
             _optimizationResult = null;
+            _testPoint = null;  // Reset so next run uses its own initial point
             _smoothnessMonitor?.Reset();
             _conditioningMonitor?.Reset();
         }
