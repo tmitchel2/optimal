@@ -6,6 +6,7 @@
  *
  */
 
+using Optimal;
 
 namespace OptimalCli.Problems.BrachistochroneAlternate
 {
@@ -37,6 +38,7 @@ namespace OptimalCli.Problems.BrachistochroneAlternate
     ///   x = s * cos(theta_ref) - n * sin(theta_ref)
     ///   y_down = s * sin(theta_ref) + n * cos(theta_ref)
     /// </summary>
+    [OptimalCode]
     public static class BrachistochroneDynamicsAlternate
     {
         // Reference line geometry

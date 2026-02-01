@@ -82,10 +82,9 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
     {
         // Initial angle - start along the reference line direction
         // This creates a feasible trajectory that stays near the reference line
-        var alpha0 = 0.0; // 0 degrees relative to reference line (following the line)
 
         // Initial state: [v, n, alpha, t] - on reference line (n=0)
-        var initialState = new double[] { V0, 0.0, alpha0, 0.0 };
+        var initialState = new double[] { V0, 0.0, double.NaN, 0.0 };
 
         // Final state: [v=free, n=0, alpha=free, t=free] - back on reference line
         var finalState = new double[] { double.NaN, 0.0, double.NaN, double.NaN };
@@ -113,120 +112,53 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         var alpha = x[IdxAlpha];
         var k = u[IdxK];
 
-        // Compute state derivatives using BrachistochroneAlternateDynamics
-        var dVds = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
-        var dNds = BrachistochroneDynamicsAlternate.VerticalRateS(alpha);
-        var dAlphads = BrachistochroneDynamicsAlternate.AlphaRateS(k);
-        var dTds = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha);
+        // Compute state derivatives and gradients using analytical AutoDiff
+        var (dVds, dVdsGrad) = BrachistochroneDynamicsAlternateGradients.SpeedRateSReverse(v, alpha, Gravity, ThetaRef);
+        var (dNds, dNdsGrad) = BrachistochroneDynamicsAlternateGradients.VerticalRateSReverse(alpha);
+        var (dAlphads, dAlphadsGrad) = BrachistochroneDynamicsAlternateGradients.AlphaRateSReverse(k);
+        var (dTds, dTdsGrad) = BrachistochroneDynamicsAlternateGradients.TimeRateSReverse(v, alpha);
 
         var value = new[] { dVds, dNds, dAlphads, dTds };
 
-        // Compute gradients numerically
-        var gradients = ComputeDynamicsGradientsNumerically(x, u);
+        // Build gradient arrays
+        // gradients[0] = df/dx (4x4 flattened row-major)
+        // gradients[1] = df/du (4x1)
+        var stateGradients = new double[16];
+        var controlGradients = new double[4];
 
-        return new DynamicsResult(value, gradients);
-    }
+        // SpeedRateS(v, alpha, g, thetaRef) -> grad order: [v, alpha, g, thetaRef]
+        stateGradients[0 * 4 + IdxV] = dVdsGrad[0];      // d(dVds)/dv
+        stateGradients[0 * 4 + IdxAlpha] = dVdsGrad[1];  // d(dVds)/dalpha
 
-    private static double[][] ComputeDynamicsGradientsNumerically(double[] x, double[] u)
-    {
-        const double eps = 1e-6; // Slightly larger epsilon for central differences
-        const int stateDim = 4;
-        const int controlDim = 1;
+        // VerticalRateS(alpha) -> grad order: [alpha]
+        stateGradients[1 * 4 + IdxAlpha] = dNdsGrad[0];  // d(dNds)/dalpha
 
-        var stateGradients = new double[stateDim * stateDim];
-        var controlGradients = new double[stateDim * controlDim];
+        // AlphaRateS(k) -> grad order: [k]
+        controlGradients[IdxAlpha] = dAlphadsGrad[0];    // d(dAlphads)/dk
 
-        // State gradients (df/dx) using central differences: (f(x+h) - f(x-h)) / 2h
-        for (var j = 0; j < stateDim; j++)
-        {
-            var xPlus = (double[])x.Clone();
-            var xMinus = (double[])x.Clone();
-            xPlus[j] += eps;
-            xMinus[j] -= eps;
-            var fPlus = ComputeDerivatives(xPlus, u);
-            var fMinus = ComputeDerivatives(xMinus, u);
+        // TimeRateS(v, alpha) -> grad order: [v, alpha]
+        stateGradients[3 * 4 + IdxV] = dTdsGrad[0];      // d(dTds)/dv
+        stateGradients[3 * 4 + IdxAlpha] = dTdsGrad[1];  // d(dTds)/dalpha
 
-            for (var i = 0; i < stateDim; i++)
-            {
-                stateGradients[i * stateDim + j] = (fPlus[i] - fMinus[i]) / (2.0 * eps);
-            }
-        }
-
-        // Control gradients (df/du) using central differences
-        for (var j = 0; j < controlDim; j++)
-        {
-            var uPlus = (double[])u.Clone();
-            var uMinus = (double[])u.Clone();
-            uPlus[j] += eps;
-            uMinus[j] -= eps;
-            var fPlus = ComputeDerivatives(x, uPlus);
-            var fMinus = ComputeDerivatives(x, uMinus);
-
-            for (var i = 0; i < stateDim; i++)
-            {
-                controlGradients[i * controlDim + j] = (fPlus[i] - fMinus[i]) / (2.0 * eps);
-            }
-        }
-
-        return [stateGradients, controlGradients];
-    }
-
-    private static double[] ComputeDerivatives(double[] x, double[] u)
-    {
-        var v = x[IdxV];
-        var alpha = x[IdxAlpha];
-        var k = u[IdxK];
-
-        return
-        [
-            BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef),
-            BrachistochroneDynamicsAlternate.VerticalRateS(alpha),
-            BrachistochroneDynamicsAlternate.AlphaRateS(k),
-            BrachistochroneDynamicsAlternate.TimeRateS(v, alpha)
-        ];
+        return new DynamicsResult(value, [stateGradients, controlGradients]);
     }
 
     private static RunningCostResult ComputeRunningCost(RunningCostInput input)
     {
         var x = input.State;
-
         var v = x[IdxV];
         var alpha = x[IdxAlpha];
 
-        // Running cost = dt/ds (integrates to total time)
-        var cost = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha);
+        // Running cost = dt/ds with analytical gradients
+        var (cost, costGrad) = BrachistochroneDynamicsAlternateGradients.RunningCostSReverse(v, alpha);
 
-        // Compute gradients numerically
-        var gradients = ComputeRunningCostGradientsNumerically(x);
+        // Gradients: [dL/dx (4), dL/du (1), dL/ds (1)] = 6 elements
+        var gradients = new double[6];
+        gradients[IdxV] = costGrad[0];     // dL/dv
+        gradients[IdxAlpha] = costGrad[1]; // dL/dalpha
+        // Other gradients remain 0
 
         return new RunningCostResult(cost, gradients);
-    }
-
-    private static double[] ComputeRunningCostGradientsNumerically(double[] x)
-    {
-        const double eps = 1e-6; // Slightly larger epsilon for central differences
-        const int stateDim = 4;
-        const int controlDim = 1;
-
-        // Gradients: [dL/dx (4), dL/du (1), dL/ds (1)]
-        var gradients = new double[stateDim + controlDim + 1];
-
-        var v = x[IdxV];
-        var alpha = x[IdxAlpha];
-
-        // dL/dv using central differences
-        var LPlus = BrachistochroneDynamicsAlternate.RunningCostS(v + eps, alpha);
-        var LMinus = BrachistochroneDynamicsAlternate.RunningCostS(v - eps, alpha);
-        gradients[IdxV] = (LPlus - LMinus) / (2.0 * eps);
-
-        // dL/dalpha using central differences
-        LPlus = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha + eps);
-        LMinus = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha - eps);
-        gradients[IdxAlpha] = (LPlus - LMinus) / (2.0 * eps);
-
-        // dL/dn = 0, dL/dt = 0, dL/dk = 0, dL/ds = 0
-
-        return gradients;
     }
 
     private static HermiteSimpsonSolver CreateSolver(
@@ -248,7 +180,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
                 {
                     EnableAutomaticPreconditioning = true,
                     PreconditioningThreshold = 1e3,
-                    Type = PreconditioningType.Regularization
+                    Type = PreconditioningType.Diagonal
                 },
                 Tolerance = 1e-4,
                 MaxIterations = 1000
@@ -289,11 +221,11 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
-        var segments = 20;
+        var segments = 5;
         var initialGuess = CreateCustomInitialGuess(problem, segments);
 
         // Create optimization monitor for gradient verification, smoothness, and conditioning monitoring
-        var useMonitor = true;
+        var useMonitor = false;
         var monitor = new OptimisationMonitor()
             .WithGradientVerification(testStep: 1e-6)
             .WithSmoothnessMonitoring()
