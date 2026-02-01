@@ -7,6 +7,7 @@
  */
 
 using System;
+using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.NonLinear.Constrained
@@ -19,14 +20,17 @@ namespace Optimal.NonLinear.Constrained
     public sealed class LBFGSBOptimizer : IOptimizer
     {
         private readonly LBFGSBOptions _options;
+        private readonly OptimisationMonitor? _monitor;
 
         /// <summary>
         /// Creates a new L-BFGS-B optimizer with the specified options.
         /// </summary>
         /// <param name="options">Optimizer options including bounds.</param>
-        public LBFGSBOptimizer(LBFGSBOptions options)
+        /// <param name="monitor">Optional optimization monitor for conditioning and gradient analysis.</param>
+        public LBFGSBOptimizer(LBFGSBOptions options, OptimisationMonitor? monitor = null)
         {
             _options = options;
+            _monitor = monitor;
         }
 
         /// <inheritdoc/>
@@ -344,8 +348,21 @@ namespace Optimal.NonLinear.Constrained
                     y[i] = gradient[i] - gradientPrev[i];
                 }
 
+                // Compute rho = 1 / (y^T * s) for conditioning monitoring
+                var yTs = 0.0;
+                for (var i = 0; i < n; i++)
+                {
+                    yTs += y[i] * s[i];
+                }
+
                 // Add to memory (checks curvature condition internally)
                 memory.Push(s, y);
+
+                // Notify monitor if curvature condition is satisfied
+                if (Math.Abs(yTs) >= 1e-16)
+                {
+                    _monitor?.OnCorrectionPairAdded(s, y, 1.0 / yTs);
+                }
             }
 
             // Maximum iterations reached

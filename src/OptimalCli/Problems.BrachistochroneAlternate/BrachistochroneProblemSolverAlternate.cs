@@ -241,12 +241,12 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
                 MemorySize = 10,
                 Tolerance = 1e-6,
                 MaxIterations = 1000
-            }) : new LBFGSOptimizer(new LBFGSOptions
+            }, monitor) : new LBFGSOptimizer(new LBFGSOptions
             {
                 MemorySize = 10,
                 Tolerance = 1e-6,
                 MaxIterations = 1000
-            }, new BacktrackingLineSearch());
+            }, new BacktrackingLineSearch(), monitor);
 
         Console.WriteLine("Solver configuration:");
         Console.WriteLine("  Algorithm: Hermite-Simpson direct collocation");
@@ -285,11 +285,12 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         var segments = 5;
         var initialGuess = CreateCustomInitialGuess(problem, segments);
 
-        // Create optimization monitor for gradient verification and smoothness monitoring
+        // Create optimization monitor for gradient verification, smoothness, and conditioning monitoring
         var useMonitor = true;
         var monitor = new OptimisationMonitor()
             .WithGradientVerification(testStep: 1e-6)
-            .WithSmoothnessMonitoring();
+            .WithSmoothnessMonitoring()
+            .WithConditioningMonitoring(threshold: 1e4);
 
         if (options.Headless)
         {
@@ -501,6 +502,29 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
             Console.WriteLine();
             Console.WriteLine("  WARNING: C1 non-smoothness suspected!");
             Console.WriteLine($"    Violations detected: {report.SmoothnessResult?.C1Violations.Count ?? 0}");
+        }
+
+        if (report.IllConditioningSuspected)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  WARNING: Ill-conditioning suspected!");
+            if (report.ConditioningResult != null)
+            {
+                Console.WriteLine($"    Estimated condition number: {report.ConditioningResult.EstimatedConditionNumber:E2}");
+                Console.WriteLine($"    Severity: {report.ConditioningResult.Severity}");
+                Console.WriteLine($"    Correction pairs analyzed: {report.ConditioningResult.CorrectionPairsAnalyzed}");
+                if (report.ConditioningResult.ProblematicVariableIndices.Count > 0)
+                {
+                    Console.WriteLine($"    Problematic variables: {string.Join(", ", report.ConditioningResult.ProblematicVariableIndices)}");
+                }
+            }
+        }
+        else if (report.ConditioningResult != null && report.ConditioningResult.CorrectionPairsAnalyzed > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  Conditioning analysis:");
+            Console.WriteLine($"    Estimated condition number: {report.ConditioningResult.EstimatedConditionNumber:E2}");
+            Console.WriteLine($"    Severity: {report.ConditioningResult.Severity}");
         }
 
         Console.WriteLine();

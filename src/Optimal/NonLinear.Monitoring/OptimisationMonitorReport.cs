@@ -66,6 +66,17 @@ namespace Optimal.NonLinear.Monitoring
         public int MonitorFunctionEvaluations { get; init; }
 
         /// <summary>
+        /// True if ill-conditioning is suspected based on curvature analysis.
+        /// </summary>
+        public bool IllConditioningSuspected { get; init; }
+
+        /// <summary>
+        /// Detailed conditioning analysis results.
+        /// Null if conditioning monitoring was not enabled.
+        /// </summary>
+        public ConditioningEstimate? ConditioningResult { get; init; }
+
+        /// <summary>
         /// Summary message describing findings.
         /// </summary>
         public string Summary { get; init; } = string.Empty;

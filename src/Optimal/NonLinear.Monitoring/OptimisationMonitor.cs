@@ -23,6 +23,8 @@ namespace Optimal.NonLinear.Monitoring
         private bool _enableGradientVerification;
         private double _gradientTestStep = 1e-6;
         private bool _enableSmoothnessMonitoring;
+        private bool _enableConditioningMonitoring;
+        private double _conditioningThreshold = 1e4;
         private int _lineSearchHistorySize = 100;
         private double[]? _testPoint;
 
@@ -33,6 +35,7 @@ namespace Optimal.NonLinear.Monitoring
         // Internal components
         private GradientVerifier? _gradientVerifier;
         private SmoothnessMonitor? _smoothnessMonitor;
+        private ConditioningMonitor? _conditioningMonitor;
 
         // Results
         private GradientVerificationResult? _objectiveGradientResult;
@@ -66,6 +69,24 @@ namespace Optimal.NonLinear.Monitoring
         public OptimisationMonitor WithSmoothnessMonitoring()
         {
             _enableSmoothnessMonitoring = true;
+            return this;
+        }
+
+        /// <summary>
+        /// Enables conditioning monitoring using L-BFGS curvature information.
+        /// Detects ill-conditioned problems based on the ratio of curvature estimates.
+        /// </summary>
+        /// <param name="threshold">Condition number threshold above which problem is flagged (default 1e4).</param>
+        /// <returns>This monitor instance for method chaining.</returns>
+        public OptimisationMonitor WithConditioningMonitoring(double threshold = 1e4)
+        {
+            if (threshold <= 0)
+            {
+                throw new ArgumentException("Threshold must be positive", nameof(threshold));
+            }
+
+            _enableConditioningMonitoring = true;
+            _conditioningThreshold = threshold;
             return this;
         }
 
@@ -126,6 +147,11 @@ namespace Optimal.NonLinear.Monitoring
         public bool IsSmoothnessMonitoringEnabled => _enableSmoothnessMonitoring;
 
         /// <summary>
+        /// Gets whether conditioning monitoring is enabled.
+        /// </summary>
+        public bool IsConditioningMonitoringEnabled => _enableConditioningMonitoring;
+
+        /// <summary>
         /// Called when optimization starts.
         /// </summary>
         /// <param name="x0">Initial point.</param>
@@ -145,6 +171,12 @@ namespace Optimal.NonLinear.Monitoring
             if (_enableSmoothnessMonitoring)
             {
                 _smoothnessMonitor = new SmoothnessMonitor(_lineSearchHistorySize);
+            }
+
+            // Initialize conditioning monitor if enabled
+            if (_enableConditioningMonitoring)
+            {
+                _conditioningMonitor = new ConditioningMonitor(_conditioningThreshold);
             }
         }
 
@@ -173,6 +205,18 @@ namespace Optimal.NonLinear.Monitoring
         public void OnLineSearchEnd()
         {
             _smoothnessMonitor?.CompleteLineSearch();
+        }
+
+        /// <summary>
+        /// Called when a correction pair is added to L-BFGS memory.
+        /// Used for conditioning analysis.
+        /// </summary>
+        /// <param name="s">Position difference: x_{k+1} - x_k.</param>
+        /// <param name="y">Gradient difference: grad_{k+1} - grad_k.</param>
+        /// <param name="rho">Precomputed: 1 / (y^T * s).</param>
+        public void OnCorrectionPairAdded(double[] s, double[] y, double rho)
+        {
+            _conditioningMonitor?.RecordCorrectionPair(s, y, rho);
         }
 
         /// <summary>
@@ -259,10 +303,37 @@ namespace Optimal.NonLinear.Monitoring
                 }
             }
 
+            // Analyze conditioning
+            ConditioningEstimate? conditioningResult = null;
+            var illConditioningSuspected = false;
+
+            if (_conditioningMonitor != null)
+            {
+                conditioningResult = _conditioningMonitor.Analyze();
+                illConditioningSuspected = conditioningResult.IsIllConditioned;
+
+                if (illConditioningSuspected)
+                {
+                    summary.AppendLine(string.Format(
+                        CultureInfo.InvariantCulture,
+                        "Ill-conditioning suspected: condition number ~{0:E2} ({1})",
+                        conditioningResult.EstimatedConditionNumber,
+                        conditioningResult.Severity));
+
+                    if (conditioningResult.ProblematicVariableIndices.Count > 0)
+                    {
+                        summary.AppendLine(string.Format(
+                            CultureInfo.InvariantCulture,
+                            "  Problematic variables: {0}",
+                            string.Join(", ", conditioningResult.ProblematicVariableIndices)));
+                    }
+                }
+            }
+
             // Build summary
             if (summary.Length == 0)
             {
-                if (_enableGradientVerification || _enableSmoothnessMonitoring)
+                if (_enableGradientVerification || _enableSmoothnessMonitoring || _enableConditioningMonitoring)
                 {
                     if (_optimizationResult?.Success == true)
                     {
@@ -291,6 +362,8 @@ namespace Optimal.NonLinear.Monitoring
                 NonC0Suspected = nonC0Suspected,
                 NonC1Suspected = nonC1Suspected,
                 SmoothnessResult = smoothnessResult,
+                IllConditioningSuspected = illConditioningSuspected,
+                ConditioningResult = conditioningResult,
                 MonitorFunctionEvaluations = monitorEvaluations,
                 Summary = summary.ToString().TrimEnd()
             };
@@ -305,6 +378,7 @@ namespace Optimal.NonLinear.Monitoring
             _constraintGradientResults = null;
             _optimizationResult = null;
             _smoothnessMonitor?.Reset();
+            _conditioningMonitor?.Reset();
         }
 
         private void RunGradientVerification()

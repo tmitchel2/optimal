@@ -8,6 +8,7 @@
 
 using System;
 using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Monitoring;
 
 namespace Optimal.NonLinear.Unconstrained
 {
@@ -19,18 +20,22 @@ namespace Optimal.NonLinear.Unconstrained
     {
         private readonly LBFGSOptions _options;
         private readonly ILineSearch _lineSearch;
+        private readonly OptimisationMonitor? _monitor;
 
         /// <summary>
         /// Creates a new L-BFGS optimizer with the specified options and line search.
         /// </summary>
         /// <param name="options">Optimizer options.</param>
         /// <param name="lineSearch">Line search algorithm.</param>
+        /// <param name="monitor">Optional optimization monitor for conditioning and gradient analysis.</param>
         public LBFGSOptimizer(
             LBFGSOptions options,
-            ILineSearch lineSearch)
+            ILineSearch lineSearch,
+            OptimisationMonitor? monitor = null)
         {
             _options = options;
             _lineSearch = lineSearch;
+            _monitor = monitor;
         }
 
         /// <inheritdoc/>
@@ -44,6 +49,9 @@ namespace Optimal.NonLinear.Unconstrained
 
             // Initialize L-BFGS memory
             var memory = new LBFGSMemory(_options.MemorySize, n);
+
+            // Initialize preconditioner if configured
+            IPreconditioner? preconditioner = CreatePreconditioner(n);
 
             // Create convergence monitor
             // Use maxFunctionEvaluations if set, otherwise use maxIterations * 20 (generous for line search)
@@ -149,7 +157,7 @@ namespace Optimal.NonLinear.Unconstrained
                 Array.Copy(gradient, gradientPrev, n);
 
                 // Compute search direction using L-BFGS two-loop recursion
-                var direction = TwoLoopRecursion.ComputeDirection(gradient, memory);
+                var direction = TwoLoopRecursion.ComputeDirection(gradient, memory, preconditioner);
 
                 // Find step size using line search
                 var alpha = _lineSearch.FindStepSize(objective, x, value, gradient, direction, 1.0);
@@ -259,8 +267,24 @@ namespace Optimal.NonLinear.Unconstrained
                     y[i] = gradient[i] - gradientPrev[i]; // Gradient change
                 }
 
+                // Compute rho = 1 / (y^T * s) for conditioning monitoring
+                var yTs = 0.0;
+                for (var i = 0; i < n; i++)
+                {
+                    yTs += y[i] * s[i];
+                }
+
                 // Add to memory (will check curvature condition internally)
                 memory.Push(s, y);
+
+                // Notify monitor if curvature condition is satisfied
+                if (Math.Abs(yTs) >= 1e-16)
+                {
+                    _monitor?.OnCorrectionPairAdded(s, y, 1.0 / yTs);
+
+                    // Update preconditioner with new curvature information
+                    preconditioner?.Update(s, y);
+                }
             }
 
             // Maximum iterations reached
@@ -278,6 +302,43 @@ namespace Optimal.NonLinear.Unconstrained
                 GradientNorm = finalConvergence.GradientNorm,
                 FunctionChange = finalConvergence.FunctionChange,
                 ParameterChange = finalConvergence.ParameterChange
+            };
+        }
+
+        /// <summary>
+        /// Creates a preconditioner based on the options.
+        /// </summary>
+        private IPreconditioner? CreatePreconditioner(int dimension)
+        {
+            var options = _options.Preconditioning;
+            if (options == null || options.Type == PreconditioningType.None)
+            {
+                return null;
+            }
+
+            return options.Type switch
+            {
+                PreconditioningType.Diagonal => new DiagonalPreconditioner(
+                    dimension,
+                    options.DiagonalUpdateStrategy,
+                    options.DecayFactor,
+                    options.MinScaling,
+                    options.MaxScaling),
+
+                PreconditioningType.Regularization => new RegularizationPreconditioner(
+                    dimension,
+                    options.RegularizationParameter),
+
+                PreconditioningType.Combined => new CombinedPreconditioner(
+                    new DiagonalPreconditioner(
+                        dimension,
+                        options.DiagonalUpdateStrategy,
+                        options.DecayFactor,
+                        options.MinScaling,
+                        options.MaxScaling),
+                    options.RegularizationParameter),
+
+                _ => null
             };
         }
     }

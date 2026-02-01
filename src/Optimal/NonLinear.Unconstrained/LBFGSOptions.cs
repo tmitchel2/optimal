@@ -17,5 +17,10 @@ namespace Optimal.NonLinear.Unconstrained
         /// Number of correction pairs to store (typically 3-20).
         /// </summary>
         public int MemorySize { get; init; } = 10;
+
+        /// <summary>
+        /// Preconditioning options for ill-conditioned problems.
+        /// </summary>
+        public LBFGSPreconditioningOptions? Preconditioning { get; init; }
     }
 }

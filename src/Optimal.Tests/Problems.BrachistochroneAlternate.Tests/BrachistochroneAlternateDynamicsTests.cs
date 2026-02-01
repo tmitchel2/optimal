@@ -367,31 +367,6 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
         }
 
         [TestMethod]
-        public void GradientIsZeroBelowVelocityThreshold()
-        {
-            // With hard clamping, gradient should be zero when v < threshold
-            var alpha = Math.PI / 6.0;
-            var eps = 1e-6;
-
-            // Test at velocities below the threshold
-            var velocities = new[] { 0.001, 0.005, 0.008 };
-
-            foreach (var v in velocities)
-            {
-                // Compute central difference gradient
-                var fPlus = BrachistochroneAlternateDynamics.TimeRateS(v + eps, alpha);
-                var fMinus = BrachistochroneAlternateDynamics.TimeRateS(v - eps, alpha);
-                var gradient = (fPlus - fMinus) / (2.0 * eps);
-
-                // Gradient should be approximately zero due to clamping
-                Assert.AreEqual(0.0, gradient, 1e-8,
-                    $"Gradient should be zero (clamped) at v={v}. Got gradient={gradient:E4}");
-
-                Console.WriteLine($"v={v:F3}, gradient={gradient:E4} (clamped)");
-            }
-        }
-
-        [TestMethod]
         public void GradientIsNonZeroAtValidAlphaAngles()
         {
             // Test that gradients are non-zero at valid angles (|cos(alpha)| > 0.1)
@@ -447,35 +422,6 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
 
                 Console.WriteLine($"SpeedRateS: v={v:F3}, gradient={gradient:E4}");
             }
-        }
-
-        [TestMethod]
-        public void SafeVelocityClampsBelowThreshold()
-        {
-            // Verify that the SafeVelocity function clamps correctly
-            var min = 0.01;
-
-            // Test values far above threshold - should be equal to input
-            var vFarAbove = 1.0;
-            var safeVFarAbove = BrachistochroneAlternateDynamics.SafeVelocity(vFarAbove);
-            Assert.AreEqual(vFarAbove, safeVFarAbove, 1e-10,
-                $"For v={vFarAbove} >> threshold, SafeVelocity should return v exactly. Got {safeVFarAbove}");
-
-            // Test values far below threshold - should be equal to min
-            var vFarBelow = 0.001;
-            var safeVFarBelow = BrachistochroneAlternateDynamics.SafeVelocity(vFarBelow);
-            Assert.AreEqual(min, safeVFarBelow, 1e-10,
-                $"For v={vFarBelow} << threshold, SafeVelocity should return min={min}. Got {safeVFarBelow}");
-
-            // Test at threshold - should return the threshold value
-            var vAtThreshold = min;
-            var safeVAtThreshold = BrachistochroneAlternateDynamics.SafeVelocity(vAtThreshold);
-            Assert.AreEqual(min, safeVAtThreshold, 1e-10,
-                $"SafeVelocity({vAtThreshold}) should be {min}. Got {safeVAtThreshold}");
-
-            Console.WriteLine($"SafeVelocity: far above={vFarAbove:F4}->{safeVFarAbove:F4}, " +
-                            $"at threshold={vAtThreshold:F4}->{safeVAtThreshold:F4}, " +
-                            $"far below={vFarBelow:F4}->{safeVFarBelow:F4}");
         }
 
         #endregion

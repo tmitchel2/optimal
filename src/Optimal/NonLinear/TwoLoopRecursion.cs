@@ -23,6 +23,18 @@ namespace Optimal.NonLinear
         /// <returns>Search direction (approximately -H * gradient, where H is inverse Hessian approximation).</returns>
         public static double[] ComputeDirection(double[] gradient, LBFGSMemory memory)
         {
+            return ComputeDirection(gradient, memory, preconditioner: null);
+        }
+
+        /// <summary>
+        /// Computes the L-BFGS search direction using the two-loop recursion algorithm with optional preconditioning.
+        /// </summary>
+        /// <param name="gradient">Current gradient vector.</param>
+        /// <param name="memory">L-BFGS memory containing correction pairs.</param>
+        /// <param name="preconditioner">Optional preconditioner for ill-conditioned problems.</param>
+        /// <returns>Search direction (approximately -H * gradient, where H is inverse Hessian approximation).</returns>
+        public static double[] ComputeDirection(double[] gradient, LBFGSMemory memory, IPreconditioner? preconditioner)
+        {
             var n = gradient.Length;
             var m = memory.Count;
 
@@ -63,11 +75,24 @@ namespace Optimal.NonLinear
             var (s_k, y_k, _) = memory.GetPair(m - 1);
             var gamma = DotProduct(s_k, y_k) / DotProduct(y_k, y_k);
 
-            // r = H_0 * q, where H_0 = gamma * I
+            // r = H_0 * q, where H_0 = gamma * I (or preconditioned variant)
             var r = new double[n];
-            for (var i = 0; i < n; i++)
+            if (preconditioner != null)
             {
-                r[i] = gamma * q[i];
+                // Use preconditioner for H_0: r = P^{-1} * q where P approximates Hessian
+                // The preconditioner returns M^{-1} * q, so we scale by gamma for consistency
+                var preconditionedQ = preconditioner.ApplyToGradient(q);
+                for (var i = 0; i < n; i++)
+                {
+                    r[i] = gamma * preconditionedQ[i];
+                }
+            }
+            else
+            {
+                for (var i = 0; i < n; i++)
+                {
+                    r[i] = gamma * q[i];
+                }
             }
 
             // Second loop: iterate forwards through memory (oldest to newest)

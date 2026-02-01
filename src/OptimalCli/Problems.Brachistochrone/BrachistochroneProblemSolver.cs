@@ -12,6 +12,7 @@ using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
 using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.Unconstrained;
 
 namespace OptimalCli.Problems.Brachistochrone;
@@ -282,13 +283,13 @@ public sealed class BrachistochroneProblemSolver : ICommand
         return (problem, description);
     }
 
-    private static ISolver CreateSolver(int segments, ProgressCallback? progressCallback = null)
+    private static ISolver CreateSolver(int segments, ProgressCallback? progressCallback = null, OptimisationMonitor? monitor = null)
     {
         var innerOptimizer = new LBFGSOptimizer(new LBFGSOptions
         {
             Tolerance = 1e-4,
             MaxIterations = 500
-        }, new BacktrackingLineSearch());
+        }, new BacktrackingLineSearch(), monitor);
 
         Console.WriteLine("Solver configuration:");
         Console.WriteLine($"  Segments: {segments}");
@@ -307,7 +308,8 @@ public sealed class BrachistochroneProblemSolver : ICommand
                     Verbose = true,
                     ProgressCallback = progressCallback
                 },
-                innerOptimizer);
+                innerOptimizer,
+                monitor);
     }
 
     private static void RunSolver(ControlProblem problem, CommandOptions options)
@@ -324,15 +326,22 @@ public sealed class BrachistochroneProblemSolver : ICommand
         var segments = 5;
         var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, segments);
 
+        // Create optimization monitor for conditioning monitoring
+        var monitor = new OptimisationMonitor()
+            .WithConditioningMonitoring(threshold: 1e4);
+
         if (options.Headless)
         {
-            var solver = CreateSolver(segments);
+            var solver = CreateSolver(segments, monitor: monitor);
+            monitor.OnOptimizationStart(initialGuess.StateTrajectory[0]);
             var headlessResult = solver.Solve(problem, initialGuess);
             PrintSolutionSummary(headlessResult, options.Variant);
+            PrintMonitorReport(monitor);
             return;
         }
 
-        var solverWithCallback = CreateSolver(segments, CreateProgressCallback());
+        var solverWithCallback = CreateSolver(segments, CreateProgressCallback(), monitor);
+        monitor.OnOptimizationStart(initialGuess.StateTrajectory[0]);
         var optimizationTask = Task.Run(() =>
         {
             try
@@ -373,6 +382,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
             Console.WriteLine("=".PadRight(70, '='));
             Console.WriteLine();
             Console.WriteLine("OPTIMIZATION CANCELLED");
+            PrintMonitorReport(monitor);
             Console.WriteLine();
             return;
         }
@@ -388,11 +398,13 @@ public sealed class BrachistochroneProblemSolver : ICommand
             Console.WriteLine("=".PadRight(70, '='));
             Console.WriteLine();
             Console.WriteLine("OPTIMIZATION CANCELLED");
+            PrintMonitorReport(monitor);
             Console.WriteLine();
             return;
         }
 
         PrintSolutionSummary(result, options.Variant);
+        PrintMonitorReport(monitor);
     }
 
     private static ProgressCallback CreateProgressCallback()
@@ -463,6 +475,41 @@ public sealed class BrachistochroneProblemSolver : ICommand
                 Console.WriteLine($"  {t:F3}   {x[0]:F3}   {x[1]:F3}   {x[2]:F3}   {u[0]:F3}");
             }
         }
+        Console.WriteLine();
+    }
+
+    private static void PrintMonitorReport(OptimisationMonitor monitor)
+    {
+        var report = monitor.GenerateReport();
+
+        Console.WriteLine();
+        Console.WriteLine("-".PadRight(70, '-'));
+        Console.WriteLine("OPTIMIZATION MONITOR REPORT:");
+        Console.WriteLine($"  {report.Summary}");
+
+        if (report.IllConditioningSuspected)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  WARNING: Ill-conditioning suspected!");
+            if (report.ConditioningResult != null)
+            {
+                Console.WriteLine($"    Estimated condition number: {report.ConditioningResult.EstimatedConditionNumber:E2}");
+                Console.WriteLine($"    Severity: {report.ConditioningResult.Severity}");
+                Console.WriteLine($"    Correction pairs analyzed: {report.ConditioningResult.CorrectionPairsAnalyzed}");
+                if (report.ConditioningResult.ProblematicVariableIndices.Count > 0)
+                {
+                    Console.WriteLine($"    Problematic variables: {string.Join(", ", report.ConditioningResult.ProblematicVariableIndices)}");
+                }
+            }
+        }
+        else if (report.ConditioningResult != null && report.ConditioningResult.CorrectionPairsAnalyzed > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  Conditioning analysis:");
+            Console.WriteLine($"    Estimated condition number: {report.ConditioningResult.EstimatedConditionNumber:E2}");
+            Console.WriteLine($"    Severity: {report.ConditioningResult.Severity}");
+        }
+
         Console.WriteLine();
     }
 }
