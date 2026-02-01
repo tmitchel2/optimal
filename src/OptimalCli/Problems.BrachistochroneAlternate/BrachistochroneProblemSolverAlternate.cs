@@ -180,7 +180,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
                 {
                     EnableAutomaticPreconditioning = true,
                     PreconditioningThreshold = 1e3,
-                    Type = PreconditioningType.Diagonal
+                    Type = PreconditioningType.Regularization
                 },
                 Tolerance = 1e-4,
                 MaxIterations = 1000
@@ -204,6 +204,8 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
                 ProgressCallback = progressCallback,
                 AutoScaling = true,
                 EnableMeshRefinement = true,
+                MaxRefinementIterations = 5,
+                RefinementDefectThreshold = 1e-4,
                 InnerProgressCallback = innerProgressCallback
             },
             innerOptimizer,

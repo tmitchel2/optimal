@@ -2,7 +2,7 @@
   "profiles": {
     "OptimalCli": {
       "commandName": "Project",
-      "commandLineArgs": "brachistochrone-alt"
+      "commandLineArgs": "corner"
     }
   }
 }

@@ -81,42 +81,53 @@ public sealed class CornerProblemSolver : ICommand
             .AddLine(distance: 10.0)
             .Build(Tw);
 
-        var visualizer = new RadiantCornerVisualizer(trackGeometry);
         var problem = CreateProblem(trackGeometry);
+        RunSolver(problem, trackGeometry, options);
+    }
+
+    private static void RunSolver(ControlProblem problem, TrackGeometry trackGeometry, CommandOptions options)
+    {
+        var segments = 10;
         var initialGuess = CreateInitialGuess(trackGeometry);
 
-        // Create optimization monitor for gradient verification and smoothness monitoring
         var useMonitor = false;
-
         var monitor = new OptimisationMonitor()
             .WithGradientVerification(testStep: 1e-6)
             .WithSmoothnessMonitoring();
+
+        using var cancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = cancellationTokenSource.Token;
+
+        if (options.Headless)
+        {
+            var solver = CreateSolver(segments, monitor: useMonitor ? monitor : null);
+            var headlessResult = solver.Solve(problem, initialGuess, cancellationToken);
+            PrintResults(headlessResult);
+            PrintMonitorReport(monitor);
+            return;
+        }
+
+        var visualizer = new RadiantCornerVisualizer(trackGeometry);
+        var progressCallback = CreateProgressCallback(visualizer, cancellationToken);
+        var solverWithCallback = CreateSolver(segments, progressCallback, null, useMonitor ? monitor : null);
 
         var optimizationTask = Task.Run(() =>
         {
             try
             {
-                var solver = CreateSolver(visualizer, useMonitor ? monitor : null);
-                var result = solver.Solve(problem, initialGuess, visualizer.CancellationToken);
+                var taskResult = solverWithCallback.Solve(problem, initialGuess, cancellationToken);
                 Console.WriteLine("[SOLVER] Optimization completed successfully");
-                return result;
+                return taskResult;
             }
             catch (OperationCanceledException)
             {
                 Console.WriteLine("[SOLVER] Optimization cancelled");
                 throw;
             }
-        }, visualizer.CancellationToken);
+        }, cancellationToken);
 
-        // visualizer.RunDebugVisualization(initialGuess);
+        visualizer.RunVisualizationWindow(cancellationTokenSource);
 
-        if (!options.Headless)
-        {
-            // Run the visualization window on the main thread
-            visualizer.RunVisualizationWindow();
-        }
-
-        // Check if optimization is still running after window closed
         if (!optimizationTask.IsCompleted)
         {
             Console.WriteLine("\nWindow closed - waiting for optimization to stop...");
@@ -134,7 +145,6 @@ public sealed class CornerProblemSolver : ICommand
             return;
         }
 
-        // Optimization completed - get the result
         CollocationResult result;
         try
         {
@@ -149,6 +159,15 @@ public sealed class CornerProblemSolver : ICommand
 
         PrintResults(result);
         PrintMonitorReport(monitor);
+    }
+
+    private static ProgressCallback CreateProgressCallback(RadiantCornerVisualizer visualizer, CancellationToken cancellationToken)
+    {
+        return (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            visualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+        };
     }
 
     private static void PrintMonitorReport(OptimisationMonitor monitor)
@@ -186,43 +205,43 @@ public sealed class CornerProblemSolver : ICommand
     }
 
     private static HermiteSimpsonSolver CreateSolver(
-        RadiantCornerVisualizer visualizer,
-        OptimisationMonitor? monitor = null,
-        bool useLBFGSB = true)
+        int segments,
+        ProgressCallback? progressCallback = null,
+        Action<int, double, double, double, int, double[]>? innerProgressCallback = null,
+        OptimisationMonitor? monitor = null)
     {
-        // Use L-BFGS-B for native box constraint support, or standard L-BFGS
-        // L-BFGS-B handles bounds internally, which can be more efficient for
-        // bound-constrained problems like optimal control
-        IOptimizer innerOptimizer = useLBFGSB
-            ? new LBFGSBOptimizer(new LBFGSBOptions
-            {
-                MemorySize = 10,
-                Tolerance = 1e-2,
-                MaxIterations = 300
-            })
-            : new LBFGSOptimizer(new LBFGSOptions
-            {
-                Tolerance = 1e-2,
-                MaxIterations = 300
-            }, new BacktrackingLineSearch());
+        var innerOptimizer = false ? (IOptimizer)
+             new LBFGSBOptimizer(new LBFGSBOptions
+             {
+                 MemorySize = 10,
+                 Tolerance = 1e-3,
+                 MaxIterations = 1000
+             }, monitor) : new LBFGSOptimizer(new LBFGSOptions
+             {
+                 MemorySize = 10,
+                 Preconditioning = new LBFGSPreconditioningOptions
+                 {
+                     EnableAutomaticPreconditioning = true,
+                     PreconditioningThreshold = 1e3,
+                     Type = PreconditioningType.Diagonal
+                 },
+                 Tolerance = 1e-4,
+                 MaxIterations = 1000
+             }, new BacktrackingLineSearch(), monitor);
 
         return new HermiteSimpsonSolver(
             new HermiteSimpsonSolverOptions
             {
-                Segments = 30,
-                Tolerance = 1e-1,
-                MaxIterations = 500,
+                Segments = segments,
+                Tolerance = 1e-3,
+                MaxIterations = 1000,
+                Verbose = true,
+                ProgressCallback = progressCallback,
+                AutoScaling = true,
                 EnableMeshRefinement = true,
                 MaxRefinementIterations = 5,
-                RefinementDefectThreshold = 1e-1,
-                Verbose = true,
-                InitialPenalty = 50.0,
-                AutoScaling = true,
-                ProgressCallback = (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
-                {
-                    visualizer.CancellationToken.ThrowIfCancellationRequested();
-                    visualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
-                }
+                RefinementDefectThreshold = 1e-4,
+                InnerProgressCallback = innerProgressCallback
             },
             innerOptimizer,
             monitor);

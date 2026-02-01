@@ -76,14 +76,10 @@ internal sealed class RadiantCornerVisualizer
     private double _nextConstraintTolerance;
     private bool _hasNextTrajectory;
 
-    private CancellationTokenSource? _cancellationTokenSource;
-
     public RadiantCornerVisualizer(TrackGeometry trackGeometry)
     {
         _trackGeometry = trackGeometry ?? throw new ArgumentNullException(nameof(trackGeometry));
     }
-
-    public CancellationToken CancellationToken => _cancellationTokenSource?.Token ?? CancellationToken.None;
 
     public void UpdateTrajectory(double[][] states, double[][] controls, int iteration, double cost, double maxViolation, double constraintTolerance)
     {
@@ -106,10 +102,8 @@ internal sealed class RadiantCornerVisualizer
         }
     }
 
-    public void RunVisualizationWindow()
+    public void RunVisualizationWindow(CancellationTokenSource cancellationTokenSource)
     {
-        _cancellationTokenSource = new CancellationTokenSource();
-
         try
         {
             using var app = new RadiantApplication();
@@ -117,14 +111,11 @@ internal sealed class RadiantCornerVisualizer
         }
         finally
         {
-            if (_cancellationTokenSource?.IsCancellationRequested == false)
+            if (!cancellationTokenSource.IsCancellationRequested)
             {
                 Console.WriteLine("[VIZ] Window closed - requesting optimization cancellation");
-                _cancellationTokenSource.Cancel();
+                cancellationTokenSource.Cancel();
             }
-
-            _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = null;
         }
     }
 
