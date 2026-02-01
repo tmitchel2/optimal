@@ -98,7 +98,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
             .WithFinalCondition(finalState)
             .WithControlBounds([-1.0], [1.0]) // Tighter curvature bounds (rad/m)
             .WithStateBounds(
-                [1.0, -3.0, -Math.PI / 3.0, 0.0],   // Tighter lower bounds
+                [0.5, -3.0, -Math.PI / 3.0, 0.0],   // Tighter lower bounds
                 [15.0, 3.0, Math.PI / 3.0, 5.0])    // Tighter upper bounds
             .WithDynamics(ComputeDynamics)
             .WithRunningCost(ComputeRunningCost);
@@ -282,7 +282,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
-        var segments = 20;
+        var segments = 5;
         var initialGuess = CreateCustomInitialGuess(problem, segments);
 
         // Create optimization monitor for gradient verification and smoothness monitoring
