@@ -31,7 +31,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
         private const double Gravity = 9.80665;
         private const double Epsilon = 1e-7;
         private const double GradientTolerance = 1e-5;
-        private static readonly double ThetaRef = BrachistochroneAlternateDynamics.ThetaRef;
+        private static readonly double ThetaRef = BrachistochroneDynamicsAlternate.ThetaRef;
 
         #region Physical Dynamics Values
 
@@ -43,7 +43,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var alpha = Math.PI / 6.0; // 30 degrees
             var expected = 1.0 / (v * Math.Cos(alpha));
 
-            var actual = BrachistochroneAlternateDynamics.TimeRateS(v, alpha);
+            var actual = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha);
 
             Assert.AreEqual(expected, actual, 1e-10, "TimeRateS should be 1/(v*cos(alpha))");
         }
@@ -56,7 +56,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var alpha = Math.PI / 6.0;
             var expected = Gravity * Math.Sin(alpha + ThetaRef) / (v * Math.Cos(alpha));
 
-            var actual = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
+            var actual = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
 
             Assert.AreEqual(expected, actual, 1e-10, "SpeedRateS should be g*sin(alpha+ThetaRef)/(v*cos(alpha))");
         }
@@ -68,7 +68,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var alpha = Math.PI / 4.0; // 45 degrees
             var expected = Math.Tan(alpha);
 
-            var actual = BrachistochroneAlternateDynamics.VerticalRateS(alpha);
+            var actual = BrachistochroneDynamicsAlternate.VerticalRateS(alpha);
 
             Assert.AreEqual(expected, actual, 1e-10, "VerticalRateS should be tan(alpha)");
         }
@@ -80,7 +80,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var k = 0.3;
             var expected = k;
 
-            var actual = BrachistochroneAlternateDynamics.AlphaRateS(k);
+            var actual = BrachistochroneDynamicsAlternate.AlphaRateS(k);
 
             Assert.AreEqual(expected, actual, 1e-10, "AlphaRateS should equal curvature k");
         }
@@ -93,7 +93,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var alpha = Math.PI / 6.0;
             var expected = 1.0 / (v * Math.Cos(alpha));
 
-            var actual = BrachistochroneAlternateDynamics.RunningCostS(v, alpha);
+            var actual = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha);
 
             Assert.AreEqual(expected, actual, 1e-10, "RunningCostS should equal TimeRateS");
         }
@@ -106,7 +106,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
             var alpha = 0.0;
 
-            var actual = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
+            var actual = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
             var expected = Gravity * Math.Sin(ThetaRef) / v;
 
             Assert.AreEqual(expected, actual, 1e-10, "SpeedRateS should be g*sin(ThetaRef)/v for alpha=0");
@@ -119,7 +119,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             // When alpha = 0, dn/ds = tan(0) = 0
             var alpha = 0.0;
 
-            var actual = BrachistochroneAlternateDynamics.VerticalRateS(alpha);
+            var actual = BrachistochroneDynamicsAlternate.VerticalRateS(alpha);
 
             Assert.AreEqual(0.0, actual, 1e-10, "VerticalRateS should be zero for horizontal motion");
         }
@@ -133,7 +133,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
         {
             var alpha = Math.PI / 6.0;
 
-            var dtds = BrachistochroneAlternateDynamics.TimeRateS(0.001, alpha);
+            var dtds = BrachistochroneDynamicsAlternate.TimeRateS(0.001, alpha);
 
             Assert.IsFalse(double.IsNaN(dtds), "TimeRateS should not be NaN for small velocity");
             Assert.IsFalse(double.IsInfinity(dtds), "TimeRateS should not be infinite for small velocity");
@@ -145,7 +145,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
         {
             var alpha = Math.PI / 6.0;
 
-            var dvds = BrachistochroneAlternateDynamics.SpeedRateS(0.001, alpha, Gravity, ThetaRef);
+            var dvds = BrachistochroneDynamicsAlternate.SpeedRateS(0.001, alpha, Gravity, ThetaRef);
 
             Assert.IsFalse(double.IsNaN(dvds), "SpeedRateS should not be NaN for small velocity");
             Assert.IsFalse(double.IsInfinity(dvds), "SpeedRateS should not be infinite for small velocity");
@@ -157,7 +157,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
             var alpha = Math.PI / 2.5; // Large angle near singularity
 
-            var dtds = BrachistochroneAlternateDynamics.TimeRateS(v, alpha);
+            var dtds = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha);
 
             Assert.IsFalse(double.IsNaN(dtds), "TimeRateS should not be NaN for large angle");
             Assert.IsFalse(double.IsInfinity(dtds), "TimeRateS should not be infinite for large angle");
@@ -167,12 +167,12 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
         public void RunningCostSHandlesEdgeCases()
         {
             // Small velocity
-            var cost1 = BrachistochroneAlternateDynamics.RunningCostS(0.001, Math.PI / 6.0);
+            var cost1 = BrachistochroneDynamicsAlternate.RunningCostS(0.001, Math.PI / 6.0);
             Assert.IsFalse(double.IsNaN(cost1), "RunningCostS should handle small velocity");
             Assert.IsFalse(double.IsInfinity(cost1), "RunningCostS should be finite for small velocity");
 
             // Large angle
-            var cost2 = BrachistochroneAlternateDynamics.RunningCostS(5.0, Math.PI / 2.5);
+            var cost2 = BrachistochroneDynamicsAlternate.RunningCostS(5.0, Math.PI / 2.5);
             Assert.IsFalse(double.IsNaN(cost2), "RunningCostS should handle large angle");
             Assert.IsFalse(double.IsInfinity(cost2), "RunningCostS should be finite for large angle");
         }
@@ -190,8 +190,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
             var alpha = Math.PI / 6.0;
 
-            var dvds = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
-            var dnds = BrachistochroneAlternateDynamics.VerticalRateS(alpha);
+            var dvds = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
+            var dnds = BrachistochroneDynamicsAlternate.VerticalRateS(alpha);
 
             var dKE_ds = v * dvds;
             var dy_down_ds = Math.Sin(ThetaRef) + Math.Cos(ThetaRef) * dnds;
@@ -209,8 +209,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
                 {
                     var alpha = alphaDeg * Math.PI / 180.0;
 
-                    var dvds = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
-                    var dnds = BrachistochroneAlternateDynamics.VerticalRateS(alpha);
+                    var dvds = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
+                    var dnds = BrachistochroneDynamicsAlternate.VerticalRateS(alpha);
 
                     var dKE_ds = v * dvds;
                     var dy_down_ds = Math.Sin(ThetaRef) + Math.Cos(ThetaRef) * dnds;
@@ -232,8 +232,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
             var alpha = Math.PI / 6.0;
 
-            var f0 = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
-            var fPlus = BrachistochroneAlternateDynamics.SpeedRateS(v + Epsilon, alpha, Gravity, ThetaRef);
+            var f0 = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
+            var fPlus = BrachistochroneDynamicsAlternate.SpeedRateS(v + Epsilon, alpha, Gravity, ThetaRef);
             var numericalGradient = (fPlus - f0) / Epsilon;
 
             // Analytical: d/dv[g*sin(alpha+ThetaRef)/(v*cos(alpha))] = -g*sin(alpha+ThetaRef)/(v²*cos(alpha))
@@ -251,8 +251,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
             var alpha = Math.PI / 6.0;
 
-            var f0 = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
-            var fPlus = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha + Epsilon, Gravity, ThetaRef);
+            var f0 = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
+            var fPlus = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha + Epsilon, Gravity, ThetaRef);
             var numericalGradient = (fPlus - f0) / Epsilon;
 
             // Analytical: d/dalpha[g*sin(alpha+ThetaRef)/(v*cos(alpha))]
@@ -272,8 +272,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
             var alpha = Math.PI / 6.0;
 
-            var f0 = BrachistochroneAlternateDynamics.TimeRateS(v, alpha);
-            var fPlus = BrachistochroneAlternateDynamics.TimeRateS(v + Epsilon, alpha);
+            var f0 = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha);
+            var fPlus = BrachistochroneDynamicsAlternate.TimeRateS(v + Epsilon, alpha);
             var numericalGradient = (fPlus - f0) / Epsilon;
 
             // Analytical: d/dv[1/(v*cos(alpha))] = -1/(v²*cos(alpha))
@@ -290,8 +290,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
             var alpha = Math.PI / 6.0;
 
-            var f0 = BrachistochroneAlternateDynamics.TimeRateS(v, alpha);
-            var fPlus = BrachistochroneAlternateDynamics.TimeRateS(v, alpha + Epsilon);
+            var f0 = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha);
+            var fPlus = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha + Epsilon);
             var numericalGradient = (fPlus - f0) / Epsilon;
 
             // Analytical: d/dalpha[1/(v*cos(alpha))] = sin(alpha)/(v*cos²(alpha))
@@ -308,8 +308,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
         {
             var alpha = Math.PI / 6.0;
 
-            var f0 = BrachistochroneAlternateDynamics.VerticalRateS(alpha);
-            var fPlus = BrachistochroneAlternateDynamics.VerticalRateS(alpha + Epsilon);
+            var f0 = BrachistochroneDynamicsAlternate.VerticalRateS(alpha);
+            var fPlus = BrachistochroneDynamicsAlternate.VerticalRateS(alpha + Epsilon);
             var numericalGradient = (fPlus - f0) / Epsilon;
 
             // Analytical: d/dalpha[tan(alpha)] = sec²(alpha) = 1/cos²(alpha)
@@ -333,7 +333,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var alpha = Math.PI / 6.0;
             var horizontalDistance = 10.0;
 
-            var costRate = BrachistochroneAlternateDynamics.RunningCostS(v, alpha);
+            var costRate = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha);
             var integratedTime = costRate * horizontalDistance;
             var expectedTime = horizontalDistance / (v * Math.Cos(alpha));
 
@@ -347,8 +347,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
             var alpha = Math.PI / 6.0;
 
-            var runningCost = BrachistochroneAlternateDynamics.RunningCostS(v, alpha);
-            var timeRate = BrachistochroneAlternateDynamics.TimeRateS(v, alpha);
+            var runningCost = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha);
+            var timeRate = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha);
 
             Assert.AreEqual(timeRate, runningCost, 1e-10,
                 "Running cost should equal time rate");
@@ -370,10 +370,10 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var k = control[0];
 
             // Compute all dynamics
-            var dVds = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
-            var dNds = BrachistochroneAlternateDynamics.VerticalRateS(alpha);
-            var dAlphads = BrachistochroneAlternateDynamics.AlphaRateS(k);
-            var dTds = BrachistochroneAlternateDynamics.TimeRateS(v, alpha);
+            var dVds = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
+            var dNds = BrachistochroneDynamicsAlternate.VerticalRateS(alpha);
+            var dAlphads = BrachistochroneDynamicsAlternate.AlphaRateS(k);
+            var dTds = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha);
 
             // Verify individual values
             Assert.AreEqual(Gravity * Math.Sin(alpha + ThetaRef) / (v * Math.Cos(alpha)), dVds, 1e-10, "dv/ds value");
@@ -425,10 +425,10 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
 
             return new[]
             {
-                BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef),
-                BrachistochroneAlternateDynamics.VerticalRateS(alpha),
-                BrachistochroneAlternateDynamics.AlphaRateS(k),
-                BrachistochroneAlternateDynamics.TimeRateS(v, alpha)
+                BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef),
+                BrachistochroneDynamicsAlternate.VerticalRateS(alpha),
+                BrachistochroneDynamicsAlternate.AlphaRateS(k),
+                BrachistochroneDynamicsAlternate.TimeRateS(v, alpha)
             };
         }
 

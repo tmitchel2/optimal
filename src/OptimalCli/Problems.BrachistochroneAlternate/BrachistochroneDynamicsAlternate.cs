@@ -37,7 +37,7 @@ namespace OptimalCli.Problems.BrachistochroneAlternate
     ///   x = s * cos(theta_ref) - n * sin(theta_ref)
     ///   y_down = s * sin(theta_ref) + n * cos(theta_ref)
     /// </summary>
-    public static class BrachistochroneAlternateDynamics
+    public static class BrachistochroneDynamicsAlternate
     {
         // Reference line geometry
         private const double Xf = 10.0;

@@ -42,8 +42,8 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
     private const double V0 = 1.0;          // Initial velocity (m/s) - above clamping threshold
 
     // Reference line geometry from dynamics
-    private static readonly double STotal = BrachistochroneAlternateDynamics.STotal;
-    private static readonly double ThetaRef = BrachistochroneAlternateDynamics.ThetaRef;
+    private static readonly double STotal = BrachistochroneDynamicsAlternate.STotal;
+    private static readonly double ThetaRef = BrachistochroneDynamicsAlternate.ThetaRef;
 
     // State indices
     private const int IdxV = 0;
@@ -114,10 +114,10 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         var k = u[IdxK];
 
         // Compute state derivatives using BrachistochroneAlternateDynamics
-        var dVds = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
-        var dNds = BrachistochroneAlternateDynamics.VerticalRateS(alpha);
-        var dAlphads = BrachistochroneAlternateDynamics.AlphaRateS(k);
-        var dTds = BrachistochroneAlternateDynamics.TimeRateS(v, alpha);
+        var dVds = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
+        var dNds = BrachistochroneDynamicsAlternate.VerticalRateS(alpha);
+        var dAlphads = BrachistochroneDynamicsAlternate.AlphaRateS(k);
+        var dTds = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha);
 
         var value = new[] { dVds, dNds, dAlphads, dTds };
 
@@ -179,10 +179,10 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
 
         return
         [
-            BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef),
-            BrachistochroneAlternateDynamics.VerticalRateS(alpha),
-            BrachistochroneAlternateDynamics.AlphaRateS(k),
-            BrachistochroneAlternateDynamics.TimeRateS(v, alpha)
+            BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef),
+            BrachistochroneDynamicsAlternate.VerticalRateS(alpha),
+            BrachistochroneDynamicsAlternate.AlphaRateS(k),
+            BrachistochroneDynamicsAlternate.TimeRateS(v, alpha)
         ];
     }
 
@@ -194,7 +194,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         var alpha = x[IdxAlpha];
 
         // Running cost = dt/ds (integrates to total time)
-        var cost = BrachistochroneAlternateDynamics.RunningCostS(v, alpha);
+        var cost = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha);
 
         // Compute gradients numerically
         var gradients = ComputeRunningCostGradientsNumerically(x);
@@ -215,13 +215,13 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         var alpha = x[IdxAlpha];
 
         // dL/dv using central differences
-        var LPlus = BrachistochroneAlternateDynamics.RunningCostS(v + eps, alpha);
-        var LMinus = BrachistochroneAlternateDynamics.RunningCostS(v - eps, alpha);
+        var LPlus = BrachistochroneDynamicsAlternate.RunningCostS(v + eps, alpha);
+        var LMinus = BrachistochroneDynamicsAlternate.RunningCostS(v - eps, alpha);
         gradients[IdxV] = (LPlus - LMinus) / (2.0 * eps);
 
         // dL/dalpha using central differences
-        LPlus = BrachistochroneAlternateDynamics.RunningCostS(v, alpha + eps);
-        LMinus = BrachistochroneAlternateDynamics.RunningCostS(v, alpha - eps);
+        LPlus = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha + eps);
+        LMinus = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha - eps);
         gradients[IdxAlpha] = (LPlus - LMinus) / (2.0 * eps);
 
         // dL/dn = 0, dL/dt = 0, dL/dk = 0, dL/ds = 0
@@ -333,7 +333,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
             }
         }, cancellationToken);
 
-        RadiantBrachistochroneVisualizer.RunVisualizationWindow(cancellationTokenSource);
+        RadiantBrachistochroneVisualizerAlternative.RunVisualizationWindow(cancellationTokenSource);
 
         if (!optimizationTask.IsCompleted)
         {
@@ -452,8 +452,8 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
                 vNext = Math.Max(vNext, vMin);
 
                 // Integrate time using trapezoidal rule: dt/ds = 1/(v*cos(alpha))
-                var dtdsCurrent = BrachistochroneAlternateDynamics.TimeRateS(vClamped, alphaClamped);
-                var dtdsNext = BrachistochroneAlternateDynamics.TimeRateS(vNext, straightLineAlpha);
+                var dtdsCurrent = BrachistochroneDynamicsAlternate.TimeRateS(vClamped, alphaClamped);
+                var dtdsNext = BrachistochroneDynamicsAlternate.TimeRateS(vNext, straightLineAlpha);
                 var tNext = t + ds * (dtdsCurrent + dtdsNext) / 2.0;
 
                 // Alpha stays constant for a straight line
@@ -469,7 +469,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
     {
         return (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
         {
-            RadiantBrachistochroneVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+            RadiantBrachistochroneVisualizerAlternative.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
         };
     }
 

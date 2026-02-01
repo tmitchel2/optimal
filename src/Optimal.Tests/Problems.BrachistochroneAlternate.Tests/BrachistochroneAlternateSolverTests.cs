@@ -273,10 +273,10 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var k = u[0];
 
             // Compute state derivatives using BrachistochroneAlternateDynamics
-            var dVds = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
-            var dNds = BrachistochroneAlternateDynamics.VerticalRateS(alpha);
-            var dAlphads = BrachistochroneAlternateDynamics.AlphaRateS(k);
-            var dTds = BrachistochroneAlternateDynamics.TimeRateS(v, alpha);
+            var dVds = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
+            var dNds = BrachistochroneDynamicsAlternate.VerticalRateS(alpha);
+            var dAlphads = BrachistochroneDynamicsAlternate.AlphaRateS(k);
+            var dTds = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha);
 
             var value = new[] { dVds, dNds, dAlphads, dTds };
 
@@ -338,10 +338,10 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
 
             return
             [
-                BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef),
-                BrachistochroneAlternateDynamics.VerticalRateS(alpha),
-                BrachistochroneAlternateDynamics.AlphaRateS(k),
-                BrachistochroneAlternateDynamics.TimeRateS(v, alpha)
+                BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef),
+                BrachistochroneDynamicsAlternate.VerticalRateS(alpha),
+                BrachistochroneDynamicsAlternate.AlphaRateS(k),
+                BrachistochroneDynamicsAlternate.TimeRateS(v, alpha)
             ];
         }
 
@@ -351,7 +351,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = x[IdxV];
             var alpha = x[IdxAlpha];
 
-            var cost = BrachistochroneAlternateDynamics.RunningCostS(v, alpha);
+            var cost = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha);
             var gradients = ComputeRunningCostGradientsNumerically(x);
 
             return new RunningCostResult(cost, gradients);
@@ -366,13 +366,13 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var alpha = x[IdxAlpha];
 
             // Central differences for dL/dv
-            var LPlus = BrachistochroneAlternateDynamics.RunningCostS(v + eps, alpha);
-            var LMinus = BrachistochroneAlternateDynamics.RunningCostS(v - eps, alpha);
+            var LPlus = BrachistochroneDynamicsAlternate.RunningCostS(v + eps, alpha);
+            var LMinus = BrachistochroneDynamicsAlternate.RunningCostS(v - eps, alpha);
             gradients[IdxV] = (LPlus - LMinus) / (2.0 * eps);
 
             // Central differences for dL/dalpha
-            LPlus = BrachistochroneAlternateDynamics.RunningCostS(v, alpha + eps);
-            LMinus = BrachistochroneAlternateDynamics.RunningCostS(v, alpha - eps);
+            LPlus = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha + eps);
+            LMinus = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha - eps);
             gradients[IdxAlpha] = (LPlus - LMinus) / (2.0 * eps);
 
             return gradients;

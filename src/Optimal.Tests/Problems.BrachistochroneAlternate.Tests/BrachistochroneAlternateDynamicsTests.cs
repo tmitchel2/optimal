@@ -30,7 +30,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
     public sealed class BrachistochroneAlternateDynamicsTests
     {
         private const double Gravity = 9.80665;
-        private static readonly double ThetaRef = BrachistochroneAlternateDynamics.ThetaRef;
+        private static readonly double ThetaRef = BrachistochroneDynamicsAlternate.ThetaRef;
 
         #region TimeRateS Tests
 
@@ -40,7 +40,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
             var alpha = Math.PI / 6.0; // 30 degrees
 
-            var dtds = BrachistochroneAlternateDynamics.TimeRateS(v, alpha);
+            var dtds = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha);
 
             Assert.IsGreaterThan(0.0, dtds, "Time rate should be positive");
         }
@@ -50,8 +50,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
         {
             var alpha = Math.PI / 6.0;
 
-            var dtds_slow = BrachistochroneAlternateDynamics.TimeRateS(2.0, alpha);
-            var dtds_fast = BrachistochroneAlternateDynamics.TimeRateS(10.0, alpha);
+            var dtds_slow = BrachistochroneDynamicsAlternate.TimeRateS(2.0, alpha);
+            var dtds_fast = BrachistochroneDynamicsAlternate.TimeRateS(10.0, alpha);
 
             Assert.IsGreaterThan(dtds_fast, dtds_slow, "Time rate should decrease with higher velocity");
         }
@@ -62,7 +62,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var alpha = Math.PI / 6.0;
 
             // Should not throw or return NaN for very small velocity
-            var dtds = BrachistochroneAlternateDynamics.TimeRateS(0.001, alpha);
+            var dtds = BrachistochroneDynamicsAlternate.TimeRateS(0.001, alpha);
 
             Assert.IsFalse(double.IsNaN(dtds), "Time rate should not be NaN for small velocity");
             Assert.IsFalse(double.IsInfinity(dtds), "Time rate should not be infinite for small velocity");
@@ -74,7 +74,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
 
             // Near vertical angle - should be handled gracefully
-            var dtds = BrachistochroneAlternateDynamics.TimeRateS(v, Math.PI / 2.5);
+            var dtds = BrachistochroneDynamicsAlternate.TimeRateS(v, Math.PI / 2.5);
 
             Assert.IsFalse(double.IsNaN(dtds), "Time rate should not be NaN for large angle");
             Assert.IsFalse(double.IsInfinity(dtds), "Time rate should not be infinite for large angle");
@@ -90,7 +90,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
             var alpha = Math.PI / 6.0; // 30 degrees (descending relative to reference line)
 
-            var dvds = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
+            var dvds = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
 
             Assert.IsGreaterThan(0.0, dvds, "Speed should increase when descending");
         }
@@ -103,7 +103,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
             var alpha = 0.0; // Following reference line
 
-            var dvds = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
+            var dvds = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
 
             // Since ThetaRef > 0, the world angle is ThetaRef, so we're still descending
             Assert.IsGreaterThan(0.0, dvds, "Speed should increase when following reference line (downward slope)");
@@ -114,7 +114,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
         {
             var alpha = Math.PI / 6.0;
 
-            var dvds = BrachistochroneAlternateDynamics.SpeedRateS(0.001, alpha, Gravity, ThetaRef);
+            var dvds = BrachistochroneDynamicsAlternate.SpeedRateS(0.001, alpha, Gravity, ThetaRef);
 
             Assert.IsFalse(double.IsNaN(dvds), "Speed rate should not be NaN for small velocity");
             Assert.IsFalse(double.IsInfinity(dvds), "Speed rate should not be infinite for small velocity");
@@ -129,7 +129,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
         {
             var alpha = Math.PI / 6.0; // 30 degrees
 
-            var dnds = BrachistochroneAlternateDynamics.VerticalRateS(alpha);
+            var dnds = BrachistochroneDynamicsAlternate.VerticalRateS(alpha);
 
             Assert.IsGreaterThan(0.0, dnds, "Should descend for positive angle");
         }
@@ -137,7 +137,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
         [TestMethod]
         public void VerticalRateSIsZeroForHorizontalAngle()
         {
-            var dnds = BrachistochroneAlternateDynamics.VerticalRateS(0.0);
+            var dnds = BrachistochroneDynamicsAlternate.VerticalRateS(0.0);
 
             Assert.AreEqual(0.0, dnds, 1e-10, "No descent for horizontal motion");
         }
@@ -147,7 +147,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
         {
             var alpha = Math.PI / 4.0; // 45 degrees
 
-            var dnds = BrachistochroneAlternateDynamics.VerticalRateS(alpha);
+            var dnds = BrachistochroneDynamicsAlternate.VerticalRateS(alpha);
             var expected = Math.Tan(alpha);
 
             Assert.AreEqual(expected, dnds, 1e-10, "Vertical rate should equal tan(alpha)");
@@ -162,7 +162,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
         {
             var k = 0.5;
 
-            var dalphads = BrachistochroneAlternateDynamics.AlphaRateS(k);
+            var dalphads = BrachistochroneDynamicsAlternate.AlphaRateS(k);
 
             Assert.AreEqual(k, dalphads, 1e-10, "Alpha rate should equal curvature");
         }
@@ -172,7 +172,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
         {
             var k = -0.3;
 
-            var dalphads = BrachistochroneAlternateDynamics.AlphaRateS(k);
+            var dalphads = BrachistochroneDynamicsAlternate.AlphaRateS(k);
 
             Assert.AreEqual(k, dalphads, 1e-10, "Alpha rate should equal negative curvature");
         }
@@ -187,8 +187,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
             var alpha = Math.PI / 6.0;
 
-            var cost = BrachistochroneAlternateDynamics.RunningCostS(v, alpha);
-            var timeRate = BrachistochroneAlternateDynamics.TimeRateS(v, alpha);
+            var cost = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha);
+            var timeRate = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha);
 
             Assert.AreEqual(timeRate, cost, 1e-10, "Running cost should equal time rate");
         }
@@ -202,7 +202,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var alpha = Math.PI / 6.0;
             var horizontalDistance = 10.0;
 
-            var costRate = BrachistochroneAlternateDynamics.RunningCostS(v, alpha);
+            var costRate = BrachistochroneDynamicsAlternate.RunningCostS(v, alpha);
             var integratedTime = costRate * horizontalDistance;
             var expectedTime = horizontalDistance / (v * Math.Cos(alpha));
 
@@ -228,8 +228,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var v = 5.0;
             var alpha = Math.PI / 6.0;
 
-            var dvds = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
-            var dnds = BrachistochroneAlternateDynamics.VerticalRateS(alpha);
+            var dvds = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
+            var dnds = BrachistochroneDynamicsAlternate.VerticalRateS(alpha);
 
             // d(KE)/ds = v * dv/ds
             var dKE_ds = v * dvds;
@@ -253,8 +253,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             {
                 var alpha = alphaDeg * Math.PI / 180.0;
 
-                var dvds = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
-                var dnds = BrachistochroneAlternateDynamics.VerticalRateS(alpha);
+                var dvds = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
+                var dnds = BrachistochroneDynamicsAlternate.VerticalRateS(alpha);
 
                 var dKE_ds = v * dvds;
                 var dy_down_ds = Math.Sin(ThetaRef) + Math.Cos(ThetaRef) * dnds;
@@ -276,10 +276,10 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var alpha = Math.PI / 6.0;
             var eps = 1e-7;
 
-            var f0 = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha, Gravity, ThetaRef);
+            var f0 = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha, Gravity, ThetaRef);
 
             // Numerical gradient w.r.t. v
-            var fv = BrachistochroneAlternateDynamics.SpeedRateS(v + eps, alpha, Gravity, ThetaRef);
+            var fv = BrachistochroneDynamicsAlternate.SpeedRateS(v + eps, alpha, Gravity, ThetaRef);
             var dvds_dv_numerical = (fv - f0) / eps;
 
             // Analytical: d/dv[g*sin(alpha+ThetaRef)/(v*cos(alpha))] = -g*sin(alpha+ThetaRef)/(v²*cos(alpha))
@@ -290,7 +290,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             Assert.AreEqual(dvds_dv_analytical, dvds_dv_numerical, 1e-4, "Gradient w.r.t. v incorrect");
 
             // Numerical gradient w.r.t. alpha
-            var falpha = BrachistochroneAlternateDynamics.SpeedRateS(v, alpha + eps, Gravity, ThetaRef);
+            var falpha = BrachistochroneDynamicsAlternate.SpeedRateS(v, alpha + eps, Gravity, ThetaRef);
             var dvds_dalpha_numerical = (falpha - f0) / eps;
 
             // Analytical: d/dalpha[g*sin(alpha+ThetaRef)/(v*cos(alpha))]
@@ -310,10 +310,10 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             var alpha = Math.PI / 6.0;
             var eps = 1e-7;
 
-            var f0 = BrachistochroneAlternateDynamics.TimeRateS(v, alpha);
+            var f0 = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha);
 
             // Numerical gradient w.r.t. v
-            var fv = BrachistochroneAlternateDynamics.TimeRateS(v + eps, alpha);
+            var fv = BrachistochroneDynamicsAlternate.TimeRateS(v + eps, alpha);
             var dtds_dv_numerical = (fv - f0) / eps;
 
             // Analytical: d/dv[1/(v*cos(alpha))] = -1/(v²*cos(alpha))
@@ -323,7 +323,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             Assert.AreEqual(dtds_dv_analytical, dtds_dv_numerical, 1e-4, "Gradient w.r.t. v incorrect");
 
             // Numerical gradient w.r.t. alpha
-            var falpha = BrachistochroneAlternateDynamics.TimeRateS(v, alpha + eps);
+            var falpha = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha + eps);
             var dtds_dalpha_numerical = (falpha - f0) / eps;
 
             // Analytical: d/dalpha[1/(v*cos(alpha))] = sin(alpha)/(v*cos²(alpha))
@@ -350,8 +350,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             foreach (var v in velocities)
             {
                 // Compute central difference gradient
-                var fPlus = BrachistochroneAlternateDynamics.TimeRateS(v + eps, alpha);
-                var fMinus = BrachistochroneAlternateDynamics.TimeRateS(v - eps, alpha);
+                var fPlus = BrachistochroneDynamicsAlternate.TimeRateS(v + eps, alpha);
+                var fMinus = BrachistochroneDynamicsAlternate.TimeRateS(v - eps, alpha);
                 var gradient = (fPlus - fMinus) / (2.0 * eps);
 
                 // Gradient should be non-zero (negative, since time rate decreases with velocity)
@@ -388,8 +388,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
             foreach (var alpha in angles)
             {
                 // Compute central difference gradient
-                var fPlus = BrachistochroneAlternateDynamics.TimeRateS(v, alpha + eps);
-                var fMinus = BrachistochroneAlternateDynamics.TimeRateS(v, alpha - eps);
+                var fPlus = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha + eps);
+                var fMinus = BrachistochroneDynamicsAlternate.TimeRateS(v, alpha - eps);
                 var gradient = (fPlus - fMinus) / (2.0 * eps);
 
                 // Gradient should be non-zero
@@ -412,8 +412,8 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
 
             foreach (var v in velocities)
             {
-                var fPlus = BrachistochroneAlternateDynamics.SpeedRateS(v + eps, alpha, Gravity, ThetaRef);
-                var fMinus = BrachistochroneAlternateDynamics.SpeedRateS(v - eps, alpha, Gravity, ThetaRef);
+                var fPlus = BrachistochroneDynamicsAlternate.SpeedRateS(v + eps, alpha, Gravity, ThetaRef);
+                var fMinus = BrachistochroneDynamicsAlternate.SpeedRateS(v - eps, alpha, Gravity, ThetaRef);
                 var gradient = (fPlus - fMinus) / (2.0 * eps);
 
                 // Gradient should be non-zero

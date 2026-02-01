@@ -26,7 +26,7 @@ namespace OptimalCli.Problems.BrachistochroneAlternate;
 ///
 /// Independent variable is s (horizontal distance), reconstructed from index.
 /// </summary>
-internal static class RadiantBrachistochroneVisualizer
+internal static class RadiantBrachistochroneVisualizerAlternative
 {
     private const int WindowWidth = 1000;
     private const int WindowHeight = 700;
@@ -34,8 +34,8 @@ internal static class RadiantBrachistochroneVisualizer
     private const float ScaleY = 35.0f; // Pixels per meter vertical
 
     // Reference line geometry from dynamics
-    private static readonly double ThetaRef = BrachistochroneAlternateDynamics.ThetaRef;
-    private static readonly double STotal = BrachistochroneAlternateDynamics.STotal;
+    private static readonly double ThetaRef = BrachistochroneDynamicsAlternate.ThetaRef;
+    private static readonly double STotal = BrachistochroneDynamicsAlternate.STotal;
 
     // State indices
     private const int IdxV = 0;
