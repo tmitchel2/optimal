@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -6,9 +6,10 @@
  *
  */
 
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Optimal.NonLinear.Tests;
 using Optimal.NonLinear.LineSearch;
+using Optimal.NonLinear.Tests;
 using Optimal.NonLinear.Unconstrained;
 
 namespace Optimal.NonLinear.Constrained.Tests
@@ -32,7 +33,8 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
-                [1.0, 1.0]);
+                [1.0, 1.0],
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(0.0, result.OptimalPoint[0], 1e-4, "x should be near 0");
@@ -55,7 +57,8 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                [-1.2, 1.0]);
+                [-1.2, 1.0],
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
@@ -76,7 +79,8 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.BoothReverse(x[0], x[1]),
-                [0.0, 0.0]);
+                [0.0, 0.0],
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-3, "x should be near 1");
@@ -105,7 +109,8 @@ namespace Optimal.NonLinear.Constrained.Tests
                 var fx = (x[0] - 2.0) * (x[0] - 2.0) + (x[1] - 2.0) * (x[1] - 2.0);
                 var grad = new[] { 2.0 * (x[0] - 2.0), 2.0 * (x[1] - 2.0) };
                 return (fx, grad);
-            }, [0.5, 0.5]);
+            }, [0.5, 0.5],
+            CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
 
@@ -135,7 +140,8 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
-                [1.0, 1.0]);
+                [1.0, 1.0],
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(0.5, result.OptimalPoint[0], 1e-4, "x should be at lower bound");
@@ -162,7 +168,8 @@ namespace Optimal.NonLinear.Constrained.Tests
                 var fx = (x[0] - 0.3) * (x[0] - 0.3) + x[1] * x[1];
                 var grad = new[] { 2.0 * (x[0] - 0.3), 2.0 * x[1] };
                 return (fx, grad);
-            }, [0.5, 0.25]);
+            }, [0.5, 0.25],
+            CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(0.3, result.OptimalPoint[0], 1e-3, "x should be at interior optimum 0.3");
@@ -190,7 +197,8 @@ namespace Optimal.NonLinear.Constrained.Tests
                 var fx = (x[0] - 1.0) * (x[0] - 1.0) + (x[1] - 1.0) * (x[1] - 1.0);
                 var grad = new[] { 2.0 * (x[0] - 1.0), 2.0 * (x[1] - 1.0) };
                 return (fx, grad);
-            }, [0.0, 0.0]); // Starting at lower bounds
+            }, [0.0, 0.0],
+            CancellationToken.None); // Starting at lower bounds
 
             Assert.IsTrue(result.Success, $"Optimization should succeed starting from boundary");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-3);
@@ -210,7 +218,8 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
-                [-5.0, 5.0]); // Outside bounds
+                [-5.0, 5.0],
+                CancellationToken.None); // Outside bounds
 
             Assert.IsTrue(result.Success, $"Optimization should succeed after projection");
             // Result should be at (0, 0) since that's the closest feasible point to the unconstrained minimum
@@ -242,7 +251,7 @@ namespace Optimal.NonLinear.Constrained.Tests
                     grad[i] = 2.0 * (x[i] - 2.0);
                 }
                 return (fx, grad);
-            }, [0.5, 0.5, 0.5]);
+            }, [0.5, 0.5, 0.5], CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed");
             for (var i = 0; i < 3; i++)
@@ -266,7 +275,8 @@ namespace Optimal.NonLinear.Constrained.Tests
             // With x >= 0 and y <= 0, min is still at (0,0)
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
-                [5.0, -5.0]);
+                [5.0, -5.0],
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed with infinity bounds");
             Assert.AreEqual(0.0, result.OptimalPoint[0], 1e-4, "x should be at lower bound 0");
@@ -285,7 +295,8 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                [-1.2, 1.0]);
+                [-1.2, 1.0],
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed without bounds");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2);
@@ -318,7 +329,7 @@ namespace Optimal.NonLinear.Constrained.Tests
                 UpperBounds = upper
             });
 
-            var result = optimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0);
+            var result = optimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0, CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             for (var i = 0; i < n; i++)
@@ -352,7 +363,7 @@ namespace Optimal.NonLinear.Constrained.Tests
                 UpperBounds = upper
             });
 
-            var result = optimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0);
+            var result = optimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0, CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed with active bounds");
 
@@ -384,7 +395,7 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             var lbfgsbResult = lbfgsbOptimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                x0);
+                x0, CancellationToken.None);
 
             var lbfgsOptimizer = new LBFGSOptimizer(new LBFGSOptions
             {
@@ -394,7 +405,7 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             var lbfgsResult = lbfgsOptimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                x0);
+                x0, CancellationToken.None);
 
             Assert.IsTrue(lbfgsbResult.Success, "L-BFGS-B should succeed");
             Assert.IsTrue(lbfgsResult.Success, "L-BFGS should succeed");
@@ -423,7 +434,7 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
-                [0.1, 0.1]);
+                [0.1, 0.1], CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(StoppingReason.GradientTolerance, result.StoppingReason,
@@ -443,7 +454,7 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                [-1.2, 1.0]);
+                [-1.2, 1.0], CancellationToken.None);
 
             Assert.IsFalse(result.Success, "Should not succeed with very few iterations");
             Assert.AreEqual(StoppingReason.MaxIterations, result.StoppingReason);
@@ -471,7 +482,8 @@ namespace Optimal.NonLinear.Constrained.Tests
 
                 var result = optimizer.Minimize(
                     x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                    [-1.2, 1.0]);
+                    [-1.2, 1.0],
+                    CancellationToken.None);
 
                 Assert.IsTrue(result.Success, $"Should succeed with memory size {m}");
                 Assert.IsLessThan(1e-3, result.OptimalValue, $"Should find good solution with memory size {m}");

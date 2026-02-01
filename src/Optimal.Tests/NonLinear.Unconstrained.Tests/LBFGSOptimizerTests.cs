@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -6,6 +6,7 @@
  *
  */
 
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Tests;
@@ -27,7 +28,8 @@ namespace Optimal.NonLinear.Unconstrained.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrock2DStart);
+                s_rosenbrock2DStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-3, "x should be near 1");
@@ -44,7 +46,8 @@ namespace Optimal.NonLinear.Unconstrained.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.BoothReverse(x[0], x[1]),
-                s_boothStart);
+                s_boothStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-3, "x should be near 1");
@@ -61,7 +64,7 @@ namespace Optimal.NonLinear.Unconstrained.Tests
                 new LBFGSOptions { Tolerance = 1e-4, MaxIterations = 5000, MemorySize = 10 },
                 new BacktrackingLineSearch());
 
-            var result = optimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0);
+            var result = optimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0, CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             for (var i = 0; i < 10; i++)
@@ -80,7 +83,7 @@ namespace Optimal.NonLinear.Unconstrained.Tests
                 new LBFGSOptions { Tolerance = 1e-3, MaxIterations = 1000, MemorySize = 20 },
                 new BacktrackingLineSearch());
 
-            var result = optimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0);
+            var result = optimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0, CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             Assert.IsLessThan(1000, result.Iterations, $"Should converge in < 1000 iterations, took {result.Iterations}");
@@ -104,13 +107,13 @@ namespace Optimal.NonLinear.Unconstrained.Tests
                 new LBFGSOptions { Tolerance = 1e-4, MaxIterations = 5000 },
                 new BacktrackingLineSearch());
 
-            var lbfgsResult = lbfgsOptimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0);
+            var lbfgsResult = lbfgsOptimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0, CancellationToken.None);
 
             var cgOptimizer = new ConjugateGradientOptimizer(
                 new ConjugateGradientOptions { Formula = ConjugateGradientFormula.FletcherReeves, Tolerance = 1e-4, MaxIterations = 20000 },
                 new BacktrackingLineSearch());
 
-            var cgResult = cgOptimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0);
+            var cgResult = cgOptimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0, CancellationToken.None);
 
             Assert.IsTrue(lbfgsResult.Success, "L-BFGS optimization should succeed");
             Assert.IsTrue(cgResult.Success, "CG optimization should succeed");
@@ -130,14 +133,14 @@ lbfgsResult.Iterations, $"L-BFGS ({lbfgsResult.Iterations} iters) should be fast
                 new LBFGSOptions { Tolerance = 1e-4, MaxIterations = 5000, MemorySize = 3 },
                 new BacktrackingLineSearch());
 
-            var smallMemoryResult = smallMemoryOptimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0);
+            var smallMemoryResult = smallMemoryOptimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0, CancellationToken.None);
 
             // Test with larger memory (m=20)
             var largeMemoryOptimizer = new LBFGSOptimizer(
                 new LBFGSOptions { Tolerance = 1e-4, MaxIterations = 5000, MemorySize = 20 },
                 new BacktrackingLineSearch());
 
-            var largeMemoryResult = largeMemoryOptimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0);
+            var largeMemoryResult = largeMemoryOptimizer.Minimize(HighDimensionalFunctions.ExtendedRosenbrock, x0, CancellationToken.None);
 
             // Both should succeed
             Assert.IsTrue(smallMemoryResult.Success, "Small memory optimization should succeed");
@@ -156,7 +159,8 @@ lbfgsResult.Iterations, $"L-BFGS ({lbfgsResult.Iterations} iters) should be fast
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrock2DStart);
+                s_rosenbrock2DStart,
+                CancellationToken.None);
 
             Assert.IsFalse(result.Success, "Should not succeed with very few iterations");
             Assert.AreEqual(StoppingReason.MaxIterations, result.StoppingReason);
@@ -177,7 +181,8 @@ lbfgsResult.Iterations, $"L-BFGS ({lbfgsResult.Iterations} iters) should be fast
 
                 var result = optimizer.Minimize(
                     x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                    s_rosenbrock2DStart);
+                    s_rosenbrock2DStart,
+                    CancellationToken.None);
 
                 Assert.IsTrue(result.Success, $"Should succeed with memory size {m}");
                 Assert.IsLessThan(1e-3, result.OptimalValue, $"Should find good solution with memory size {m}");
@@ -193,7 +198,8 @@ lbfgsResult.Iterations, $"L-BFGS ({lbfgsResult.Iterations} iters) should be fast
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrock2DStart);
+                s_rosenbrock2DStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Should succeed with parallel line search");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-3);
@@ -209,7 +215,8 @@ lbfgsResult.Iterations, $"L-BFGS ({lbfgsResult.Iterations} iters) should be fast
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrock2DStart);
+                s_rosenbrock2DStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Should succeed with parallel line search disabled");
         }

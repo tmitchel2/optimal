@@ -9,6 +9,7 @@
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
 using System;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
 using Optimal.NonLinear.LineSearch;
@@ -67,7 +68,7 @@ namespace Optimal.Control.Solvers.Tests
             var solver = CreateSolver(segments: 10, tolerance: 1e-4, maxIterations: 50, verbose: true);
 
             var initialGuess = CreateInitialGuess(problem, 10);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             // Debug output
             Console.WriteLine($"HS Solver Test Results:");
@@ -142,7 +143,7 @@ namespace Optimal.Control.Solvers.Tests
             var solver = CreateSolver(segments: 15, tolerance: 1e-4, maxIterations: 100);
 
             var initialGuess = CreateInitialGuess(problem, 15);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -192,7 +193,7 @@ namespace Optimal.Control.Solvers.Tests
             var solver = CreateSolver(segments: 10, tolerance: 1e-3, maxIterations: 100);
 
             var initialGuess = CreateInitialGuess(problem, 10);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -239,7 +240,7 @@ namespace Optimal.Control.Solvers.Tests
             var solver = CreateSolver(segments: 10, tolerance: 1e-4);
 
             var initialGuess = CreateInitialGuess(problem, 10);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Solver should converge");
             Assert.IsLessThan(1e-2, result.MaxDefect, "Defects should be small");
@@ -257,7 +258,7 @@ namespace Optimal.Control.Solvers.Tests
             Assert.Throws<InvalidOperationException>(() =>
             {
                 var guess = CreateInitialGuess(problem, 10);
-                solver.Solve(problem, guess);
+                solver.Solve(problem, guess, CancellationToken.None);
             });
         }
 

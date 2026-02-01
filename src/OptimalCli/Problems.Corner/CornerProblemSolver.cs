@@ -87,7 +87,7 @@ public sealed class CornerProblemSolver : ICommand
 
     private static void RunSolver(ControlProblem problem, TrackGeometry trackGeometry, CommandOptions options)
     {
-        var segments = 10;
+        var segments = 30;
         var initialGuess = CreateInitialGuess(trackGeometry);
 
         var useMonitor = false;
@@ -131,13 +131,20 @@ public sealed class CornerProblemSolver : ICommand
         if (!optimizationTask.IsCompleted)
         {
             Console.WriteLine("\nWindow closed - waiting for optimization to stop...");
-            if (optimizationTask.Wait(TimeSpan.FromSeconds(5)))
+            try
+            {
+                if (optimizationTask.Wait(TimeSpan.FromSeconds(5)))
+                {
+                    Console.WriteLine("Optimization stopped gracefully");
+                }
+                else
+                {
+                    Console.WriteLine("Optimization did not stop - returning to console");
+                }
+            }
+            catch (AggregateException ex) when (ex.InnerException is OperationCanceledException)
             {
                 Console.WriteLine("Optimization stopped gracefully");
-            }
-            else
-            {
-                Console.WriteLine("Optimization did not stop - returning to console");
             }
             Console.WriteLine("\n" + "=".PadRight(70, '=') + "\n");
             Console.WriteLine("OPTIMIZATION CANCELLED");

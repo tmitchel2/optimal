@@ -10,6 +10,7 @@
 
 using System;
 using System.Linq;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
@@ -67,7 +68,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var initialGuess = CreateCustomInitialGuess(problem, 20);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             // Check that defects are small
             Assert.IsLessThan(0.1, result.MaxDefect, $"Defects should be small, was {result.MaxDefect:E2}");
@@ -82,7 +83,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var initialGuess = CreateCustomInitialGuess(problem, 20);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             Assert.IsLessThan(0.1, result.MaxDefect, $"Defects should be small, was {result.MaxDefect:E2}");
 
@@ -107,7 +108,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var initialGuess = CreateCustomInitialGuess(problem, 20);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             Assert.IsLessThan(0.1, result.MaxDefect, $"Defects should be small, was {result.MaxDefect:E2}");
 
@@ -138,7 +139,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var initialGuess = CreateCustomInitialGuess(problem, 20);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             Assert.IsLessThan(0.1, result.MaxDefect, $"Defects should be small, was {result.MaxDefect:E2}");
 
@@ -161,7 +162,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var initialGuess = CreateCustomInitialGuess(problem, 20);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             Assert.IsLessThan(0.1, result.MaxDefect, $"Defects should be small, was {result.MaxDefect:E2}");
 
@@ -190,7 +191,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateForLGL(problem, 10, 4);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             Console.WriteLine($"LGL: MaxDefect={result.MaxDefect:E2}, Success={result.Success}");
 
@@ -208,7 +209,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateForLGL(problem, 10, 4);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             // Verify structure is valid
             Assert.IsNotNull(result.States, "Should return states array");
@@ -226,7 +227,7 @@ namespace Optimal.Problems.BrachistochroneAlternate.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateForLGL(problem, 10, 4);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             Console.WriteLine($"LGL: MaxDefect={result.MaxDefect:E2}, Success={result.Success}");
 

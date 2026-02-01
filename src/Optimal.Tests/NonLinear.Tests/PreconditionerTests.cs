@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
@@ -249,7 +250,7 @@ namespace Optimal.NonLinear.Tests
             };
 
             var optimizer = new LBFGSOptimizer(options, new BacktrackingLineSearch());
-            var result = optimizer.Minimize(Objective, s_startPoint);
+            var result = optimizer.Minimize(Objective, s_startPoint, CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed: {result.Message}");
             Assert.AreEqual(0.0, result.OptimalPoint[0], 1e-6);
@@ -274,7 +275,7 @@ namespace Optimal.NonLinear.Tests
             };
 
             var optimizer = new LBFGSOptimizer(options, new BacktrackingLineSearch());
-            var result = optimizer.Minimize(Objective, s_startPoint);
+            var result = optimizer.Minimize(Objective, s_startPoint, CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed: {result.Message}");
             Assert.AreEqual(0.0, result.OptimalPoint[0], 1e-6);
@@ -308,8 +309,8 @@ namespace Optimal.NonLinear.Tests
             var optimizerWith = new LBFGSOptimizer(optionsWithPreconditioning, new BacktrackingLineSearch());
             var optimizerWithout = new LBFGSOptimizer(optionsWithoutPreconditioning, new BacktrackingLineSearch());
 
-            var resultWith = optimizerWith.Minimize(IllConditionedObjective, s_initPoint);
-            var resultWithout = optimizerWithout.Minimize(IllConditionedObjective, s_initPoint);
+            var resultWith = optimizerWith.Minimize(IllConditionedObjective, s_initPoint, CancellationToken.None);
+            var resultWithout = optimizerWithout.Minimize(IllConditionedObjective, s_initPoint, CancellationToken.None);
 
             Assert.IsTrue(resultWith.Success, $"Preconditioned should succeed: {resultWith.Message}");
             Assert.IsTrue(resultWithout.Success, $"Non-preconditioned should succeed: {resultWithout.Message}");

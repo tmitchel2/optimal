@@ -9,6 +9,7 @@
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
 using System;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
 using Optimal.NonLinear.LineSearch;
@@ -63,7 +64,7 @@ namespace Optimal.Control.Solvers.Tests
                         gradients[2] = 0.0;
                         return new RunningCostResult(value, gradients);
                     });
-            });
+            }, CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Continuation should converge");
             Assert.AreEqual(0.0, result.States[0][0], 0.1, "Initial state");
@@ -109,7 +110,7 @@ namespace Optimal.Control.Solvers.Tests
                         gradients[2] = 0.0;
                         return new RunningCostResult(value, gradients);
                     });
-            });
+            }, CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Continuation with custom parameters should converge");
         }
@@ -146,7 +147,7 @@ namespace Optimal.Control.Solvers.Tests
                         var gradients = new double[3];
                         return new RunningCostResult(value, gradients);
                     });
-            });
+            }, CancellationToken.None);
 
             // Should return result (possibly failed) without throwing
             Assert.IsNotNull(result);
@@ -195,7 +196,7 @@ namespace Optimal.Control.Solvers.Tests
                     });
             }
 
-            var results = continuation.SolveSequence(problems);
+            var results = continuation.SolveSequence(problems, CancellationToken.None);
 
             Assert.HasCount(3, results);
             Assert.IsTrue(results[0].Success, "Problem 1 should converge");
@@ -263,7 +264,7 @@ namespace Optimal.Control.Solvers.Tests
                         gradients[2] = u[0];
                         return new RunningCostResult(value, gradients);
                     });
-            });
+            }, CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Continuation should help solve nonlinear problem");
             Assert.AreEqual(0.0, result.States[0][0], 0.1, "Initial state");
@@ -313,7 +314,7 @@ namespace Optimal.Control.Solvers.Tests
 
             var continuation = new ContinuationSolver(baseSolver);
 
-            var results = continuation.SolveSequence();
+            var results = continuation.SolveSequence([], CancellationToken.None);
 
             Assert.IsEmpty(results);
         }

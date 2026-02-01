@@ -9,6 +9,7 @@
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
 using System;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
@@ -119,7 +120,7 @@ namespace Optimal.Control.Collocation.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 5);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Should converge with mesh refinement");
@@ -166,7 +167,7 @@ namespace Optimal.Control.Collocation.Tests
                 new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 5);
-            var resultCoarse = solverCoarse.Solve(problem, initialGuess);
+            var resultCoarse = solverCoarse.Solve(problem, initialGuess, CancellationToken.None);
 
             // With refinement
             var solverRefined = new HermiteSimpsonSolver(
@@ -180,7 +181,7 @@ namespace Optimal.Control.Collocation.Tests
                 },
                 new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
-            var resultRefined = solverRefined.Solve(problem, initialGuess);
+            var resultRefined = solverRefined.Solve(problem, initialGuess, CancellationToken.None);
 
             // Both should converge
             Assert.IsTrue(resultCoarse.Success, "Coarse should converge");
@@ -235,7 +236,7 @@ namespace Optimal.Control.Collocation.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-4 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 8);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             // Should handle the varying dynamics
             Assert.IsTrue(result.Success, "Should converge with localized dynamics");

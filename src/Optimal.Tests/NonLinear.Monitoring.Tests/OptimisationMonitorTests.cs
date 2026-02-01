@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.Constrained;
 using Optimal.NonLinear.Constraints;
@@ -359,7 +360,7 @@ namespace Optimal.NonLinear.Monitoring.Tests
                 new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()),
                 monitor);
 
-            var result = optimizer.Minimize(Objective, s_initialPoint);
+            var result = optimizer.Minimize(Objective, s_initialPoint, CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed: {result.Message}");
 
@@ -415,7 +416,7 @@ namespace Optimal.NonLinear.Monitoring.Tests
                 monitor);
 
             // Run optimization (may or may not converge due to bad gradient)
-            _ = optimizer.Minimize(BadObjective, s_initialPointSmall);
+            _ = optimizer.Minimize(BadObjective, s_initialPointSmall, CancellationToken.None);
 
             var report = monitor.GenerateReport();
 

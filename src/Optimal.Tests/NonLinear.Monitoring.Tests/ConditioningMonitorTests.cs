@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.LineSearch;
 using Optimal.NonLinear.Unconstrained;
@@ -309,7 +310,7 @@ namespace Optimal.NonLinear.Monitoring.Tests
 
             monitor.OnOptimizationStart(s_startPoint);
 
-            var result = optimizer.Minimize(Objective, s_startPoint);
+            var result = optimizer.Minimize(Objective, s_startPoint, CancellationToken.None);
             var report = monitor.GenerateReport();
 
             Assert.IsTrue(result.Success, $"Optimization should succeed: {result.Message}");
@@ -339,7 +340,7 @@ namespace Optimal.NonLinear.Monitoring.Tests
 
             monitor.OnOptimizationStart(s_initPoint2D);
 
-            var result = optimizer.Minimize(IllConditionedObjective, s_initPoint2D);
+            var result = optimizer.Minimize(IllConditionedObjective, s_initPoint2D, CancellationToken.None);
             var report = monitor.GenerateReport();
 
             Assert.IsNotNull(report.ConditioningResult, "Conditioning result should be available");

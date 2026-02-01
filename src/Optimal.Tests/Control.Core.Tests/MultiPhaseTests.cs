@@ -9,6 +9,7 @@
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
 using System;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Solvers;
 using Optimal.NonLinear.LineSearch;
@@ -84,7 +85,7 @@ namespace Optimal.Control.Core.Tests
 
             var multiSolver = new MultiPhaseSolver(baseSolver);
 
-            var result = multiSolver.Solve(multiPhase);
+            var result = multiSolver.Solve(multiPhase, CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Should solve two-phase problem");
             Assert.HasCount(2, result.PhaseResults);
@@ -120,7 +121,7 @@ namespace Optimal.Control.Core.Tests
 
             var multiSolver = new MultiPhaseSolver(baseSolver);
 
-            var result = multiSolver.Solve(multiPhase);
+            var result = multiSolver.Solve(multiPhase, CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Should solve three-phase problem");
             Assert.HasCount(3, result.PhaseResults);
@@ -148,7 +149,7 @@ namespace Optimal.Control.Core.Tests
 
             var multiSolver = new MultiPhaseSolver(baseSolver);
 
-            var result = multiSolver.Solve(multiPhase);
+            var result = multiSolver.Solve(multiPhase, CancellationToken.None);
 
             Assert.IsTrue(result.Success);
 
@@ -239,7 +240,7 @@ namespace Optimal.Control.Core.Tests
 
             var multiSolver = new MultiPhaseSolver(baseSolver);
 
-            var result = multiSolver.Solve(multiPhase);
+            var result = multiSolver.Solve(multiPhase, CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Should solve acceleration-braking problem");
             Assert.IsLessThan(0.3, result.MaxLinkageViolation, $"Linkage violation should be small, was {result.MaxLinkageViolation}");

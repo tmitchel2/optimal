@@ -9,6 +9,7 @@
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
 using System;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
 using Optimal.NonLinear.LineSearch;
@@ -97,7 +98,7 @@ namespace Optimal.Control.Solvers.Tests
         public void SolveThrowsWhenProblemIsNull()
         {
             var solver = new MultipleShootingSolver();
-            Assert.Throws<ArgumentNullException>(() => solver.Solve(null!));
+            Assert.Throws<ArgumentNullException>(() => solver.Solve(null!, CancellationToken.None));
         }
 
         [TestMethod]
@@ -111,7 +112,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithFinalCondition(s_oneState1D);
 
             var solver = new MultipleShootingSolver();
-            Assert.Throws<InvalidOperationException>(() => solver.Solve(problem));
+            Assert.Throws<InvalidOperationException>(() => solver.Solve(problem, CancellationToken.None));
         }
 
         [TestMethod]
@@ -154,7 +155,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithMaxIterations(50)
                 .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
-            var result = solver.Solve(problem);
+            var result = solver.Solve(problem, CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Solver should converge: {result.Message}");
             Assert.AreEqual(0.0, result.States[0][0], 1e-2, "Initial state should be 0");
@@ -203,7 +204,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithMaxIterations(100)
                 .WithInnerOptimizer(new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
-            var result = solver.Solve(problem);
+            var result = solver.Solve(problem, CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Solver should converge: {result.Message}");
             Assert.AreEqual(0.0, result.States[0][0], 1e-2, "Initial position should be 0");
@@ -249,7 +250,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithTolerance(1e-3)
                 .WithMaxIterations(100);
 
-            var result = solver.Solve(problem);
+            var result = solver.Solve(problem, CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Solver should converge: {result.Message}");
             foreach (var u in result.Controls)
@@ -294,7 +295,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithShootingIntervals(2)
                 .WithTolerance(1e-3);
 
-            var result = solver.Solve(problem);
+            var result = solver.Solve(problem, CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Solver should converge: {result.Message}");
         }
@@ -341,7 +342,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithShootingIntervals(2)
                 .WithTolerance(1e-3);
 
-            var result = solver.Solve(problem);
+            var result = solver.Solve(problem, CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Solver should converge: {result.Message}");
         }
@@ -378,7 +379,7 @@ namespace Optimal.Control.Solvers.Tests
                 .WithShootingIntervals(4)
                 .WithTolerance(1e-3);
 
-            var result = solver.Solve(problem);
+            var result = solver.Solve(problem, CancellationToken.None);
 
             Assert.IsTrue(result.Success);
 
@@ -428,7 +429,7 @@ result.Times[i], $"Times should be monotonically increasing: t[{i - 1}]={result.
                 .WithShootingIntervals(1)
                 .WithTolerance(1e-3);
 
-            var result = solver.Solve(problem);
+            var result = solver.Solve(problem, CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Solver should converge: {result.Message}");
             Assert.AreEqual(0.0, result.States[0][0], 1e-2, "Initial state should be 0");
@@ -467,7 +468,7 @@ result.Times[i], $"Times should be monotonically increasing: t[{i - 1}]={result.
                 .WithShootingIntervals(2)
                 .WithTolerance(1e-3);
 
-            var result = solver.Solve(problem);
+            var result = solver.Solve(problem, CancellationToken.None);
 
             Assert.IsTrue(result.Success);
             Assert.IsNotNull(result.Message);

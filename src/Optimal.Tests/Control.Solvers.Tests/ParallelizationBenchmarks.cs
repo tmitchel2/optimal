@@ -8,6 +8,7 @@
 
 using System;
 using System.Diagnostics;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Collocation;
 using Optimal.Control.Core;
@@ -269,7 +270,7 @@ namespace Optimal.Control.Solvers.Tests
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, segments);
             var sw = Stopwatch.StartNew();
-            var seqResult = seqSolver.Solve(problem, initialGuess);
+            var seqResult = seqSolver.Solve(problem, initialGuess, CancellationToken.None);
             sw.Stop();
             var seqTime = sw.Elapsed.TotalMilliseconds;
 
@@ -279,7 +280,7 @@ namespace Optimal.Control.Solvers.Tests
                 new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             sw = Stopwatch.StartNew();
-            var parResult = parSolver.Solve(problem, initialGuess);
+            var parResult = parSolver.Solve(problem, initialGuess, CancellationToken.None);
             sw.Stop();
             var parTime = sw.Elapsed.TotalMilliseconds;
 

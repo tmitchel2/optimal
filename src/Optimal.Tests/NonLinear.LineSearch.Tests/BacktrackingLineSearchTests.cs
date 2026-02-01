@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -6,6 +6,7 @@
  *
  */
 
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.Tests;
 
@@ -110,7 +111,8 @@ namespace Optimal.NonLinear.LineSearch.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrockStart);
+                s_rosenbrockStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 6e-2, "x should be near 1");
@@ -131,7 +133,8 @@ namespace Optimal.NonLinear.LineSearch.Tests
 
             var resultLS = optimizerLS.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrockStart);
+                s_rosenbrockStart,
+                CancellationToken.None);
 
             // Optimizer with fixed step size (same as Phase 1 test)
             var optimizerFixed = new GradientDescentOptimizer(
@@ -139,7 +142,8 @@ namespace Optimal.NonLinear.LineSearch.Tests
 
             var resultFixed = optimizerFixed.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrockStart);
+                s_rosenbrockStart,
+                CancellationToken.None);
 
             // Line search should require significantly fewer iterations
             Assert.IsTrue(resultLS.Success, "Line search optimization should succeed");

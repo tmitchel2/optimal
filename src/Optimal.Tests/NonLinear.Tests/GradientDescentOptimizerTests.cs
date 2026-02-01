@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -6,6 +6,7 @@
  *
  */
 
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Optimal.NonLinear.Tests
@@ -27,7 +28,8 @@ namespace Optimal.NonLinear.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
-                s_quadraticStart);
+                s_quadraticStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(0.0, result.OptimalPoint[0], Tolerance, "x should be near 0");
@@ -49,7 +51,8 @@ namespace Optimal.NonLinear.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrockStart);
+                s_rosenbrockStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
@@ -91,7 +94,8 @@ namespace Optimal.NonLinear.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrockStart);
+                s_rosenbrockStart,
+                CancellationToken.None);
 
             Assert.IsFalse(result.Success, "Optimization should not succeed");
             Assert.AreEqual(StoppingReason.MaxIterations, result.StoppingReason);
@@ -106,7 +110,8 @@ namespace Optimal.NonLinear.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
-                s_quadraticStart);
+                s_quadraticStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success);
             Assert.AreEqual(result.Iterations, result.FunctionEvaluations,
@@ -121,7 +126,8 @@ namespace Optimal.NonLinear.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.BoothReverse(x[0], x[1]),
-                s_boothStart);
+                s_boothStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
@@ -138,7 +144,8 @@ namespace Optimal.NonLinear.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
-                s_quadraticStart);
+                s_quadraticStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Optimization should succeed with line search");
             Assert.AreEqual(0.0, result.OptimalPoint[0], Tolerance, "x should be near 0");
@@ -153,7 +160,8 @@ namespace Optimal.NonLinear.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.QuadraticReverse(x[0], x[1]),
-                s_quadraticStart);
+                s_quadraticStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Optimization should succeed with function tolerance");
             Assert.IsLessThan(1e-4, result.OptimalValue, "Function value should be small");

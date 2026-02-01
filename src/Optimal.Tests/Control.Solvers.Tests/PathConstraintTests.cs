@@ -8,6 +8,7 @@
 
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
 using Optimal.NonLinear.LineSearch;
@@ -74,7 +75,7 @@ namespace Optimal.Control.Solvers.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -142,7 +143,7 @@ namespace Optimal.Control.Solvers.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -217,7 +218,7 @@ result.States[i][0], $"At t={result.Times[i]:F2}, x={result.States[i][0]:F2} sho
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-5 }, new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 12);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             // Verify solution
             Assert.IsTrue(result.Success, "Solver should converge");
@@ -281,7 +282,7 @@ result.States[i][0], $"At t={result.Times[i]:F2}, x={result.States[i][0]:F2} sho
                 new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Should converge with multiple constraints");
 

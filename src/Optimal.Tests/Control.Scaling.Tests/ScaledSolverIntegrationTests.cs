@@ -8,6 +8,7 @@
 
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
@@ -34,7 +35,7 @@ namespace Optimal.Control.Scaling.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guessWithout = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
-            var resultWithout = solverWithout.Solve(problem, guessWithout);
+            var resultWithout = solverWithout.Solve(problem, guessWithout, CancellationToken.None);
 
             // Solve with auto-scaling
             var solverWith = new HermiteSimpsonSolver(
@@ -42,7 +43,7 @@ namespace Optimal.Control.Scaling.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guessWith = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
-            var resultWith = solverWith.Solve(problem, guessWith);
+            var resultWith = solverWith.Solve(problem, guessWith, CancellationToken.None);
 
             // Both should succeed
             Assert.IsTrue(resultWithout.Success, "Solver without scaling should succeed");
@@ -71,7 +72,7 @@ namespace Optimal.Control.Scaling.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6, MaxIterations = 500 }, new BacktrackingLineSearch()));
 
             var guess = InitialGuessFactory.CreateWithControlHeuristics(problem, 15);
-            var result = solver.Solve(problem, guess);
+            var result = solver.Solve(problem, guess, CancellationToken.None);
 
             // Verify solver can work with scaling enabled
             // Note: convergence depends on many factors, so we just check it runs without error
@@ -106,7 +107,7 @@ namespace Optimal.Control.Scaling.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
-            var result = solver.Solve(problem, guess);
+            var result = solver.Solve(problem, guess, CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Solver with custom scaling should succeed");
         }
@@ -153,7 +154,7 @@ namespace Optimal.Control.Scaling.Tests
             var guess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
 
             // Test that solver runs without throwing with scaling + path constraints
-            var result = solver.Solve(problem, guess);
+            var result = solver.Solve(problem, guess, CancellationToken.None);
 
             // Just verify we get valid output arrays
             Assert.IsNotNull(result.States, "States should not be null");
@@ -191,7 +192,7 @@ namespace Optimal.Control.Scaling.Tests
                 new LBFGSOptimizer(new LBFGSOptions { Tolerance = 1e-6 }, new BacktrackingLineSearch()));
 
             var guess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
-            var result = solver.Solve(problem, guess);
+            var result = solver.Solve(problem, guess, CancellationToken.None);
 
             // Verify solution trajectories are in original coordinates (not scaled [-1,1])
             // Even if solver doesn't fully converge, output should be unscaled

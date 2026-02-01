@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -6,6 +6,7 @@
  *
  */
 
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.LineSearch;
 
@@ -28,7 +29,8 @@ namespace Optimal.NonLinear.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrock2DStart);
+                s_rosenbrock2DStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
@@ -45,7 +47,8 @@ namespace Optimal.NonLinear.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrock2DStart);
+                s_rosenbrock2DStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 3e-2, "x should be near 1");
@@ -62,7 +65,8 @@ namespace Optimal.NonLinear.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrock2DStart);
+                s_rosenbrock2DStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
@@ -79,7 +83,8 @@ namespace Optimal.NonLinear.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.BealeReverse(x[0], x[1]),
-                s_bealeStart);
+                s_bealeStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Optimization should succeed");
             Assert.AreEqual(3.0, result.OptimalPoint[0], 1e-2, "x should be near 3");
@@ -96,7 +101,8 @@ namespace Optimal.NonLinear.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.Rosenbrock4DReverse(x[0], x[1], x[2], x[3]),
-                s_rosenbrock4DStart);
+                s_rosenbrock4DStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             for (var i = 0; i < 4; i++)
@@ -116,7 +122,8 @@ namespace Optimal.NonLinear.Tests
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.Rosenbrock10DReverse(
                     x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9]),
-                s_rosenbrock10DStart);
+                s_rosenbrock10DStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
             for (var i = 0; i < 10; i++)
@@ -136,7 +143,8 @@ namespace Optimal.NonLinear.Tests
 
             var cgResult = cgOptimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrock2DStart);
+                s_rosenbrock2DStart,
+                CancellationToken.None);
 
             var gdOptimizer = new GradientDescentOptimizer(
                 new GradientDescentOptions { Tolerance = 1e-4, MaxIterations = 10000 },
@@ -144,7 +152,8 @@ namespace Optimal.NonLinear.Tests
 
             var gdResult = gdOptimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrock2DStart);
+                s_rosenbrock2DStart,
+                CancellationToken.None);
 
             Assert.IsTrue(cgResult.Success, "CG optimization should succeed");
             Assert.IsTrue(gdResult.Success, "GD optimization should succeed");
@@ -164,7 +173,8 @@ cgResult.Iterations, $"CG ({cgResult.Iterations} iters) should be much faster th
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrock2DStart);
+                s_rosenbrock2DStart,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, "Optimization with restart should succeed");
             Assert.AreEqual(1.0, result.OptimalPoint[0], 1e-2, "x should be near 1");
@@ -180,7 +190,8 @@ cgResult.Iterations, $"CG ({cgResult.Iterations} iters) should be much faster th
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_rosenbrock2DStart);
+                s_rosenbrock2DStart,
+                CancellationToken.None);
 
             Assert.IsFalse(result.Success, "Should not succeed with very few iterations");
             Assert.AreEqual(StoppingReason.MaxIterations, result.StoppingReason);

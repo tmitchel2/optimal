@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -9,6 +9,7 @@
 #pragma warning disable CA1861 // Prefer static readonly fields - not applicable for lambda captures
 
 using System;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.Control.Core;
 using Optimal.Control.Solvers;
@@ -61,7 +62,7 @@ namespace Optimal.Control.Collocation.Tests
                 new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 10);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
             Assert.IsTrue(result.Success, "First solve should converge");
 
             // Create a new grid with different resolution
@@ -117,7 +118,7 @@ namespace Optimal.Control.Collocation.Tests
                 new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess1 = InitialGuessFactory.CreateWithControlHeuristics(problem, 8);
-            var result1 = solver1.Solve(problem, initialGuess1);
+            var result1 = solver1.Solve(problem, initialGuess1, CancellationToken.None);
             Assert.IsTrue(result1.Success, "Coarse solution should converge");
 
             // Now solve with more segments using warm start
@@ -128,7 +129,7 @@ namespace Optimal.Control.Collocation.Tests
             var newGrid = new CollocationGrid(0.0, 5.0, 20);
             var warmStart = WarmStart.InterpolateFromPrevious(result1, newGrid);
 
-            var result2 = solver2.Solve(problem, warmStart);
+            var result2 = solver2.Solve(problem, warmStart, CancellationToken.None);
 
             Assert.IsTrue(result2.Success, "Refined solution should converge with warm start");
             Assert.IsTrue(result2.MaxDefect < result1.MaxDefect || result2.MaxDefect < 1e-3,
@@ -170,7 +171,7 @@ namespace Optimal.Control.Collocation.Tests
                 new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem1, 10);
-            var result1 = solver.Solve(problem1, initialGuess);
+            var result1 = solver.Solve(problem1, initialGuess, CancellationToken.None);
             Assert.IsTrue(result1.Success);
 
             // Scale to T = 10
@@ -242,8 +243,8 @@ namespace Optimal.Control.Collocation.Tests
 
             var initialGuess1 = InitialGuessFactory.CreateWithControlHeuristics(problem1, 10);
             var initialGuess2 = InitialGuessFactory.CreateWithControlHeuristics(problem2, 10);
-            var result1 = solver.Solve(problem1, initialGuess1);
-            var result2 = solver.Solve(problem2, initialGuess2);
+            var result1 = solver.Solve(problem1, initialGuess1, CancellationToken.None);
+            var result2 = solver.Solve(problem2, initialGuess2, CancellationToken.None);
 
             Assert.IsTrue(result1.Success);
             Assert.IsTrue(result2.Success);
@@ -277,7 +278,7 @@ namespace Optimal.Control.Collocation.Tests
                 new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, 5);
-            var result = solver.Solve(problem, initialGuess);
+            var result = solver.Solve(problem, initialGuess, CancellationToken.None);
 
             var grid = new CollocationGrid(0.0, 5.0, 5);
 
@@ -326,7 +327,7 @@ namespace Optimal.Control.Collocation.Tests
                 new LBFGSOptimizer(new LBFGSOptions(), new BacktrackingLineSearch()));
 
             var initialGuess1 = InitialGuessFactory.CreateWithControlHeuristics(problem, 8);
-            var result1 = solver1.Solve(problem, initialGuess1);
+            var result1 = solver1.Solve(problem, initialGuess1, CancellationToken.None);
             Assert.IsTrue(result1.Success, "Coarse solution should converge");
 
             // Refine with warm start
@@ -337,7 +338,7 @@ namespace Optimal.Control.Collocation.Tests
             var grid2 = new CollocationGrid(0.0, 2.0, 16);
             var warmStart = WarmStart.InterpolateFromPrevious(result1, grid2);
 
-            var result2 = solver2.Solve(problem, warmStart);
+            var result2 = solver2.Solve(problem, warmStart, CancellationToken.None);
 
             Assert.IsTrue(result2.Success, "Refined solution should converge");
 

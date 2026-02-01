@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Optimal.NonLinear.Constraints;
 using Optimal.NonLinear.LineSearch;
@@ -41,7 +42,8 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_boxInitial);
+                s_boxInitial,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
 
@@ -69,7 +71,8 @@ namespace Optimal.NonLinear.Constrained.Tests
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.DistanceFromTargetReverse(x[0], x[1]),
-                s_equalityInitial);
+                s_equalityInitial,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
 
@@ -100,7 +103,8 @@ Math.Abs(constraintValue), $"Equality constraint should be satisfied: x + y = {r
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.DistanceFromTargetReverse(x[0], x[1]),
-                s_inequalityInitial);
+                s_inequalityInitial,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
 
@@ -137,7 +141,8 @@ circleValue, $"Inequality constraint should be satisfied: x^2 + y^2 = {circleVal
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_equalityInitial);
+                s_equalityInitial,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
 
@@ -166,7 +171,8 @@ Math.Abs(constraintValue), $"Equality constraint should be satisfied: x + y = {r
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.DistanceFromTargetReverse(x[0], x[1]),
-                s_inequalityInitial);
+                s_inequalityInitial,
+                CancellationToken.None);
 
             Assert.IsTrue(result.Success, $"Optimization should succeed, got: {result.Message}");
 
@@ -199,7 +205,8 @@ Math.Abs(constraintValue), $"Equality constraint should be satisfied: x + y = {r
 
             var result = optimizer.Minimize(
                 x => TestObjectiveFunctionsGradients.RosenbrockReverse(x[0], x[1]),
-                s_equalityInitial);
+                s_equalityInitial,
+                CancellationToken.None);
 
             Assert.IsFalse(result.Success, "Should not succeed with very few iterations");
             Assert.AreEqual(StoppingReason.MaxIterations, result.StoppingReason);
@@ -232,7 +239,8 @@ Math.Abs(constraintValue), $"Equality constraint should be satisfied: x + y = {r
 
                 var result = optimizer.Minimize(
                     x => TestObjectiveFunctionsGradients.DistanceFromTargetReverse(x[0], x[1]),
-                    s_equalityInitial);
+                    s_equalityInitial,
+                    CancellationToken.None);
 
                 Assert.IsTrue(result.Success, $"Should succeed with {unconstrainedOpt.GetType().Name}");
 
