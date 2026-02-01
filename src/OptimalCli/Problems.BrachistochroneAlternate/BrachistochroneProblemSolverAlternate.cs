@@ -27,8 +27,8 @@ namespace OptimalCli.Problems.BrachistochroneAlternate;
 /// - Independent variable: s (horizontal distance from start)
 /// - State: [v, n, alpha, t]
 ///   - v: Speed (m/s)
-///   - n: Vertical position below start (m, positive = descended)
-///   - alpha: Heading angle from horizontal (rad, positive = descending)
+///   - n: Perpendicular distance from reference line (m, positive = below line)
+///   - alpha: Heading angle relative to reference line (rad)
 ///   - t: Elapsed time (s)
 /// - Control: [k]
 ///   - k: Path curvature = dalpha/ds (rad/m)

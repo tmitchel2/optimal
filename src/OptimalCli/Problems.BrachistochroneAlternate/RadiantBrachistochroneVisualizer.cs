@@ -17,8 +17,8 @@ namespace OptimalCli.Problems.BrachistochroneAlternate;
 /// State format (arc-length parameterization):
 ///   [v, n, alpha, t] where:
 ///   - v: Speed (m/s)
-///   - n: Vertical position below start (m, positive = descended)
-///   - alpha: Heading angle from horizontal (rad)
+///   - n: Perpendicular distance from reference line (m, positive = below line)
+///   - alpha: Heading angle relative to reference line (rad)
 ///   - t: Elapsed time (s)
 ///
 /// Control format:
