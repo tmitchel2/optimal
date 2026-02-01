@@ -88,7 +88,7 @@ public sealed class CornerProblemSolver : ICommand
     private static void RunSolver(ControlProblem problem, TrackGeometry trackGeometry, CommandOptions options)
     {
         var segments = 30;
-        var initialGuess = CreateInitialGuess(trackGeometry);
+        var initialGuess = CreateInitialGuess(problem, segments, trackGeometry);
 
         var useMonitor = false;
         var monitor = new OptimisationMonitor()
@@ -221,7 +221,7 @@ public sealed class CornerProblemSolver : ICommand
              new LBFGSBOptimizer(new LBFGSBOptions
              {
                  MemorySize = 10,
-                 Tolerance = 1e-3,
+                 Tolerance = 1e-1,
                  MaxIterations = 1000
              }, monitor) : new LBFGSOptimizer(new LBFGSOptions
              {
@@ -230,9 +230,9 @@ public sealed class CornerProblemSolver : ICommand
                  {
                      EnableAutomaticPreconditioning = true,
                      PreconditioningThreshold = 1e3,
-                     Type = PreconditioningType.Diagonal
+                     Type = PreconditioningType.Regularization
                  },
-                 Tolerance = 1e-4,
+                 Tolerance = 1e-2,
                  MaxIterations = 1000
              }, new BacktrackingLineSearch(), monitor);
 
@@ -660,53 +660,109 @@ public sealed class CornerProblemSolver : ICommand
         return new PathConstraintResult(violation, gradients);
     }
 
-    private static InitialGuess CreateInitialGuess(TrackGeometry trackGeometry)
+    private static InitialGuess CreateInitialGuess(ControlProblem problem, int segments, TrackGeometry trackGeometry)
     {
-        const int numPoints = 31;
-        var totalLength = trackGeometry.TotalLength;
-        const double vInit = 20.0;
-
+        var numPoints = 2 * segments + 1;
         var states = new double[numPoints][];
         var controls = new double[numPoints][];
 
+        // Get problem bounds
+        var s0 = problem.InitialTime;
+        var sf = problem.FinalTime;
+        var totalLength = sf - s0;
+        var ds = totalLength / (numPoints - 1);
+
+        // Initial state values
+        var V0 = problem.InitialState![IdxV];
+        var t0 = problem.InitialState[IdxT];
+
+        // State bounds
+        var vMin = problem.StateLowerBounds![IdxV];
+        var vMax = problem.StateUpperBounds![IdxV];
+        var axMin = problem.StateLowerBounds[IdxAx];
+        var axMax = problem.StateUpperBounds[IdxAx];
+        var ayMin = problem.StateLowerBounds[IdxAy];
+        var ayMax = problem.StateUpperBounds[IdxAy];
+        var nMin = problem.StateLowerBounds[IdxN];
+        var nMax = problem.StateUpperBounds[IdxN];
+        var alphaMin = problem.StateLowerBounds[IdxAlpha];
+        var alphaMax = problem.StateUpperBounds[IdxAlpha];
+        var lambdaMin = problem.StateLowerBounds[IdxLambda];
+        var lambdaMax = problem.StateUpperBounds[IdxLambda];
+        var omegaMin = problem.StateLowerBounds[IdxOmega];
+        var omegaMax = problem.StateUpperBounds[IdxOmega];
+        var tMin = problem.StateLowerBounds[IdxT];
+        var tMax = problem.StateUpperBounds[IdxT];
+
+        // Control bounds
+        var deltaMin = problem.ControlLowerBounds![IdxDelta];
+        var deltaMax = problem.ControlUpperBounds![IdxDelta];
+        var thrustMin = problem.ControlLowerBounds[IdxThrust];
+        var thrustMax = problem.ControlUpperBounds[IdxThrust];
+
+        // Initialize state for integration
+        var V = V0;
+        var n = 0.0;
+        var alpha = 0.0;
+        var t = t0;
+
         for (var i = 0; i < numPoints; i++)
         {
-            var s = (double)i / (numPoints - 1) * totalLength;
+            var s = s0 + i * ds;
             var kappa = trackGeometry.RoadCurvature(s);
 
-            // Heuristic: offset toward inside of corner
-            // var n = Math.Sign(kappa) * Math.Min(Math.Abs(kappa) * vInit * vInit / 15.0,
-            //     TrackGeometry.RoadHalfWidth * 0.7);
-
-            var n = 0.0;
-
             // Estimated lateral acceleration for cornering
-            var ayEst = vInit * vInit * kappa;
-            ayEst = Math.Clamp(ayEst, -10.0, 10.0);
+            var ayEst = V * V * kappa;
+            ayEst = Math.Clamp(ayEst, ayMin, ayMax);
 
             // Estimated yaw rate
-            var OmegaEst = vInit * kappa;
-            OmegaEst = Math.Clamp(OmegaEst, -1.5, 1.5);
+            var omegaEst = V * kappa;
+            omegaEst = Math.Clamp(omegaEst, omegaMin, omegaMax);
+
+            // Steer to approximately match curvature using bicycle model
+            var deltaEst = Math.Atan(kappa * L);
+            deltaEst = Math.Clamp(deltaEst, deltaMin, deltaMax);
+
+            // Clamp states to bounds
+            var vClamped = Math.Clamp(V, vMin, vMax);
+            var nClamped = Math.Clamp(n, nMin, nMax);
+            var alphaClamped = Math.Clamp(alpha, alphaMin, alphaMax);
+            var tClamped = Math.Clamp(t, tMin, tMax);
 
             // State: [V, ax, ay, n, alpha, lambda, Omega, t]
             states[i] =
             [
-                vInit,     // V
-                0.0,       // ax
-                ayEst,     // ay
-                n,         // n
-                0.0,       // alpha (aligned with road)
-                0.0,       // lambda
-                OmegaEst,  // Omega
-                s / vInit  // t (rough time estimate)
+                vClamped,
+                Math.Clamp(0.0, axMin, axMax),
+                ayEst,
+                nClamped,
+                alphaClamped,
+                Math.Clamp(0.0, lambdaMin, lambdaMax),
+                omegaEst,
+                tClamped
             ];
 
             // Control: [delta, T]
-            // Steer to approximately match curvature using bicycle model
-            var deltaEst = Math.Atan(kappa * L);
-            deltaEst = Math.Clamp(deltaEst, -0.4, 0.4);
+            var thrustEst = Math.Clamp(0.2, thrustMin, thrustMax);
+            controls[i] = [deltaEst, thrustEst];
 
-            controls[i] = [deltaEst, 0.2];  // moderate thrust
+            // Integrate to next point using the dynamics
+            if (i < numPoints - 1)
+            {
+                var sNext = s0 + (i + 1) * ds;
+                var kappaNext = trackGeometry.RoadCurvature(sNext);
+
+                // Keep constant velocity estimate for initial guess
+                var vNext = V0;
+
+                // Integrate time using trapezoidal rule with TimeRateS dynamics
+                var dtdsCurrent = CornerDynamics.TimeRateS(kappa, nClamped, alphaClamped, vClamped);
+                var dtdsNext = CornerDynamics.TimeRateS(kappaNext, n, alpha, vNext);
+                var tNext = t + ds * (dtdsCurrent + dtdsNext) / 2.0;
+
+                V = vNext;
+                t = tNext;
+            }
         }
 
         return new InitialGuess(states, controls);
