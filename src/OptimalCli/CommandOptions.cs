@@ -30,32 +30,12 @@ public enum BrachistochroneVariant
 }
 
 /// <summary>
-/// Goddard rocket problem variant.
-/// </summary>
-public enum GoddardRocketVariant
-{
-    /// <summary>
-    /// Fixed final time variant (tf = 100s) based on PROPT example 45.
-    /// Uses physical SI units from YOptimization.
-    /// </summary>
-    FixedFinalTime,
-
-    /// <summary>
-    /// Free final time variant based on PROPT example 44.
-    /// Uses physical SI units from YOptimization.
-    /// </summary>
-    FreeFinalTime
-}
-
-/// <summary>
 /// Options for running CLI commands.
 /// </summary>
 /// <param name="Headless">Run without visualization windows.</param>
 /// <param name="Variant">Brachistochrone problem variant.</param>
-/// <param name="GoddardVariant">Goddard rocket problem variant.</param>
 /// <param name="DebugViz">Debug visualization mode - shows track without optimization.</param>
 public record CommandOptions(
     bool Headless = false,
     BrachistochroneVariant Variant = BrachistochroneVariant.FreeFinalTime,
-    GoddardRocketVariant GoddardVariant = GoddardRocketVariant.FreeFinalTime,
     bool DebugViz = false);

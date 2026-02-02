@@ -43,11 +43,6 @@ internal static class RadiantGoddardRocketVisualizer
     private static double s_nextScaleHeight;
     private static bool s_hasNextTrajectory;
 
-    // Cancellation token
-    private static CancellationTokenSource? s_cancellationTokenSource;
-
-    public static CancellationToken CancellationToken => s_cancellationTokenSource?.Token ?? CancellationToken.None;
-
     public static void UpdateTrajectory(double[][] states, double[][] controls, int iteration, double cost, double maxViolation, double constraintTolerance, double scaleHeight)
     {
         if (states.Length == 0 || controls.Length == 0)
@@ -70,10 +65,8 @@ internal static class RadiantGoddardRocketVisualizer
         }
     }
 
-    public static void RunVisualizationWindow()
+    public static void RunVisualizationWindow(CancellationTokenSource cancellationTokenSource)
     {
-        s_cancellationTokenSource = new CancellationTokenSource();
-
         try
         {
             using var app = new RadiantApplication();
@@ -81,14 +74,11 @@ internal static class RadiantGoddardRocketVisualizer
         }
         finally
         {
-            if (s_cancellationTokenSource?.IsCancellationRequested == false)
+            if (!cancellationTokenSource.IsCancellationRequested)
             {
                 Console.WriteLine("[VIZ] Window closed - requesting optimization cancellation");
-                s_cancellationTokenSource.Cancel();
+                cancellationTokenSource.Cancel();
             }
-
-            s_cancellationTokenSource?.Dispose();
-            s_cancellationTokenSource = null;
         }
     }
 

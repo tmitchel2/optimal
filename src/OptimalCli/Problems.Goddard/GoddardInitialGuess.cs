@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -366,5 +366,131 @@ public static class GoddardInitialGuess
         var timePoints = GenerateLGLTimePoints(grid, order);
         var (states, controls) = GenerateSimulatedTrajectoryAtTimes(timePoints, parameters);
         return CreateDecisionVector(states, controls, problem.StateDim, problem.ControlDim);
+    }
+
+    /// <summary>
+    /// Generates an initial guess for the free final time variant by simulating
+    /// the rocket with max thrust until fuel depletion, then coasting to apogee.
+    /// The apogee time becomes the computed T_f.
+    /// </summary>
+    /// <param name="normalizedTimePoints">Array of normalized time points τ ∈ [0, 1].</param>
+    /// <param name="parameters">Goddard rocket parameters.</param>
+    /// <returns>
+    /// States [h, v, m, t, T_f] and controls [F] at each time point,
+    /// where t = elapsed time at this point, T_f = total mission time (constant).
+    /// </returns>
+    public static (double[][] states, double[][] controls)
+        GenerateFreeFinalTimeInitialGuess(
+            double[] normalizedTimePoints,
+            GoddardParameters parameters)
+    {
+        // Simulate rocket to apogee
+        var (trajectory, burnoutTime, apogeeTime) = SimulateToApogee(parameters);
+        var computedTf = apogeeTime;
+
+        var nPoints = normalizedTimePoints.Length;
+        var states = new double[nPoints][];
+        var controls = new double[nPoints][];
+
+        for (var k = 0; k < nPoints; k++)
+        {
+            var tau = normalizedTimePoints[k];
+
+            // Elapsed time at this normalized point: t = τ × T_f
+            var elapsedTime = tau * computedTf;
+
+            // Interpolate state at this physical time
+            var (h, v, m) = InterpolateState(trajectory, elapsedTime);
+
+            // Control: max thrust before burnout, zero after
+            var thrust = elapsedTime < burnoutTime ? parameters.Fm : 0.0;
+
+            states[k] = [h, v, m, elapsedTime, computedTf];
+            controls[k] = [thrust];
+        }
+
+        return (states, controls);
+    }
+
+    /// <summary>
+    /// Simulates the rocket from initial conditions with max thrust until fuel
+    /// is depleted, then coasts until apogee (v ≤ 0).
+    /// </summary>
+    private static (List<(double t, double h, double v, double m, double F)> trajectory,
+                    double burnoutTime, double apogeeTime)
+        SimulateToApogee(GoddardParameters p)
+    {
+        var trajectory = new List<(double t, double h, double v, double m, double F)>();
+        var dt = 0.01;
+        var t = 0.0;
+        var h = 0.0;
+        var v = 0.0;
+        var m = p.M0;
+
+        // Phase 1: Max thrust until fuel depleted
+        while (m > p.Mf && v >= 0)
+        {
+            trajectory.Add((t, h, v, m, p.Fm));
+            (h, v, m) = IntegrateRK4(h, v, m, p.Fm, dt, p);
+            t += dt;
+            m = Math.Max(m, p.Mf);  // Clamp mass to minimum
+        }
+
+        var burnoutTime = t;
+
+        // Phase 2: Coast until apogee (v ≤ 0)
+        while (v > 0)
+        {
+            trajectory.Add((t, h, v, m, 0.0));
+            (h, v, m) = IntegrateRK4(h, v, m, 0.0, dt, p);
+            t += dt;
+        }
+
+        // Add final point at apogee
+        trajectory.Add((t, h, v, m, 0.0));
+
+        return (trajectory, burnoutTime, t);
+    }
+
+    /// <summary>
+    /// Linearly interpolates state values at a target time from a trajectory.
+    /// </summary>
+    private static (double h, double v, double m) InterpolateState(
+        List<(double t, double h, double v, double m, double F)> trajectory,
+        double targetTime)
+    {
+        // Handle boundary cases
+        if (targetTime <= trajectory[0].t)
+        {
+            var first = trajectory[0];
+            return (first.h, first.v, first.m);
+        }
+
+        if (targetTime >= trajectory[^1].t)
+        {
+            var last = trajectory[^1];
+            return (last.h, last.v, last.m);
+        }
+
+        // Find bracketing points
+        for (var i = 0; i < trajectory.Count - 1; i++)
+        {
+            var p0 = trajectory[i];
+            var p1 = trajectory[i + 1];
+
+            if (targetTime >= p0.t && targetTime <= p1.t)
+            {
+                // Linear interpolation
+                var alpha = (targetTime - p0.t) / (p1.t - p0.t);
+                var h = p0.h + alpha * (p1.h - p0.h);
+                var v = p0.v + alpha * (p1.v - p0.v);
+                var m = p0.m + alpha * (p1.m - p0.m);
+                return (h, v, m);
+            }
+        }
+
+        // Fallback (should not reach here)
+        var fallback = trajectory[^1];
+        return (fallback.h, fallback.v, fallback.m);
     }
 }

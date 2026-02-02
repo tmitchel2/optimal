@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -26,7 +26,6 @@ if (args.Length == 0 || args[0] == "--help" || args[0] == "-h")
 // Parse options
 var headless = false;
 var variant = BrachistochroneVariant.FreeFinalTime;
-var goddardVariant = GoddardRocketVariant.FreeFinalTime;
 var debugViz = false;
 var problemName = args[0].ToLowerInvariant();
 
@@ -45,32 +44,18 @@ for (var i = 1; i < args.Length; i++)
         if (i + 1 < args.Length)
         {
             var variantArg = args[++i].ToLowerInvariant();
-
-            // Check if this is for Goddard or Brachistochrone
-            if (problemName == "goddard")
+            variant = variantArg switch
             {
-                goddardVariant = variantArg switch
-                {
-                    "fixed" or "fixed-time" or "fixed-tf" => GoddardRocketVariant.FixedFinalTime,
-                    "free" or "free-time" or "free-tf" => GoddardRocketVariant.FreeFinalTime,
-                    _ => throw new ArgumentException($"Unknown Goddard variant: {variantArg}. Use 'fixed' or 'free'.")
-                };
-            }
-            else
-            {
-                variant = variantArg switch
-                {
-                    "fixed" or "fixed-time" => BrachistochroneVariant.FixedTime,
-                    "free" or "free-time" => BrachistochroneVariant.FreeFinalTime,
-                    "running" or "running-cost" => BrachistochroneVariant.FreeFinalTimeRunningCost,
-                    _ => throw new ArgumentException($"Unknown variant: {variantArg}. Use 'fixed', 'free', or 'running'.")
-                };
-            }
+                "fixed" or "fixed-time" => BrachistochroneVariant.FixedTime,
+                "free" or "free-time" => BrachistochroneVariant.FreeFinalTime,
+                "running" or "running-cost" => BrachistochroneVariant.FreeFinalTimeRunningCost,
+                _ => throw new ArgumentException($"Unknown variant: {variantArg}. Use 'fixed', 'free', or 'running'.")
+            };
         }
     }
 }
 
-var options = new CommandOptions(Headless: headless, Variant: variant, GoddardVariant: goddardVariant, DebugViz: debugViz);
+var options = new CommandOptions(Headless: headless, Variant: variant, DebugViz: debugViz);
 
 if (headless)
 {
