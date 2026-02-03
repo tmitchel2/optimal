@@ -203,9 +203,9 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
                 Verbose = true,
                 ProgressCallback = progressCallback,
                 AutoScaling = true,
-                EnableMeshRefinement = true,
-                MaxRefinementIterations = 5,
-                RefinementDefectThreshold = 1e-4,
+                // EnableMeshRefinement = true,
+                // MaxRefinementIterations = 5,
+                // RefinementDefectThreshold = 1e-4,
                 InnerProgressCallback = innerProgressCallback
             },
             innerOptimizer,
@@ -223,7 +223,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         Console.WriteLine("=".PadRight(70, '='));
         Console.WriteLine();
 
-        var segments = 5;
+        var segments = 10;
         var initialGuess = CreateCustomInitialGuess(problem, segments);
 
         // Create optimization monitor for gradient verification, smoothness, and conditioning monitoring
