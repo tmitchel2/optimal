@@ -39,7 +39,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
 {
     // Problem constants
     private const double Gravity = 9.80665; // Standard gravity m/s²
-    private const double V0 = 1.0;          // Initial velocity (m/s) - above clamping threshold
+    private const double V0 = 1e-6;          // Initial velocity (m/s) - near zero, matching original solver
 
     // Reference line geometry from dynamics
     private static readonly double STotal = BrachistochroneDynamicsAlternate.STotal;
@@ -97,8 +97,8 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
             .WithFinalCondition(finalState)
             .WithControlBounds([-1.0], [1.0]) // Tighter curvature bounds (rad/m)
             .WithStateBounds(
-                [0.5, -3.0, -Math.PI / 3.0, 0.0],   // Tighter lower bounds
-                [15.0, 3.0, Math.PI / 3.0, 5.0])    // Tighter upper bounds
+                [0.0, -3.0, -ThetaRef, 0.0],        // vMin=0 (regularization handles singularity), alpha >= -ThetaRef (always descending)
+                [15.0, 3.0, Math.PI / 3.0, 5.0])
             .WithDynamics(ComputeDynamics)
             .WithRunningCost(ComputeRunningCost);
     }
@@ -227,7 +227,7 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         var initialGuess = CreateCustomInitialGuess(problem, segments);
 
         // Create optimization monitor for gradient verification, smoothness, and conditioning monitoring
-        var useMonitor = false;
+        var useMonitor = true;
         var monitor = new OptimisationMonitor()
             .WithGradientVerification(testStep: 1e-6)
             .WithSmoothnessMonitoring()
@@ -353,46 +353,43 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
         // For a straight line, curvature k = 0 (no change in angle)
         var k = Math.Clamp(0.0, kMin, kMax);
 
-        // Initialize state for integration
-        var v = v0;
-        var n = 0.0; // On the reference line
-        var alpha = straightLineAlpha;
-        var t = t0;
-
+        // Compute velocity at each point using energy conservation
+        // v(s) = sqrt(v0² + 2*g*h(s)) where h(s) = s*sin(ThetaRef) is vertical drop
+        // Use a minimum velocity for initial guess to avoid poor time integration
+        const double vMinGuess = 0.5; // Minimum velocity for initial guess (not a constraint)
+        var velocities = new double[numPoints];
         for (var i = 0; i < numPoints; i++)
         {
             var s = s0 + i * ds;
+            var verticalDrop = s * Math.Sin(ThetaRef);
+            var vEnergy = Math.Sqrt(v0 * v0 + 2.0 * Gravity * verticalDrop);
+            // Use max of energy-based velocity and minimum guess velocity
+            velocities[i] = Math.Clamp(Math.Max(vEnergy, vMinGuess), vMin, vMax);
+        }
 
-            // Clamp states to bounds
+        // Integrate time using the energy-based velocities
+        var t = t0;
+        for (var i = 0; i < numPoints; i++)
+        {
+            var v = velocities[i];
             var vClamped = Math.Clamp(v, vMin, vMax);
-            var nClamped = Math.Clamp(n, nMin, nMax);
-            var alphaClamped = Math.Clamp(alpha, alphaMin, alphaMax);
+            var nClamped = Math.Clamp(0.0, nMin, nMax);
+            var alphaClamped = Math.Clamp(straightLineAlpha, alphaMin, alphaMax);
             var tClamped = Math.Clamp(t, tMin, tMax);
 
             states[i] = [vClamped, nClamped, alphaClamped, tClamped];
             controls[i] = [k];
 
-            // Integrate to next point using the dynamics
+            // Integrate time to next point using trapezoidal rule
             if (i < numPoints - 1)
             {
-                var sNext = s0 + (i + 1) * ds;
+                var vCurrent = velocities[i];
+                var vNext = velocities[i + 1];
 
-                // For straight line along reference: n stays 0
-                // Actual vertical drop from Cartesian perspective = s * sin(ThetaRef)
-                var actualVerticalDrop = sNext * Math.Sin(ThetaRef);
-
-                // Use energy conservation for velocity: v² = v0² + 2*g*(vertical drop)
-                var vNext = Math.Sqrt(v0 * v0 + 2.0 * Gravity * actualVerticalDrop);
-                vNext = Math.Max(vNext, vMin);
-
-                // Integrate time using trapezoidal rule: dt/ds = 1/(v*cos(alpha))
-                var dtdsCurrent = BrachistochroneDynamicsAlternate.TimeRateS(vClamped, alphaClamped);
+                // dt/ds = 1/(v*cos(alpha)) - use regularized dynamics
+                var dtdsCurrent = BrachistochroneDynamicsAlternate.TimeRateS(vCurrent, straightLineAlpha);
                 var dtdsNext = BrachistochroneDynamicsAlternate.TimeRateS(vNext, straightLineAlpha);
-                var tNext = t + ds * (dtdsCurrent + dtdsNext) / 2.0;
-
-                // Alpha stays constant for a straight line
-                v = vNext;
-                t = tNext;
+                t += ds * (dtdsCurrent + dtdsNext) / 2.0;
             }
         }
 

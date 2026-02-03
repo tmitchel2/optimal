@@ -46,6 +46,12 @@ namespace OptimalCli.Problems.BrachistochroneAlternate
         private const double Nf = 5.0;
 
         /// <summary>
+        /// Velocity regularization parameter to avoid 1/v singularity at v=0.
+        /// Uses smooth regularization: v_safe = sqrt(v² + ε²)
+        /// </summary>
+        private const double VelocityEpsilon = 1e-4;
+
+        /// <summary>
         /// Reference angle: angle of the straight line from start to end point.
         /// theta_ref = atan2(Nf, Xf) ≈ 0.4636 rad ≈ 26.57°
         /// </summary>
@@ -57,15 +63,26 @@ namespace OptimalCli.Problems.BrachistochroneAlternate
         /// </summary>
         public static readonly double STotal = Math.Sqrt(Xf * Xf + Nf * Nf);
 
+        /// <summary>
+        /// Computes regularized velocity to avoid singularity at v=0.
+        /// Returns sqrt(v² + ε²) which smoothly transitions from ε at v=0 to v for v >> ε.
+        /// </summary>
+        public static double RegularizedVelocity(double v)
+        {
+            return Math.Sqrt(v * v + VelocityEpsilon * VelocityEpsilon);
+        }
+
         // === Arc-length transformation ===
 
         /// <summary>
-        /// Time rate: dt/ds = 1 / (v * cos(alpha))
+        /// Time rate: dt/ds = 1 / (v_safe * cos(alpha))
         /// This is the core transformation from time to horizontal-distance parameterization.
+        /// Uses regularized velocity sqrt(v² + ε²) to avoid singularity at v=0.
         /// </summary>
         public static double TimeRateS(double v, double alpha)
         {
-            return 1.0 / (v * Math.Cos(alpha));
+            var vSafe = Math.Sqrt(v * v + VelocityEpsilon * VelocityEpsilon);
+            return 1.0 / (vSafe * Math.Cos(alpha));
         }
 
         // === State dynamics (derivatives w.r.t. horizontal distance s) ===
@@ -79,11 +96,13 @@ namespace OptimalCli.Problems.BrachistochroneAlternate
         /// Gravity acceleration along velocity = g * sin(alpha_world) = g * sin(alpha + thetaRef)
         /// The arc-length rate ds/dt = v * cos(alpha) (movement along reference line direction)
         ///
-        /// Therefore: dv/ds = (dv/dt) / (ds/dt) = g * sin(alpha + thetaRef) / (v * cos(alpha))
+        /// Therefore: dv/ds = (dv/dt) / (ds/dt) = g * sin(alpha + thetaRef) / (v_safe * cos(alpha))
+        /// Uses regularized velocity sqrt(v² + ε²) to avoid singularity at v=0.
         /// </summary>
         public static double SpeedRateS(double v, double alpha, double g, double thetaRef)
         {
-            return g * Math.Sin(alpha + thetaRef) / (v * Math.Cos(alpha));
+            var vSafe = Math.Sqrt(v * v + VelocityEpsilon * VelocityEpsilon);
+            return g * Math.Sin(alpha + thetaRef) / (vSafe * Math.Cos(alpha));
         }
 
         /// <summary>
@@ -105,20 +124,24 @@ namespace OptimalCli.Problems.BrachistochroneAlternate
 
         /// <summary>
         /// dt/ds - Time rate (same as TimeRateS, explicit for state dynamics).
+        /// Uses regularized velocity sqrt(v² + ε²) to avoid singularity at v=0.
         /// </summary>
         public static double TimeRate(double v, double alpha)
         {
-            return 1.0 / (v * Math.Cos(alpha));
+            var vSafe = Math.Sqrt(v * v + VelocityEpsilon * VelocityEpsilon);
+            return 1.0 / (vSafe * Math.Cos(alpha));
         }
 
         // === Running cost ===
 
         /// <summary>
         /// Running cost = dt/ds. Integrating this over s gives total elapsed time.
+        /// Uses regularized velocity sqrt(v² + ε²) to avoid singularity at v=0.
         /// </summary>
         public static double RunningCostS(double v, double alpha)
         {
-            return 1.0 / (v * Math.Cos(alpha));
+            var vSafe = Math.Sqrt(v * v + VelocityEpsilon * VelocityEpsilon);
+            return 1.0 / (vSafe * Math.Cos(alpha));
         }
     }
 }
