@@ -376,7 +376,7 @@ public static class GoddardInitialGuess
     /// <param name="normalizedTimePoints">Array of normalized time points τ ∈ [0, 1].</param>
     /// <param name="parameters">Goddard rocket parameters.</param>
     /// <returns>
-    /// States [h, v, m, t, T_f] and controls [F] at each time point,
+    /// States [h, v, m, t] and controls [F] at each time point,
     /// where t = elapsed time at this point, T_f = total mission time (constant).
     /// </returns>
     public static (double[][] states, double[][] controls)
@@ -405,7 +405,7 @@ public static class GoddardInitialGuess
             // Control: max thrust before burnout, zero after
             var thrust = elapsedTime < burnoutTime ? parameters.Fm : 0.0;
 
-            states[k] = [h, v, m, elapsedTime, computedTf];
+            states[k] = [h, v, m, elapsedTime];
             controls[k] = [thrust];
         }
 

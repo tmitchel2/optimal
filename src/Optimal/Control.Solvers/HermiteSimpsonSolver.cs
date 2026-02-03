@@ -463,7 +463,7 @@ namespace Optimal.Control.Solvers
         private static double ComputeMaxViolation(ParallelHermiteSimpsonTranscription transcription, double[] z, Func<DynamicsInput, DynamicsResult> dynamics)
         {
             var allDefects = transcription.ComputeAllDefects(z, dynamics);
-            ThrowIfDefectsContainNaN(allDefects);
+            ThrowIfDefectsContainNonFinite(allDefects);
             return allDefects.Select(Math.Abs).Max();
         }
 
@@ -513,17 +513,19 @@ namespace Optimal.Control.Solvers
             Console.WriteLine($"Test objective on initial guess: cost={testCost}, grad[0]={testGrad[0]}");
 
             var testDefects = transcription.ComputeAllDefects(z0, problem.Dynamics!);
-            ThrowIfDefectsContainNaN(testDefects);
+            ThrowIfDefectsContainNonFinite(testDefects);
             LogMaxDefectPerState(testDefects, problem.StateDim, segments);
         }
 
-        private static void ThrowIfDefectsContainNaN(double[] defects)
+        private static void ThrowIfDefectsContainNonFinite(double[] defects)
         {
-            var firstNaNIndex = Array.FindIndex(defects, double.IsNaN);
+            var firstNonFiniteIndex = Array.FindIndex(defects, d => double.IsNaN(d) || double.IsInfinity(d));
 
-            if (firstNaNIndex >= 0)
+            if (firstNonFiniteIndex >= 0)
             {
-                throw new InvalidOperationException($"Defect {firstNaNIndex} is NaN. Check dynamics function for numerical issues.");
+                var value = defects[firstNonFiniteIndex];
+                var description = double.IsNaN(value) ? "NaN" : "Infinity";
+                throw new InvalidOperationException($"Defect {firstNonFiniteIndex} is {description}. Check dynamics function for numerical issues.");
             }
         }
 

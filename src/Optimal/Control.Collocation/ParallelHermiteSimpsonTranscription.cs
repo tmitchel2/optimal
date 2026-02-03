@@ -444,7 +444,8 @@ namespace Optimal.Control.Collocation
 
             var z = new double[_decisionVectorSize];
 
-            for (var k = 0; k < _grid.Segments; k++)
+            // Include final point (k = Segments) for correct decision vector
+            for (var k = 0; k <= _grid.Segments; k++)
             {
                 SetState(z, k, initialGuess.StateTrajectory[k]);
                 SetControl(z, k, initialGuess.ControlTrajectory[k]);
