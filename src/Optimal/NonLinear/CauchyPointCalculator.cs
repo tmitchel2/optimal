@@ -116,10 +116,10 @@ namespace Optimal.NonLinear
             var xCauchy = (double[])x.Clone();
             var currentT = 0.0;
 
-            // Compute initial quadratic model terms
+            // Compute initial quadratic model terms using SIMD
             // f(x + t*d) ≈ f(x) + t*g'*d + 0.5*t^2*d'*B*d
             // where B is the Hessian approximation
-            var gTd = DotProduct(gradient, d);
+            var gTd = VectorOps.Dot(gradient, d);
 
             // Compute d'*B*d using the L-BFGS approximation or identity
             var dTBd = ComputeQuadraticTerm(d, memory);
@@ -336,7 +336,7 @@ namespace Optimal.NonLinear
             // If no memory, use identity (d'*I*d = d'*d)
             if (memory == null || memory.Count == 0)
             {
-                return DotProduct(d, d);
+                return VectorOps.Dot(d, d);
             }
 
             // Use L-BFGS implicit Hessian approximation
@@ -344,26 +344,16 @@ namespace Optimal.NonLinear
             // For simplicity, use the approximation B ≈ gamma*I where gamma is the scaling
             // gamma = y'*s / (y'*y) from the most recent pair
             var (s, y, _) = memory.GetPair(memory.Count - 1);
-            var yTy = DotProduct(y, y);
-            var yTs = DotProduct(y, s);
+            var yTy = VectorOps.Dot(y, y);
+            var yTs = VectorOps.Dot(y, s);
 
             if (yTy < 1e-16 || Math.Abs(yTs) < 1e-16)
             {
-                return DotProduct(d, d);
+                return VectorOps.Dot(d, d);
             }
 
             var gamma = yTs / yTy;
-            return DotProduct(d, d) / gamma;
-        }
-
-        private static double DotProduct(double[] a, double[] b)
-        {
-            var sum = 0.0;
-            for (var i = 0; i < a.Length; i++)
-            {
-                sum += a[i] * b[i];
-            }
-            return sum;
+            return VectorOps.Dot(d, d) / gamma;
         }
 
         private static bool AllZero(double[] d)

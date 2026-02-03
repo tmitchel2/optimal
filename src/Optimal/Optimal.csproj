@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+    <PackageReference Include="System.Numerics.Tensors" Version="10.0.2" />
   </ItemGroup>
 
 </Project>

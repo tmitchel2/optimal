@@ -80,8 +80,8 @@ namespace Optimal.NonLinear
                 throw new ArgumentException("Vector dimension mismatch");
             }
 
-            // Compute rho = 1 / (y^T * s)
-            var yTs = DotProduct(y, s);
+            // Compute rho = 1 / (y^T * s) using SIMD
+            var yTs = VectorOps.Dot(y, s);
             if (Math.Abs(yTs) < 1e-16)
             {
                 // Skip this update if y^T * s is too small (curvature condition violated)
@@ -105,9 +105,9 @@ namespace Optimal.NonLinear
                 _startIndex = (_startIndex + 1) % _m;
             }
 
-            // Store the pair
-            Array.Copy(s, _s[index], _n);
-            Array.Copy(y, _y[index], _n);
+            // Store the pair using Span copy
+            s.AsSpan().CopyTo(_s[index]);
+            y.AsSpan().CopyTo(_y[index]);
             _rho[index] = rho;
         }
 
@@ -134,16 +134,6 @@ namespace Optimal.NonLinear
         {
             _count = 0;
             _startIndex = 0;
-        }
-
-        private static double DotProduct(double[] a, double[] b)
-        {
-            var result = 0.0;
-            for (var i = 0; i < a.Length; i++)
-            {
-                result += a[i] * b[i];
-            }
-            return result;
         }
     }
 }

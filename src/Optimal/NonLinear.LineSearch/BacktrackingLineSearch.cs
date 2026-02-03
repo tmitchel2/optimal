@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Buffers;
 
 namespace Optimal.NonLinear.LineSearch
 {
@@ -59,8 +60,8 @@ namespace Optimal.NonLinear.LineSearch
             var n = x.Length;
             var alpha = initialStepSize;
 
-            // Compute the directional derivative: grad^T * direction
-            var directionalDerivative = ComputeDotProduct(gradient, direction);
+            // Compute the directional derivative: grad^T * direction using SIMD
+            var directionalDerivative = VectorOps.Dot(gradient, direction);
 
             // If we're not moving downhill, return 0 (no step)
             if (directionalDerivative >= 0)
@@ -68,51 +69,48 @@ namespace Optimal.NonLinear.LineSearch
                 return 0.0;
             }
 
-            // Temporary array for evaluating candidate points
-            var xNew = new double[n];
+            // Rent temporary array for evaluating candidate points
+            var pool = ArrayPool<double>.Shared;
+            var xNew = pool.Rent(n);
 
-            // Backtracking loop
-            for (var iter = 0; iter < _maxIterations; iter++)
+            try
             {
-                // Compute candidate point: x_new = x + alpha * direction
-                for (var i = 0; i < n; i++)
+                var xNewSpan = xNew.AsSpan(0, n);
+
+                // Backtracking loop
+                for (var iter = 0; iter < _maxIterations; iter++)
                 {
-                    xNew[i] = x[i] + alpha * direction[i];
+                    // Compute candidate point: x_new = x + alpha * direction using SIMD
+                    VectorOps.AddScaled(x, alpha, direction, xNewSpan);
+
+                    // Evaluate objective at candidate point
+                    var (fNew, _) = objective(xNew.AsSpan(0, n).ToArray());
+
+                    // Check Armijo condition: f(x + alpha*d) <= f(x) + c1 * alpha * grad^T * d
+                    var armijoRhs = fx + _c1 * alpha * directionalDerivative;
+                    if (fNew <= armijoRhs)
+                    {
+                        // Sufficient decrease achieved
+                        return alpha;
+                    }
+
+                    // Reduce step size
+                    alpha *= _rho;
+
+                    // Check if step size became too small
+                    if (alpha < 1e-16)
+                    {
+                        return 0.0;
+                    }
                 }
 
-                // Evaluate objective at candidate point
-                var (fNew, _) = objective(xNew);
-
-                // Check Armijo condition: f(x + alpha*d) <= f(x) + c1 * alpha * grad^T * d
-                var armijoRhs = fx + _c1 * alpha * directionalDerivative;
-                if (fNew <= armijoRhs)
-                {
-                    // Sufficient decrease achieved
-                    return alpha;
-                }
-
-                // Reduce step size
-                alpha *= _rho;
-
-                // Check if step size became too small
-                if (alpha < 1e-16)
-                {
-                    return 0.0;
-                }
+                // Maximum iterations reached, return current alpha
+                return alpha;
             }
-
-            // Maximum iterations reached, return current alpha
-            return alpha;
-        }
-
-        private static double ComputeDotProduct(double[] a, double[] b)
-        {
-            var result = 0.0;
-            for (var i = 0; i < a.Length; i++)
+            finally
             {
-                result += a[i] * b[i];
+                pool.Return(xNew);
             }
-            return result;
         }
     }
 }

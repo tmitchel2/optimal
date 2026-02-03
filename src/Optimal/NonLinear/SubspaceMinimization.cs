@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Buffers;
 
 namespace Optimal.NonLinear
 {
@@ -115,12 +116,11 @@ namespace Optimal.NonLinear
             {
                 // No history, return steepest descent in reduced space
                 var direction = new double[numFree];
-                for (var i = 0; i < numFree; i++)
-                {
-                    direction[i] = -reducedGradient[i];
-                }
+                VectorOps.Negate(reducedGradient, direction);
                 return direction;
             }
+
+            var pool = ArrayPool<double>.Shared;
 
             // Extract reduced s and y vectors from memory
             var reducedS = new double[m][];
@@ -129,7 +129,7 @@ namespace Optimal.NonLinear
 
             for (var k = 0; k < m; k++)
             {
-                var (s, y, rho) = memory.GetPair(k);
+                var (s, y, _) = memory.GetPair(k);
 
                 reducedS[k] = new double[numFree];
                 reducedY[k] = new double[numFree];
@@ -140,74 +140,73 @@ namespace Optimal.NonLinear
                     reducedY[k][i] = y[reducedToFull[i]];
                 }
 
-                // Recompute rho for reduced vectors
-                var yTs = DotProduct(reducedY[k], reducedS[k]);
+                // Recompute rho for reduced vectors using SIMD
+                var yTs = VectorOps.Dot(reducedY[k], reducedS[k]);
                 reducedRho[k] = Math.Abs(yTs) > 1e-16 ? 1.0 / yTs : 0.0;
             }
 
-            // Two-loop recursion in reduced space
-            var alpha = new double[m];
-            var q = (double[])reducedGradient.Clone();
+            // Two-loop recursion in reduced space with pooled arrays
+            var alpha = pool.Rent(m);
+            var q = pool.Rent(numFree);
 
-            // First loop: backwards through memory
-            for (var i = m - 1; i >= 0; i--)
+            try
             {
-                if (reducedRho[i] == 0.0)
-                {
-                    continue;
-                }
+                var qSpan = q.AsSpan(0, numFree);
+                VectorOps.Copy(reducedGradient, qSpan);
 
-                alpha[i] = reducedRho[i] * DotProduct(reducedS[i], q);
-                for (var j = 0; j < numFree; j++)
+                // First loop: backwards through memory
+                for (var i = m - 1; i >= 0; i--)
                 {
-                    q[j] -= alpha[i] * reducedY[i][j];
-                }
-            }
-
-            // Initial Hessian: H_0 = gamma * I
-            // Find the most recent pair with valid rho
-            var gamma = 1.0;
-            for (var i = m - 1; i >= 0; i--)
-            {
-                if (reducedRho[i] != 0.0)
-                {
-                    var yTy = DotProduct(reducedY[i], reducedY[i]);
-                    if (yTy > 1e-16)
+                    if (reducedRho[i] == 0.0)
                     {
-                        gamma = 1.0 / (reducedRho[i] * yTy);
+                        continue;
                     }
-                    break;
+
+                    alpha[i] = reducedRho[i] * VectorOps.Dot(reducedS[i], qSpan);
+                    VectorOps.AddScaled(qSpan, -alpha[i], reducedY[i], qSpan);
                 }
-            }
 
-            var r = new double[numFree];
-            for (var i = 0; i < numFree; i++)
-            {
-                r[i] = gamma * q[i];
-            }
-
-            // Second loop: forwards through memory
-            for (var i = 0; i < m; i++)
-            {
-                if (reducedRho[i] == 0.0)
+                // Initial Hessian: H_0 = gamma * I
+                // Find the most recent pair with valid rho
+                var gamma = 1.0;
+                for (var i = m - 1; i >= 0; i--)
                 {
-                    continue;
+                    if (reducedRho[i] != 0.0)
+                    {
+                        var yTy = VectorOps.Dot(reducedY[i], reducedY[i]);
+                        if (yTy > 1e-16)
+                        {
+                            gamma = 1.0 / (reducedRho[i] * yTy);
+                        }
+                        break;
+                    }
                 }
 
-                var beta = reducedRho[i] * DotProduct(reducedY[i], r);
-                for (var j = 0; j < numFree; j++)
+                var r = new double[numFree];
+                VectorOps.Scale(qSpan, gamma, r);
+
+                // Second loop: forwards through memory
+                for (var i = 0; i < m; i++)
                 {
-                    r[j] += reducedS[i][j] * (alpha[i] - beta);
+                    if (reducedRho[i] == 0.0)
+                    {
+                        continue;
+                    }
+
+                    var beta = reducedRho[i] * VectorOps.Dot(reducedY[i], r);
+                    VectorOps.AddScaled(r, alpha[i] - beta, reducedS[i], r);
                 }
-            }
 
-            // Negate for descent direction
-            for (var i = 0; i < numFree; i++)
+                // Negate for descent direction
+                VectorOps.Negate(r, r);
+
+                return r;
+            }
+            finally
             {
-                r[i] = -r[i];
+                pool.Return(alpha);
+                pool.Return(q);
             }
-
-            return r;
         }
 
         /// <summary>
@@ -292,16 +291,6 @@ namespace Optimal.NonLinear
             }
 
             return direction;
-        }
-
-        private static double DotProduct(double[] a, double[] b)
-        {
-            var sum = 0.0;
-            for (var i = 0; i < a.Length; i++)
-            {
-                sum += a[i] * b[i];
-            }
-            return sum;
         }
     }
 }

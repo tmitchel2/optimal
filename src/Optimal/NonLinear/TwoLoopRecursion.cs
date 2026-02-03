@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Buffers;
 
 namespace Optimal.NonLinear
 {
@@ -42,91 +43,74 @@ namespace Optimal.NonLinear
             {
                 // No history available, return steepest descent
                 var direction = new double[n];
-                for (var i = 0; i < n; i++)
-                {
-                    direction[i] = -gradient[i];
-                }
+                VectorOps.Negate(gradient, direction);
                 return direction;
             }
 
+            var pool = ArrayPool<double>.Shared;
+
             // Allocate temporary storage for alpha values
-            var alpha = new double[m];
-
+            var alpha = pool.Rent(m);
             // Initialize q = gradient
-            var q = new double[n];
-            Array.Copy(gradient, q, n);
+            var q = pool.Rent(n);
 
-            // First loop: iterate backwards through memory (newest to oldest)
-            for (var i = m - 1; i >= 0; i--)
+            try
             {
-                var (s, y, rho) = memory.GetPair(i);
+                var qSpan = q.AsSpan(0, n);
+                VectorOps.Copy(gradient, qSpan);
 
-                // alpha_i = rho_i * s_i^T * q
-                alpha[i] = rho * DotProduct(s, q);
-
-                // q = q - alpha_i * y_i
-                for (var j = 0; j < n; j++)
+                // First loop: iterate backwards through memory (newest to oldest)
+                for (var i = m - 1; i >= 0; i--)
                 {
-                    q[j] -= alpha[i] * y[j];
+                    var (s, y, rho) = memory.GetPair(i);
+
+                    // alpha_i = rho_i * s_i^T * q
+                    alpha[i] = rho * VectorOps.Dot(s, qSpan);
+
+                    // q = q - alpha_i * y_i
+                    VectorOps.AddScaled(qSpan, -alpha[i], y, qSpan);
                 }
-            }
 
-            // Initialize Hessian approximation using most recent correction pair
-            var (s_k, y_k, _) = memory.GetPair(m - 1);
-            var gamma = DotProduct(s_k, y_k) / DotProduct(y_k, y_k);
+                // Initialize Hessian approximation using most recent correction pair
+                var (s_k, y_k, _) = memory.GetPair(m - 1);
+                var gamma = VectorOps.Dot(s_k, y_k) / VectorOps.Dot(y_k, y_k);
 
-            // r = H_0 * q, where H_0 = gamma * I (or preconditioned variant)
-            var r = new double[n];
-            if (preconditioner != null)
-            {
-                // Use preconditioner for H_0: r = P^{-1} * q where P approximates Hessian
-                // The preconditioner returns M^{-1} * q, so we scale by gamma for consistency
-                var preconditionedQ = preconditioner.ApplyToGradient(q);
-                for (var i = 0; i < n; i++)
+                // r = H_0 * q, where H_0 = gamma * I (or preconditioned variant)
+                var r = new double[n];
+                if (preconditioner != null)
                 {
-                    r[i] = gamma * preconditionedQ[i];
+                    // Use preconditioner for H_0: r = P^{-1} * q where P approximates Hessian
+                    // The preconditioner returns M^{-1} * q, so we scale by gamma for consistency
+                    var preconditionedQ = preconditioner.ApplyToGradient(q.AsSpan(0, n).ToArray());
+                    VectorOps.Scale(preconditionedQ, gamma, r);
                 }
-            }
-            else
-            {
-                for (var i = 0; i < n; i++)
+                else
                 {
-                    r[i] = gamma * q[i];
+                    VectorOps.Scale(qSpan, gamma, r);
                 }
-            }
 
-            // Second loop: iterate forwards through memory (oldest to newest)
-            for (var i = 0; i < m; i++)
-            {
-                var (s, y, rho) = memory.GetPair(i);
-
-                // beta = rho_i * y_i^T * r
-                var beta = rho * DotProduct(y, r);
-
-                // r = r + s_i * (alpha_i - beta)
-                for (var j = 0; j < n; j++)
+                // Second loop: iterate forwards through memory (oldest to newest)
+                for (var i = 0; i < m; i++)
                 {
-                    r[j] += s[j] * (alpha[i] - beta);
+                    var (s, y, rho) = memory.GetPair(i);
+
+                    // beta = rho_i * y_i^T * r
+                    var beta = rho * VectorOps.Dot(y, r);
+
+                    // r = r + s_i * (alpha_i - beta)
+                    VectorOps.AddScaled(r, alpha[i] - beta, s, r);
                 }
-            }
 
-            // Return -r as the search direction (negative because we want to minimize)
-            for (var i = 0; i < n; i++)
+                // Return -r as the search direction (negative because we want to minimize)
+                VectorOps.Negate(r, r);
+
+                return r;
+            }
+            finally
             {
-                r[i] = -r[i];
+                pool.Return(alpha);
+                pool.Return(q);
             }
-
-            return r;
-        }
-
-        private static double DotProduct(double[] a, double[] b)
-        {
-            var result = 0.0;
-            for (var i = 0; i < a.Length; i++)
-            {
-                result += a[i] * b[i];
-            }
-            return result;
         }
     }
 }

@@ -93,7 +93,8 @@ public sealed class CornerProblemSolver : ICommand
         var useMonitor = false;
         var monitor = new OptimisationMonitor()
             .WithGradientVerification(testStep: 1e-6)
-            .WithSmoothnessMonitoring();
+            .WithSmoothnessMonitoring()
+            .WithConditioningMonitoring(threshold: 1e4);
 
         using var cancellationTokenSource = new CancellationTokenSource();
         var cancellationToken = cancellationTokenSource.Token;

@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Buffers;
 
 namespace Optimal.NonLinear
 {
@@ -110,13 +111,37 @@ namespace Optimal.NonLinear
         /// <returns>||pg||_2</returns>
         public static double ProjectedGradientNorm2(double[] x, double[] gradient, double[] lower, double[] upper)
         {
+            var n = x.Length;
+
+            // For larger vectors, use pooled buffer and SIMD for final norm
+            if (n > 64)
+            {
+                var pool = ArrayPool<double>.Shared;
+                var pg = pool.Rent(n);
+                try
+                {
+                    for (var i = 0; i < n; i++)
+                    {
+                        var xMinusG = x[i] - gradient[i];
+                        var projected = Math.Max(lower[i], Math.Min(upper[i], xMinusG));
+                        pg[i] = projected - x[i];
+                    }
+                    return VectorOps.Norm2(pg.AsSpan(0, n));
+                }
+                finally
+                {
+                    pool.Return(pg);
+                }
+            }
+
+            // For smaller vectors, compute directly
             var sumSq = 0.0;
-            for (var i = 0; i < x.Length; i++)
+            for (var i = 0; i < n; i++)
             {
                 var xMinusG = x[i] - gradient[i];
                 var projected = Math.Max(lower[i], Math.Min(upper[i], xMinusG));
-                var pg = projected - x[i];
-                sumSq += pg * pg;
+                var pgVal = projected - x[i];
+                sumSq += pgVal * pgVal;
             }
             return Math.Sqrt(sumSq);
         }

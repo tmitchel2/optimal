@@ -328,6 +328,8 @@ public sealed class BrachistochroneProblemSolver : ICommand
 
         // Create optimization monitor for conditioning monitoring
         var monitor = new OptimisationMonitor()
+            .WithGradientVerification(testStep: 1e-6)
+            .WithSmoothnessMonitoring()
             .WithConditioningMonitoring(threshold: 1e4);
 
         if (options.Headless)

@@ -7,6 +7,7 @@
  */
 
 using System;
+using System.Buffers;
 using System.Threading;
 using Optimal.NonLinear.Monitoring;
 using Optimal.NonLinear.Unconstrained;
@@ -139,116 +140,46 @@ namespace Optimal.NonLinear.Constrained
             var xPrev = new double[n];
             var gradientPrev = new double[n];
 
-            for (var iter = 0; iter < _options.MaxIterations; iter++)
+            // Pool arrays for reuse
+            var pool = ArrayPool<double>.Shared;
+            var s = pool.Rent(n);
+            var y = pool.Rent(n);
+            var fullDirection = pool.Rent(n);
+            var xTrial = pool.Rent(n);
+
+            try
             {
-                // Check for cancellation
-                if (cancellationToken.IsCancellationRequested)
+                for (var iter = 0; iter < _options.MaxIterations; iter++)
                 {
-                    var cancelProjGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
-                    var cancelConvergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
-                    return new OptimizerResult
+                    // Check for cancellation
+                    if (cancellationToken.IsCancellationRequested)
                     {
-                        OptimalPoint = x,
-                        OptimalValue = value,
-                        FinalGradient = gradient,
-                        Iterations = iter,
-                        FunctionEvaluations = functionEvaluations,
-                        StoppingReason = StoppingReason.UserRequested,
-                        Success = false,
-                        Message = "Optimization cancelled by user request",
-                        GradientNorm = cancelProjGradNorm,
-                        FunctionChange = cancelConvergence.FunctionChange,
-                        ParameterChange = cancelConvergence.ParameterChange
-                    };
-                }
-
-                // Check convergence using projected gradient norm (L-BFGS-B specific)
-                var projGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
-
-                if (projGradNorm < _options.Tolerance)
-                {
-                    if (_options.Verbose)
-                    {
-                        Console.WriteLine($"L-BFGS-B Converged: Projected gradient norm {projGradNorm:E6} < {_options.Tolerance:E6}");
+                        var cancelProjGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
+                        var cancelConvergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
+                        return new OptimizerResult
+                        {
+                            OptimalPoint = x,
+                            OptimalValue = value,
+                            FinalGradient = gradient,
+                            Iterations = iter,
+                            FunctionEvaluations = functionEvaluations,
+                            StoppingReason = StoppingReason.UserRequested,
+                            Success = false,
+                            Message = "Optimization cancelled by user request",
+                            GradientNorm = cancelProjGradNorm,
+                            FunctionChange = cancelConvergence.FunctionChange,
+                            ParameterChange = cancelConvergence.ParameterChange
+                        };
                     }
-                    return new OptimizerResult
+
+                    // Check convergence using projected gradient norm (L-BFGS-B specific)
+                    var projGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
+
+                    if (projGradNorm < _options.Tolerance)
                     {
-                        OptimalPoint = x,
-                        OptimalValue = value,
-                        FinalGradient = gradient,
-                        Iterations = iter + 1,
-                        FunctionEvaluations = functionEvaluations,
-                        StoppingReason = StoppingReason.GradientTolerance,
-                        Success = true,
-                        Message = $"Converged: projected gradient norm {projGradNorm:E6} < {_options.Tolerance:E6}",
-                        GradientNorm = projGradNorm,
-                        FunctionChange = 0.0,
-                        ParameterChange = 0.0
-                    };
-                }
-
-                // Check other convergence criteria
-                var convergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
-                if (convergence.HasConverged || convergence.Reason.HasValue)
-                {
-                    if (_options.Verbose)
-                    {
-                        Console.WriteLine($"L-BFGS-B Converged: {convergence.Message}");
-                    }
-                    return new OptimizerResult
-                    {
-                        OptimalPoint = x,
-                        OptimalValue = value,
-                        FinalGradient = gradient,
-                        Iterations = iter + 1,
-                        FunctionEvaluations = functionEvaluations,
-                        StoppingReason = convergence.Reason ?? StoppingReason.MaxIterations,
-                        Success = convergence.HasConverged,
-                        Message = convergence.Message,
-                        GradientNorm = projGradNorm,
-                        FunctionChange = convergence.FunctionChange,
-                        ParameterChange = convergence.ParameterChange
-                    };
-                }
-
-                // Save current state
-                Array.Copy(x, xPrev, n);
-                Array.Copy(gradient, gradientPrev, n);
-
-                // Step 1: Compute the generalized Cauchy point
-                var cauchyResult = CauchyPointCalculator.Compute(x, gradient, lower, upper, memory);
-
-                // Step 2: Subspace minimization - compute search direction for free variables
-                var direction = SubspaceMinimization.ComputeSubspaceDirection(
-                    cauchyResult.CauchyPoint,
-                    gradient,
-                    cauchyResult.FreeVariables,
-                    lower,
-                    upper,
-                    memory);
-
-                // Compute the full direction from x to (cauchy point + subspace direction)
-                var fullDirection = new double[n];
-                for (var i = 0; i < n; i++)
-                {
-                    fullDirection[i] = cauchyResult.CauchyPoint[i] - x[i] + direction[i];
-                }
-
-                // Check if direction is valid descent direction
-                var gradDotDir = DotProduct(gradient, fullDirection);
-                if (gradDotDir >= 0 || AllZero(fullDirection))
-                {
-                    // Not a descent direction - try projected gradient
-                    fullDirection = SubspaceMinimization.ComputeProjectedGradientDirection(
-                        gradient, cauchyResult.FreeVariables, x, lower, upper);
-
-                    gradDotDir = DotProduct(gradient, fullDirection);
-                    if (gradDotDir >= 0 || AllZero(fullDirection))
-                    {
-                        // Still not descent - we may be at optimum
                         if (_options.Verbose)
                         {
-                            Console.WriteLine("L-BFGS-B: No descent direction found");
+                            Console.WriteLine($"L-BFGS-B Converged: Projected gradient norm {projGradNorm:E6} < {_options.Tolerance:E6}");
                         }
                         return new OptimizerResult
                         {
@@ -259,32 +190,20 @@ namespace Optimal.NonLinear.Constrained
                             FunctionEvaluations = functionEvaluations,
                             StoppingReason = StoppingReason.GradientTolerance,
                             Success = true,
-                            Message = "No descent direction found - may be at constrained optimum",
+                            Message = $"Converged: projected gradient norm {projGradNorm:E6} < {_options.Tolerance:E6}",
                             GradientNorm = projGradNorm,
                             FunctionChange = 0.0,
                             ParameterChange = 0.0
                         };
                     }
 
-                    // Clear memory when falling back to projected gradient
-                    memory.Clear();
-                }
-
-                // Step 3: Bounded line search
-                var maxStep = ProjectedGradient.MaxFeasibleStep(x, fullDirection, lower, upper);
-                var initialStep = Math.Min(1.0, maxStep * 0.99);
-
-                var alpha = BoundedLineSearch(objective, x, value, gradient, fullDirection, initialStep, maxStep, ref functionEvaluations);
-
-                if (alpha <= 0)
-                {
-                    // Line search failed - try smaller step or fall back
-                    alpha = Math.Min(0.01, maxStep * 0.5);
-                    if (alpha <= 1e-16)
+                    // Check other convergence criteria
+                    var convergence = monitor.CheckConvergence(iter, functionEvaluations, x, value, gradient);
+                    if (convergence.HasConverged || convergence.Reason.HasValue)
                     {
                         if (_options.Verbose)
                         {
-                            Console.WriteLine("L-BFGS-B: Line search failed");
+                            Console.WriteLine($"L-BFGS-B Converged: {convergence.Message}");
                         }
                         return new OptimizerResult
                         {
@@ -293,51 +212,121 @@ namespace Optimal.NonLinear.Constrained
                             FinalGradient = gradient,
                             Iterations = iter + 1,
                             FunctionEvaluations = functionEvaluations,
-                            StoppingReason = StoppingReason.NumericalError,
-                            Success = false,
-                            Message = "Line search failed to find descent",
+                            StoppingReason = convergence.Reason ?? StoppingReason.MaxIterations,
+                            Success = convergence.HasConverged,
+                            Message = convergence.Message,
                             GradientNorm = projGradNorm,
-                            FunctionChange = 0.0,
-                            ParameterChange = 0.0
+                            FunctionChange = convergence.FunctionChange,
+                            ParameterChange = convergence.ParameterChange
                         };
                     }
-                }
 
-                // Update position
-                for (var i = 0; i < n; i++)
-                {
-                    x[i] += alpha * fullDirection[i];
-                }
+                    // Save current state using Span copy
+                    x.AsSpan().CopyTo(xPrev);
+                    gradient.AsSpan().CopyTo(gradientPrev);
 
-                // Project to ensure strict feasibility (numerical safety)
-                ProjectedGradient.ProjectInPlace(x, lower, upper);
+                    // Step 1: Compute the generalized Cauchy point
+                    var cauchyResult = CauchyPointCalculator.Compute(x, gradient, lower, upper, memory);
 
-                // Evaluate at new point
-                (value, gradient) = objective(x);
-                functionEvaluations++;
+                    // Step 2: Subspace minimization - compute search direction for free variables
+                    var direction = SubspaceMinimization.ComputeSubspaceDirection(
+                        cauchyResult.CauchyPoint,
+                        gradient,
+                        cauchyResult.FreeVariables,
+                        lower,
+                        upper,
+                        memory);
 
-                // Check for numerical errors
-                if (double.IsNaN(value) || double.IsInfinity(value))
-                {
-                    return new OptimizerResult
+                    // Compute the full direction from x to (cauchy point + subspace direction)
+                    var fullDirSpan = fullDirection.AsSpan(0, n);
+                    for (var i = 0; i < n; i++)
                     {
-                        OptimalPoint = xPrev,
-                        OptimalValue = value,
-                        FinalGradient = gradient,
-                        Iterations = iter + 1,
-                        FunctionEvaluations = functionEvaluations,
-                        StoppingReason = StoppingReason.NumericalError,
-                        Success = false,
-                        Message = "Numerical error: objective function returned NaN or Infinity",
-                        GradientNorm = double.NaN,
-                        FunctionChange = 0.0,
-                        ParameterChange = 0.0
-                    };
-                }
+                        fullDirSpan[i] = cauchyResult.CauchyPoint[i] - x[i] + direction[i];
+                    }
 
-                for (var i = 0; i < n; i++)
-                {
-                    if (double.IsNaN(gradient[i]) || double.IsInfinity(gradient[i]))
+                    // Check if direction is valid descent direction using SIMD
+                    var gradDotDir = VectorOps.Dot(gradient, fullDirSpan);
+                    if (gradDotDir >= 0 || AllZero(fullDirSpan))
+                    {
+                        // Not a descent direction - try projected gradient
+                        var projGradDir = SubspaceMinimization.ComputeProjectedGradientDirection(
+                            gradient, cauchyResult.FreeVariables, x, lower, upper);
+                        projGradDir.AsSpan().CopyTo(fullDirSpan);
+
+                        gradDotDir = VectorOps.Dot(gradient, fullDirSpan);
+                        if (gradDotDir >= 0 || AllZero(fullDirSpan))
+                        {
+                            // Still not descent - we may be at optimum
+                            if (_options.Verbose)
+                            {
+                                Console.WriteLine("L-BFGS-B: No descent direction found");
+                            }
+                            return new OptimizerResult
+                            {
+                                OptimalPoint = x,
+                                OptimalValue = value,
+                                FinalGradient = gradient,
+                                Iterations = iter + 1,
+                                FunctionEvaluations = functionEvaluations,
+                                StoppingReason = StoppingReason.GradientTolerance,
+                                Success = true,
+                                Message = "No descent direction found - may be at constrained optimum",
+                                GradientNorm = projGradNorm,
+                                FunctionChange = 0.0,
+                                ParameterChange = 0.0
+                            };
+                        }
+
+                        // Clear memory when falling back to projected gradient
+                        memory.Clear();
+                    }
+
+                    // Step 3: Bounded line search
+                    var maxStep = ProjectedGradient.MaxFeasibleStep(x, fullDirSpan.ToArray(), lower, upper);
+                    var initialStep = Math.Min(1.0, maxStep * 0.99);
+
+                    var alpha = BoundedLineSearch(objective, x, value, gradient, fullDirSpan, initialStep, maxStep,
+                        xTrial.AsSpan(0, n), ref functionEvaluations);
+
+                    if (alpha <= 0)
+                    {
+                        // Line search failed - try smaller step or fall back
+                        alpha = Math.Min(0.01, maxStep * 0.5);
+                        if (alpha <= 1e-16)
+                        {
+                            if (_options.Verbose)
+                            {
+                                Console.WriteLine("L-BFGS-B: Line search failed");
+                            }
+                            return new OptimizerResult
+                            {
+                                OptimalPoint = x,
+                                OptimalValue = value,
+                                FinalGradient = gradient,
+                                Iterations = iter + 1,
+                                FunctionEvaluations = functionEvaluations,
+                                StoppingReason = StoppingReason.NumericalError,
+                                Success = false,
+                                Message = "Line search failed to find descent",
+                                GradientNorm = projGradNorm,
+                                FunctionChange = 0.0,
+                                ParameterChange = 0.0
+                            };
+                        }
+                    }
+
+                    // Update position using SIMD
+                    VectorOps.AddScaled(x, alpha, fullDirSpan, x);
+
+                    // Project to ensure strict feasibility (numerical safety)
+                    ProjectedGradient.ProjectInPlace(x, lower, upper);
+
+                    // Evaluate at new point
+                    (value, gradient) = objective(x);
+                    functionEvaluations++;
+
+                    // Check for numerical errors
+                    if (double.IsNaN(value) || double.IsInfinity(value))
                     {
                         return new OptimizerResult
                         {
@@ -348,64 +337,85 @@ namespace Optimal.NonLinear.Constrained
                             FunctionEvaluations = functionEvaluations,
                             StoppingReason = StoppingReason.NumericalError,
                             Success = false,
-                            Message = "Numerical error: gradient contains NaN or Infinity",
+                            Message = "Numerical error: objective function returned NaN or Infinity",
                             GradientNorm = double.NaN,
                             FunctionChange = 0.0,
                             ParameterChange = 0.0
                         };
                     }
+
+                    for (var i = 0; i < n; i++)
+                    {
+                        if (double.IsNaN(gradient[i]) || double.IsInfinity(gradient[i]))
+                        {
+                            return new OptimizerResult
+                            {
+                                OptimalPoint = xPrev,
+                                OptimalValue = value,
+                                FinalGradient = gradient,
+                                Iterations = iter + 1,
+                                FunctionEvaluations = functionEvaluations,
+                                StoppingReason = StoppingReason.NumericalError,
+                                Success = false,
+                                Message = "Numerical error: gradient contains NaN or Infinity",
+                                GradientNorm = double.NaN,
+                                FunctionChange = 0.0,
+                                ParameterChange = 0.0
+                            };
+                        }
+                    }
+
+                    if (_options.Verbose && (iter % 10 == 0 || iter < 5))
+                    {
+                        projGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
+                        Console.WriteLine($"  Iter {iter + 1:D4}: f={value:E6}, ||pg||={projGradNorm:E3}, α={alpha:F6}");
+                    }
+
+                    // Compute correction pair for L-BFGS memory using SIMD
+                    var sSpan = s.AsSpan(0, n);
+                    var ySpan = y.AsSpan(0, n);
+                    VectorOps.Subtract(x, xPrev, sSpan);
+                    VectorOps.Subtract(gradient, gradientPrev, ySpan);
+
+                    // Compute rho = 1 / (y^T * s) for conditioning monitoring
+                    var yTs = VectorOps.Dot(ySpan, sSpan);
+
+                    // Add to memory (checks curvature condition internally)
+                    memory.Push(sSpan.ToArray(), ySpan.ToArray());
+
+                    // Notify monitor if curvature condition is satisfied
+                    if (Math.Abs(yTs) >= 1e-16)
+                    {
+                        _monitor?.OnCorrectionPairAdded(sSpan.ToArray(), ySpan.ToArray(), 1.0 / yTs);
+                    }
                 }
 
-                if (_options.Verbose && (iter % 10 == 0 || iter < 5))
+                // Maximum iterations reached
+                var finalProjGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
+                var finalConvergence = monitor.CheckConvergence(_options.MaxIterations, functionEvaluations, x, value, gradient);
+
+                return new OptimizerResult
                 {
-                    projGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
-                    Console.WriteLine($"  Iter {iter + 1:D4}: f={value:E6}, ||pg||={projGradNorm:E3}, α={alpha:F6}");
-                }
-
-                // Compute correction pair for L-BFGS memory
-                var s = new double[n];
-                var y = new double[n];
-                for (var i = 0; i < n; i++)
-                {
-                    s[i] = x[i] - xPrev[i];
-                    y[i] = gradient[i] - gradientPrev[i];
-                }
-
-                // Compute rho = 1 / (y^T * s) for conditioning monitoring
-                var yTs = 0.0;
-                for (var i = 0; i < n; i++)
-                {
-                    yTs += y[i] * s[i];
-                }
-
-                // Add to memory (checks curvature condition internally)
-                memory.Push(s, y);
-
-                // Notify monitor if curvature condition is satisfied
-                if (Math.Abs(yTs) >= 1e-16)
-                {
-                    _monitor?.OnCorrectionPairAdded(s, y, 1.0 / yTs);
-                }
+                    OptimalPoint = x,
+                    OptimalValue = value,
+                    FinalGradient = gradient,
+                    Iterations = _options.MaxIterations,
+                    FunctionEvaluations = functionEvaluations,
+                    StoppingReason = StoppingReason.MaxIterations,
+                    Success = false,
+                    Message = "Maximum iterations reached without convergence",
+                    GradientNorm = finalProjGradNorm,
+                    FunctionChange = finalConvergence.FunctionChange,
+                    ParameterChange = finalConvergence.ParameterChange
+                };
             }
-
-            // Maximum iterations reached
-            var finalProjGradNorm = ProjectedGradient.ProjectedGradientNormInf(x, gradient, lower, upper);
-            var finalConvergence = monitor.CheckConvergence(_options.MaxIterations, functionEvaluations, x, value, gradient);
-
-            return new OptimizerResult
+            finally
             {
-                OptimalPoint = x,
-                OptimalValue = value,
-                FinalGradient = gradient,
-                Iterations = _options.MaxIterations,
-                FunctionEvaluations = functionEvaluations,
-                StoppingReason = StoppingReason.MaxIterations,
-                Success = false,
-                Message = "Maximum iterations reached without convergence",
-                GradientNorm = finalProjGradNorm,
-                FunctionChange = finalConvergence.FunctionChange,
-                ParameterChange = finalConvergence.ParameterChange
-            };
+                pool.Return(s);
+                pool.Return(y);
+                pool.Return(fullDirection);
+                pool.Return(xTrial);
+            }
         }
 
         /// <summary>
@@ -416,35 +426,31 @@ namespace Optimal.NonLinear.Constrained
             double[] x,
             double fx,
             double[] gradient,
-            double[] direction,
+            ReadOnlySpan<double> direction,
             double initialStep,
             double maxStep,
+            Span<double> xTrialBuffer,
             ref int functionEvaluations)
         {
             const double c1 = 1e-4; // Armijo parameter
             const double rho = 0.5; // Backtracking factor
             const int maxIter = 50;
 
-            var gradDotDir = DotProduct(gradient, direction);
+            var gradDotDir = VectorOps.Dot(gradient, direction);
             if (gradDotDir >= 0)
             {
                 return 0; // Not a descent direction
             }
 
             var alpha = Math.Min(initialStep, maxStep);
-            var n = x.Length;
-            var xTrial = new double[n];
 
             for (var i = 0; i < maxIter; i++)
             {
-                // Compute trial point
-                for (var j = 0; j < n; j++)
-                {
-                    xTrial[j] = x[j] + alpha * direction[j];
-                }
+                // Compute trial point using SIMD
+                VectorOps.AddScaled(x, alpha, direction, xTrialBuffer);
 
                 // Evaluate at trial point
-                var (fTrial, _) = objective(xTrial);
+                var (fTrial, _) = objective(xTrialBuffer.ToArray());
                 functionEvaluations++;
 
                 // Check Armijo condition: f(x + alpha*d) <= f(x) + c1 * alpha * grad' * d
@@ -465,17 +471,7 @@ namespace Optimal.NonLinear.Constrained
             return 0; // Failed to find acceptable step
         }
 
-        private static double DotProduct(double[] a, double[] b)
-        {
-            var sum = 0.0;
-            for (var i = 0; i < a.Length; i++)
-            {
-                sum += a[i] * b[i];
-            }
-            return sum;
-        }
-
-        private static bool AllZero(double[] d)
+        private static bool AllZero(ReadOnlySpan<double> d)
         {
             for (var i = 0; i < d.Length; i++)
             {
