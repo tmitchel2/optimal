@@ -62,5 +62,11 @@ namespace Optimal.Control.Collocation
         /// Gets the gradient norm at the optimal solution.
         /// </summary>
         public double GradientNorm { get; init; }
+
+        /// <summary>
+        /// Gets the state derivatives (dx/dt) at each time point for Hermite interpolation.
+        /// Dimensions: [TimePoints][StateDim]. Null if not computed.
+        /// </summary>
+        public double[][]? StateDerivatives { get; init; }
     }
 }

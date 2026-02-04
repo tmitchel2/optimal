@@ -177,6 +177,9 @@ namespace Optimal.Control.Solvers
             // so that the returned trajectories are in original coordinates
             var unscaledStates = scaledProblem.UnscaleStates(scaledResult.States);
             var unscaledControls = scaledProblem.UnscaleControls(scaledResult.Controls);
+            var unscaledDerivatives = scaledResult.StateDerivatives != null
+                ? scaledProblem.UnscaleDerivatives(scaledResult.StateDerivatives)
+                : null;
 
             return new CollocationResult
             {
@@ -185,6 +188,7 @@ namespace Optimal.Control.Solvers
                 Times = scaledResult.Times,
                 States = unscaledStates,
                 Controls = unscaledControls,
+                StateDerivatives = unscaledDerivatives,
                 OptimalCost = scaledResult.OptimalCost,
                 Iterations = scaledResult.Iterations,
                 MaxDefect = scaledResult.MaxDefect,
@@ -450,14 +454,17 @@ namespace Optimal.Control.Solvers
             iterationCount[0]++;
             var states = new double[segments + 1][];
             var controls = new double[segments + 1][];
+            var derivatives = new double[segments + 1][];
             for (var k = 0; k <= segments; k++)
             {
                 states[k] = transcription.GetState(z, k);
                 controls[k] = transcription.GetControl(z, k);
+                var input = new DynamicsInput(states[k], controls[k], grid.TimePoints[k], k, segments);
+                derivatives[k] = dynamics(input).Value;
             }
 
             var maxViolation = ComputeMaxViolation(transcription, z, dynamics);
-            Options.ProgressCallback(iterationCount[0], cost, states, controls, grid.TimePoints, maxViolation, Options.Tolerance);
+            Options.ProgressCallback(iterationCount[0], cost, states, controls, grid.TimePoints, maxViolation, Options.Tolerance, derivatives);
         }
 
         private static double ComputeMaxViolation(ParallelHermiteSimpsonTranscription transcription, double[] z, Func<DynamicsInput, DynamicsResult> dynamics)
@@ -549,10 +556,13 @@ namespace Optimal.Control.Solvers
 
             var states = new double[segments + 1][];
             var controls = new double[segments + 1][];
+            var derivatives = new double[segments + 1][];
             for (var k = 0; k <= segments; k++)
             {
                 states[k] = transcription.GetState(zOpt, k);
                 controls[k] = transcription.GetControl(zOpt, k);
+                var input = new DynamicsInput(states[k], controls[k], grid.TimePoints[k], k, segments);
+                derivatives[k] = problem.Dynamics!(input).Value;
             }
 
             var maxDefect = ComputeMaxViolation(transcription, zOpt, problem.Dynamics!);
@@ -564,6 +574,7 @@ namespace Optimal.Control.Solvers
                 Times = grid.TimePoints,
                 States = states,
                 Controls = controls,
+                StateDerivatives = derivatives,
                 OptimalCost = nlpResult.OptimalValue,
                 Iterations = nlpResult.Iterations,
                 MaxDefect = maxDefect,

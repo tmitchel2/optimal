@@ -130,7 +130,7 @@ public sealed class DubinsCarProblemSolver : ICommand
                     MaxIterations = 150
                 }, new BacktrackingLineSearch());
 
-                ProgressCallback progressCallback = (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+                ProgressCallback progressCallback = (iteration, cost, states, controls, times, maxViolation, constraintTolerance, derivatives) =>
                 {
                     var token = RadiantDubinsCarVisualizer.CancellationToken;
                     if (token.IsCancellationRequested)
@@ -138,7 +138,7 @@ public sealed class DubinsCarProblemSolver : ICommand
                         Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
                         throw new OperationCanceledException(token);
                     }
-                    RadiantDubinsCarVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+                    RadiantDubinsCarVisualizer.UpdateTrajectory(states, controls, times, derivatives, iteration, cost, maxViolation, constraintTolerance);
                 };
 
                 var solver = new HermiteSimpsonSolver(

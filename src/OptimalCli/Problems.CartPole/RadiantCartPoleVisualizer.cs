@@ -58,13 +58,19 @@ internal static class RadiantCartPoleVisualizer
     /// </summary>
     /// <param name="states">Array of states over time [time_index][state_vars].</param>
     /// <param name="controls">Array of controls over time [time_index][control_vars].</param>
+    /// <param name="times">Time points for trajectory nodes.</param>
+    /// <param name="derivatives">State derivatives (dx/dt) for smooth interpolation. May be null.</param>
     /// <param name="iteration">Current iteration number.</param>
     /// <param name="cost">Current cost value.</param>
     /// <param name="maxViolation">Maximum constraint violation.</param>
     /// <param name="constraintTolerance">Constraint tolerance for convergence.</param>
     /// <param name="poleLength">Pole length in meters.</param>
-    public static void UpdateTrajectory(double[][] states, double[][] controls, int iteration, double cost, double maxViolation, double constraintTolerance, double poleLength)
+    public static void UpdateTrajectory(double[][] states, double[][] controls, double[] times, double[][]? derivatives, int iteration, double cost, double maxViolation, double constraintTolerance, double poleLength)
     {
+        // times and derivatives are available for smooth interpolation but not used in this visualizer
+        _ = times;
+        _ = derivatives;
+
         if (states.Length == 0 || controls.Length == 0)
         {
             return;

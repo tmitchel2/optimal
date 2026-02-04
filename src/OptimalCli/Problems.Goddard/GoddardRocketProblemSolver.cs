@@ -148,14 +148,14 @@ public sealed class GoddardRocketProblemSolver : ICommand
         GoddardRocketParams problemParams,
         CancellationToken cancellationToken)
     {
-        return (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+        return (iteration, cost, states, controls, times, maxViolation, constraintTolerance, derivatives) =>
         {
             if (cancellationToken.IsCancellationRequested)
             {
                 Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
                 throw new OperationCanceledException(cancellationToken);
             }
-            RadiantGoddardRocketVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, problemParams.H0);
+            RadiantGoddardRocketVisualizer.UpdateTrajectory(states, controls, times, derivatives, iteration, cost, maxViolation, constraintTolerance, problemParams.H0);
         };
     }
 

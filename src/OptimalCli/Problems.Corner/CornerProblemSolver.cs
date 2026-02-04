@@ -87,7 +87,7 @@ public sealed class CornerProblemSolver : ICommand
 
     private static void RunSolver(ControlProblem problem, TrackGeometry trackGeometry, CommandOptions options)
     {
-        var segments = 30;
+        var segments = 10;
         var initialGuess = CreateInitialGuess(problem, segments, trackGeometry);
 
         var useMonitor = false;
@@ -171,10 +171,10 @@ public sealed class CornerProblemSolver : ICommand
 
     private static ProgressCallback CreateProgressCallback(RadiantCornerVisualizer visualizer, CancellationToken cancellationToken)
     {
-        return (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+        return (iteration, cost, states, controls, times, maxViolation, constraintTolerance, derivatives) =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            visualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+            visualizer.UpdateTrajectory(states, controls, times, derivatives, iteration, cost, maxViolation, constraintTolerance);
         };
     }
 
@@ -234,6 +234,7 @@ public sealed class CornerProblemSolver : ICommand
                      Type = PreconditioningType.Regularization
                  },
                  Tolerance = 1e-2,
+                 Verbose = true,
                  MaxIterations = 1000
              }, new BacktrackingLineSearch(), monitor);
 
@@ -248,7 +249,8 @@ public sealed class CornerProblemSolver : ICommand
                 AutoScaling = true,
                 EnableMeshRefinement = true,
                 MaxRefinementIterations = 5,
-                RefinementDefectThreshold = 1e-4,
+                RefinementDefectThreshold = 1e-3,
+                InitialPenalty = 100,
                 InnerProgressCallback = innerProgressCallback
             },
             innerOptimizer,

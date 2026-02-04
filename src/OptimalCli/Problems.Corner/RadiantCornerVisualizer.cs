@@ -7,6 +7,7 @@
  */
 
 using System.Numerics;
+using Optimal.Control.Collocation;
 using Optimal.Control.Core;
 using Radiant;
 
@@ -76,12 +77,28 @@ internal sealed class RadiantCornerVisualizer
     private double _nextConstraintTolerance;
     private bool _hasNextTrajectory;
 
+    // Smooth interpolation support
+    private TrajectoryInterpolator? _interpolator;
+    private (double s, double n)[]? _interpolatedCurvilinearPoints;
+    private const int PointsPerSegment = 10;
+
     public RadiantCornerVisualizer(TrackGeometry trackGeometry)
     {
         _trackGeometry = trackGeometry ?? throw new ArgumentNullException(nameof(trackGeometry));
     }
 
-    public void UpdateTrajectory(double[][] states, double[][] controls, int iteration, double cost, double maxViolation, double constraintTolerance)
+    /// <summary>
+    /// Updates the trajectory being displayed (called from optimization progress callback).
+    /// </summary>
+    /// <param name="states">Array of states over time.</param>
+    /// <param name="controls">Array of controls over time.</param>
+    /// <param name="times">Time points for trajectory nodes.</param>
+    /// <param name="derivatives">State derivatives (dx/dt) for smooth interpolation. May be null.</param>
+    /// <param name="iteration">Current iteration number.</param>
+    /// <param name="cost">Current cost value.</param>
+    /// <param name="maxViolation">Maximum constraint violation.</param>
+    /// <param name="constraintTolerance">Constraint tolerance for convergence.</param>
+    public void UpdateTrajectory(double[][] states, double[][] controls, double[] times, double[][]? derivatives, int iteration, double cost, double maxViolation, double constraintTolerance)
     {
         if (states.Length == 0 || controls.Length == 0)
         {
@@ -98,7 +115,65 @@ internal sealed class RadiantCornerVisualizer
             _nextConstraintTolerance = constraintTolerance;
             _hasNextTrajectory = true;
 
+            // If derivatives available, create interpolator for smooth rendering
+            if (derivatives != null)
+            {
+                _interpolator = new TrajectoryInterpolator(times, states, derivatives);
+
+                // Pre-compute interpolated points in curvilinear coordinates
+                var points = new List<(double s, double n)>();
+                var interpPoints = _interpolator.GetInterpolatedPoints(PointsPerSegment).ToArray();
+                var totalPoints = interpPoints.Length;
+
+                for (var i = 0; i < totalPoints; i++)
+                {
+                    var state = interpPoints[i].state;
+                    var n = state[IdxN];
+                    // Compute s based on position in trajectory (normalized to track length)
+                    var s = totalPoints > 1 ? (i / (double)(totalPoints - 1)) * _trackGeometry.TotalLength : 0.0;
+                    points.Add((s, n));
+                }
+
+                _interpolatedCurvilinearPoints = points.ToArray();
+            }
+
             Console.WriteLine($"[VIZ] Buffered Iter {iteration}: {states.Length} frames, cost={cost:F4}, violation={maxViolation:E2}/{constraintTolerance:E2}");
+        }
+    }
+
+    /// <summary>
+    /// Sets the final collocation result for smooth trajectory interpolation.
+    /// Call this after optimization completes to enable smooth curve rendering.
+    /// </summary>
+    /// <param name="result">The collocation result with state derivatives.</param>
+    public void SetInterpolator(CollocationResult result)
+    {
+        if (result.StateDerivatives == null)
+        {
+            return;
+        }
+
+        lock (_lock)
+        {
+            _interpolator = TrajectoryInterpolator.FromResult(result);
+
+            // Pre-compute interpolated points in curvilinear coordinates
+            // For the corner problem, we need (s, n) pairs where s is computed from the trajectory progress
+            var points = new List<(double s, double n)>();
+            var interpPoints = _interpolator.GetInterpolatedPoints(PointsPerSegment).ToArray();
+            var totalPoints = interpPoints.Length;
+
+            for (var i = 0; i < totalPoints; i++)
+            {
+                var state = interpPoints[i].state;
+                var n = state[IdxN];
+                // Compute s based on position in trajectory (normalized to track length)
+                var s = totalPoints > 1 ? (i / (double)(totalPoints - 1)) * _trackGeometry.TotalLength : 0.0;
+                points.Add((s, n));
+            }
+
+            _interpolatedCurvilinearPoints = points.ToArray();
+            Console.WriteLine($"[VIZ] Smooth interpolation enabled with {_interpolatedCurvilinearPoints.Length} points");
         }
     }
 
@@ -331,6 +406,13 @@ internal sealed class RadiantCornerVisualizer
 
     private void DrawPathTrace(Radiant.Graphics2D.Renderer2D renderer, double[][] states, int currentFrame, float scale)
     {
+        // Use smooth interpolated points if available
+        if (_interpolatedCurvilinearPoints != null)
+        {
+            DrawPathTraceSmooth(renderer, currentFrame, scale);
+            return;
+        }
+
         var totalFrames = states.Length;
 
         // Draw completed path
@@ -364,6 +446,45 @@ internal sealed class RadiantCornerVisualizer
 
             var n1 = states[i][IdxN];
             var n2 = states[i + 1][IdxN];
+
+            var (x1, y1) = _trackGeometry.CurvilinearToCartesian(s1, n1);
+            var (x2, y2) = _trackGeometry.CurvilinearToCartesian(s2, n2);
+
+            renderer.DrawLine(new Vector2((float)x1 * scale, (float)y1 * scale) + Translation,
+                             new Vector2((float)x2 * scale, (float)y2 * scale) + Translation, new Vector4(0.4f, 0.4f, 0.4f, 0.5f));
+        }
+    }
+
+    private void DrawPathTraceSmooth(Radiant.Graphics2D.Renderer2D renderer, int currentFrame, float scale)
+    {
+        var points = _interpolatedCurvilinearPoints!;
+        var totalPoints = points.Length;
+
+        // Map currentFrame from discrete states to interpolated points
+        var currentDrawFrame = Math.Min(currentFrame * PointsPerSegment, totalPoints - 1);
+
+        // Draw completed path with smooth interpolation
+        for (var i = 0; i < currentDrawFrame && i < totalPoints - 1; i++)
+        {
+            var (s1, n1) = points[i];
+            var (s2, n2) = points[i + 1];
+
+            var (x1, y1) = _trackGeometry.CurvilinearToCartesian(s1, n1);
+            var (x2, y2) = _trackGeometry.CurvilinearToCartesian(s2, n2);
+
+            // Color gradient based on progress
+            var progress = currentDrawFrame > 0 ? (float)i / currentDrawFrame : 0f;
+            var color = new Vector4(0.3f + (0.5f * progress), 0.8f - (0.3f * progress), 0.3f, 0.9f);
+
+            renderer.DrawLine(new Vector2((float)x1 * scale, (float)y1 * scale) + Translation,
+                             new Vector2((float)x2 * scale, (float)y2 * scale) + Translation, color);
+        }
+
+        // Draw future path in gray
+        for (var i = currentDrawFrame; i < totalPoints - 1; i++)
+        {
+            var (s1, n1) = points[i];
+            var (s2, n2) = points[i + 1];
 
             var (x1, y1) = _trackGeometry.CurvilinearToCartesian(s1, n1);
             var (x2, y2) = _trackGeometry.CurvilinearToCartesian(s2, n2);

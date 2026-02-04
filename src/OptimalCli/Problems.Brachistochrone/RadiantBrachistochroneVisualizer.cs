@@ -7,6 +7,7 @@
  */
 
 using System.Numerics;
+using Optimal.Control.Collocation;
 using Radiant;
 
 namespace OptimalCli.Problems.Brachistochrone;
@@ -43,15 +44,56 @@ internal static class RadiantBrachistochroneVisualizer
     // Cancellation token for stopping optimization when window closes
     private static CancellationTokenSource? s_cancellationTokenSource;
 
+    // Smooth interpolation support
+    private static TrajectoryInterpolator? s_interpolator;
+    private static double[][]? s_interpolatedPoints;
+    private const int PointsPerSegment = 10;
+
     /// <summary>
     /// Gets the cancellation token that signals when the visualization window is closed.
     /// </summary>
     public static CancellationToken CancellationToken => s_cancellationTokenSource?.Token ?? CancellationToken.None;
 
     /// <summary>
+    /// Sets the final collocation result for smooth trajectory interpolation.
+    /// Call this after optimization completes to enable smooth curve rendering.
+    /// </summary>
+    /// <param name="result">The collocation result with state derivatives.</param>
+    public static void SetInterpolator(CollocationResult result)
+    {
+        if (result.StateDerivatives == null)
+        {
+            return;
+        }
+
+        lock (s_lock)
+        {
+            s_interpolator = TrajectoryInterpolator.FromResult(result);
+
+            // Pre-compute interpolated points for smooth drawing
+            var points = new List<double[]>();
+            foreach (var (_, state) in s_interpolator.GetInterpolatedPoints(PointsPerSegment))
+            {
+                points.Add(state);
+            }
+
+            s_interpolatedPoints = points.ToArray();
+            Console.WriteLine($"[VIZ] Smooth interpolation enabled with {s_interpolatedPoints.Length} points");
+        }
+    }
+
+    /// <summary>
     /// Updates the trajectory being displayed (called from optimization progress callback).
     /// </summary>
-    public static void UpdateTrajectory(double[][] states, double[][] controls, int iteration, double cost, double maxViolation, double constraintTolerance)
+    /// <param name="states">Array of states over time.</param>
+    /// <param name="controls">Array of controls over time.</param>
+    /// <param name="times">Time points for trajectory nodes.</param>
+    /// <param name="derivatives">State derivatives (dx/dt) for smooth interpolation. May be null.</param>
+    /// <param name="iteration">Current iteration number.</param>
+    /// <param name="cost">Current cost value.</param>
+    /// <param name="maxViolation">Maximum constraint violation.</param>
+    /// <param name="constraintTolerance">Constraint tolerance for convergence.</param>
+    public static void UpdateTrajectory(double[][] states, double[][] controls, double[] times, double[][]? derivatives, int iteration, double cost, double maxViolation, double constraintTolerance)
     {
         if (states.Length == 0 || controls.Length == 0)
         {
@@ -67,6 +109,18 @@ internal static class RadiantBrachistochroneVisualizer
             s_nextMaxViolation = maxViolation;
             s_nextConstraintTolerance = constraintTolerance;
             s_hasNextTrajectory = true;
+
+            // If derivatives available, create interpolator for smooth rendering
+            if (derivatives != null)
+            {
+                s_interpolator = new TrajectoryInterpolator(times, states, derivatives);
+                var points = new List<double[]>();
+                foreach (var (_, state) in s_interpolator.GetInterpolatedPoints(PointsPerSegment))
+                {
+                    points.Add(state);
+                }
+                s_interpolatedPoints = points.ToArray();
+            }
 
             Console.WriteLine($"[VIZ] Buffered Iter {iteration}: {states.Length} frames, cost={cost:F4}s, violation={maxViolation:E2}/{constraintTolerance:E2}");
         }
@@ -180,14 +234,17 @@ internal static class RadiantBrachistochroneVisualizer
 
     private static void DrawCurvePath(Radiant.Graphics2D.Renderer2D renderer, double[][] states)
     {
+        // Use smooth interpolated points if available, otherwise use discrete states
+        var drawPoints = s_interpolatedPoints ?? states;
+
         // Draw the trajectory path
         // Both state and Radiant use left-hand coordinates (y-axis up), so no flipping needed
-        for (var i = 0; i < states.Length - 1; i++)
+        for (var i = 0; i < drawPoints.Length - 1; i++)
         {
-            var x1 = (float)(states[i][0] * ScaleX) - 450.0f;
-            var y1 = (float)(states[i][1] * ScaleY) - 100.0f;
-            var x2 = (float)(states[i + 1][0] * ScaleX) - 450.0f;
-            var y2 = (float)(states[i + 1][1] * ScaleY) - 100.0f;
+            var x1 = (float)(drawPoints[i][0] * ScaleX) - 450.0f;
+            var y1 = (float)(drawPoints[i][1] * ScaleY) - 100.0f;
+            var x2 = (float)(drawPoints[i + 1][0] * ScaleX) - 450.0f;
+            var y2 = (float)(drawPoints[i + 1][1] * ScaleY) - 100.0f;
 
             renderer.DrawLine(
                 new Vector2(x1, y1),

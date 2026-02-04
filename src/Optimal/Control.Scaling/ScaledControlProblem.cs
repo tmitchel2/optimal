@@ -276,6 +276,27 @@ namespace Optimal.Control.Scaling
         }
 
         /// <summary>
+        /// Unscales state derivatives from scaled to original coordinates.
+        /// In scaled coordinates: dx_s/dt = S^(-1) * dx/dt, so dx/dt = S * dx_s/dt.
+        /// </summary>
+        /// <param name="scaledDerivatives">State derivatives in scaled coordinates.</param>
+        /// <returns>State derivatives in original coordinates.</returns>
+        public double[][] UnscaleDerivatives(double[][] scaledDerivatives)
+        {
+            var original = new double[scaledDerivatives.Length][];
+            for (var i = 0; i < scaledDerivatives.Length; i++)
+            {
+                original[i] = new double[StateDim];
+                for (var j = 0; j < StateDim; j++)
+                {
+                    original[i][j] = scaledDerivatives[i][j] * _scaling.StateScales[j];
+                }
+            }
+
+            return original;
+        }
+
+        /// <summary>
         /// Transforms dynamics from scaled input to scaled output with correct gradient chain rule.
         /// </summary>
         /// <remarks>

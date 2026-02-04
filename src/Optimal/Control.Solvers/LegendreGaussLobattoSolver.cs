@@ -358,7 +358,8 @@ namespace Optimal.Control.Solvers
                         }
                     }
 
-                    Options.ProgressCallback(iterationCount, cost, states, controls, times, maxViolation, Options.Tolerance);
+                    // Note: LGL solver doesn't compute derivatives for the progress callback yet
+                    Options.ProgressCallback(iterationCount, cost, states, controls, times, maxViolation, Options.Tolerance, null);
                 }
 
                 return (cost, gradient);

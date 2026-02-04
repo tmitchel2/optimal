@@ -141,7 +141,7 @@ public sealed class CartPoleProblemSolver : ICommand
                     Verbose = true
                 }, new BacktrackingLineSearch());
 
-                ProgressCallback progressCallback = (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+                ProgressCallback progressCallback = (iteration, cost, states, controls, times, maxViolation, constraintTolerance, derivatives) =>
                 {
                     var token = RadiantCartPoleVisualizer.CancellationToken;
                     if (token.IsCancellationRequested)
@@ -149,7 +149,7 @@ public sealed class CartPoleProblemSolver : ICommand
                         Console.WriteLine($"[SOLVER] Iteration {iteration}: Cancellation requested, throwing exception to stop optimization...");
                         throw new OperationCanceledException(token);
                     }
-                    RadiantCartPoleVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance, L);
+                    RadiantCartPoleVisualizer.UpdateTrajectory(states, controls, times, derivatives, iteration, cost, maxViolation, constraintTolerance, L);
                 };
 
                 var solver = new HermiteSimpsonSolver(

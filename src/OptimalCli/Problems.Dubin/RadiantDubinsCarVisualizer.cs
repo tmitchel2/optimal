@@ -7,6 +7,7 @@
  */
 
 using System.Numerics;
+using Optimal.Control.Collocation;
 using Radiant;
 
 namespace OptimalCli.Problems.Dubin;
@@ -41,21 +42,56 @@ internal static class RadiantDubinsCarVisualizer
     // Cancellation token for stopping optimization when window closes
     private static CancellationTokenSource? s_cancellationTokenSource;
 
+    // Smooth interpolation support
+    private static TrajectoryInterpolator? s_interpolator;
+    private static double[][]? s_interpolatedPoints;
+    private const int PointsPerSegment = 10;
+
     /// <summary>
     /// Gets the cancellation token that signals when the visualization window is closed.
     /// </summary>
     public static CancellationToken CancellationToken => s_cancellationTokenSource?.Token ?? CancellationToken.None;
 
     /// <summary>
+    /// Sets the final collocation result for smooth trajectory interpolation.
+    /// Call this after optimization completes to enable smooth curve rendering.
+    /// </summary>
+    /// <param name="result">The collocation result with state derivatives.</param>
+    public static void SetInterpolator(CollocationResult result)
+    {
+        if (result.StateDerivatives == null)
+        {
+            return;
+        }
+
+        lock (s_lock)
+        {
+            s_interpolator = TrajectoryInterpolator.FromResult(result);
+
+            // Pre-compute interpolated points for smooth drawing
+            var points = new List<double[]>();
+            foreach (var (_, state) in s_interpolator.GetInterpolatedPoints(PointsPerSegment))
+            {
+                points.Add(state);
+            }
+
+            s_interpolatedPoints = points.ToArray();
+            Console.WriteLine($"[VIZ] Smooth interpolation enabled with {s_interpolatedPoints.Length} points");
+        }
+    }
+
+    /// <summary>
     /// Updates the trajectory being displayed (called from optimization progress callback).
     /// </summary>
     /// <param name="states">Array of states over time [time_index][state_vars].</param>
     /// <param name="controls">Array of controls over time [time_index][control_vars].</param>
+    /// <param name="times">Time points for trajectory nodes.</param>
+    /// <param name="derivatives">State derivatives (dx/dt) for smooth interpolation. May be null.</param>
     /// <param name="iteration">Current iteration number.</param>
     /// <param name="cost">Current cost value.</param>
     /// <param name="maxViolation">Maximum constraint violation.</param>
     /// <param name="constraintTolerance">Constraint tolerance for convergence.</param>
-    public static void UpdateTrajectory(double[][] states, double[][] controls, int iteration, double cost, double maxViolation, double constraintTolerance)
+    public static void UpdateTrajectory(double[][] states, double[][] controls, double[] times, double[][]? derivatives, int iteration, double cost, double maxViolation, double constraintTolerance)
     {
         if (states.Length == 0 || controls.Length == 0)
         {
@@ -72,6 +108,18 @@ internal static class RadiantDubinsCarVisualizer
             s_nextMaxViolation = maxViolation;
             s_nextConstraintTolerance = constraintTolerance;
             s_hasNextTrajectory = true;
+
+            // If derivatives available, create interpolator for smooth rendering
+            if (derivatives != null)
+            {
+                s_interpolator = new TrajectoryInterpolator(times, states, derivatives);
+                var points = new List<double[]>();
+                foreach (var (_, state) in s_interpolator.GetInterpolatedPoints(PointsPerSegment))
+                {
+                    points.Add(state);
+                }
+                s_interpolatedPoints = points.ToArray();
+            }
 
             // Debug output
             Console.WriteLine($"[VIZ] Buffered Iter {iteration}: {states.Length} frames, cost={cost:F4}, violation={maxViolation:E2}/{constraintTolerance:E2}");
@@ -207,16 +255,24 @@ internal static class RadiantDubinsCarVisualizer
 
     private static void DrawPathTrace(Radiant.Graphics2D.Renderer2D renderer, double[][] states, int currentFrame)
     {
+        // Use smooth interpolated points if available, otherwise use discrete states
+        var drawPoints = s_interpolatedPoints ?? states;
+
+        // Map currentFrame from discrete states to interpolated points
+        var currentDrawFrame = s_interpolatedPoints != null
+            ? Math.Min(currentFrame * PointsPerSegment, drawPoints.Length - 1)
+            : currentFrame;
+
         // Find bounds for scaling
         var xMin = double.MaxValue;
         var xMax = double.MinValue;
         var yMin = double.MaxValue;
         var yMax = double.MinValue;
 
-        for (var i = 0; i < states.Length; i++)
+        for (var i = 0; i < drawPoints.Length; i++)
         {
-            var x = states[i][0];
-            var y = states[i][1];
+            var x = drawPoints[i][0];
+            var y = drawPoints[i][1];
             xMin = Math.Min(xMin, x);
             xMax = Math.Max(xMax, x);
             yMin = Math.Min(yMin, y);
@@ -240,15 +296,15 @@ internal static class RadiantDubinsCarVisualizer
         var scale = (float)(DrawSize / paddedRange);
 
         // Draw the path up to current frame
-        for (var i = 0; i < currentFrame; i++)
+        for (var i = 0; i < currentDrawFrame && i < drawPoints.Length - 1; i++)
         {
-            var x1 = (float)((states[i][0] - xCenter) * scale);
-            var y1 = (float)((states[i][1] - yCenter) * scale);
-            var x2 = (float)((states[i + 1][0] - xCenter) * scale);
-            var y2 = (float)((states[i + 1][1] - yCenter) * scale);
+            var x1 = (float)((drawPoints[i][0] - xCenter) * scale);
+            var y1 = (float)((drawPoints[i][1] - yCenter) * scale);
+            var x2 = (float)((drawPoints[i + 1][0] - xCenter) * scale);
+            var y2 = (float)((drawPoints[i + 1][1] - yCenter) * scale);
 
             // Color gradient from start (green) to current (cyan)
-            var t = (float)i / currentFrame;
+            var t = currentDrawFrame > 0 ? (float)i / currentDrawFrame : 0f;
             var color = new Vector4(0.3f + (0.3f * t), 0.8f - (0.3f * t), 0.8f, 0.8f);
 
             renderer.DrawLine(
@@ -258,12 +314,12 @@ internal static class RadiantDubinsCarVisualizer
         }
 
         // Draw remaining path in gray
-        for (var i = currentFrame; i < states.Length - 1; i++)
+        for (var i = currentDrawFrame; i < drawPoints.Length - 1; i++)
         {
-            var x1 = (float)((states[i][0] - xCenter) * scale);
-            var y1 = (float)((states[i][1] - yCenter) * scale);
-            var x2 = (float)((states[i + 1][0] - xCenter) * scale);
-            var y2 = (float)((states[i + 1][1] - yCenter) * scale);
+            var x1 = (float)((drawPoints[i][0] - xCenter) * scale);
+            var y1 = (float)((drawPoints[i][1] - yCenter) * scale);
+            var x2 = (float)((drawPoints[i + 1][0] - xCenter) * scale);
+            var y2 = (float)((drawPoints[i + 1][1] - yCenter) * scale);
 
             renderer.DrawLine(
                 new Vector2(x1, -y1),

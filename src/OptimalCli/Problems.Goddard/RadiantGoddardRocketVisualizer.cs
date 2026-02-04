@@ -43,8 +43,12 @@ internal static class RadiantGoddardRocketVisualizer
     private static double s_nextScaleHeight;
     private static bool s_hasNextTrajectory;
 
-    public static void UpdateTrajectory(double[][] states, double[][] controls, int iteration, double cost, double maxViolation, double constraintTolerance, double scaleHeight)
+    public static void UpdateTrajectory(double[][] states, double[][] controls, double[] times, double[][]? derivatives, int iteration, double cost, double maxViolation, double constraintTolerance, double scaleHeight)
     {
+        // times and derivatives are available for smooth interpolation but not used in this visualizer
+        _ = times;
+        _ = derivatives;
+
         if (states.Length == 0 || controls.Length == 0)
         {
             return;

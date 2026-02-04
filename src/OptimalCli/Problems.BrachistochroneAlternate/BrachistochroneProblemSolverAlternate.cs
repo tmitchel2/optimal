@@ -398,9 +398,9 @@ public sealed class BrachistochroneProblemSolverAlternate : ICommand
 
     private static ProgressCallback CreateProgressCallback()
     {
-        return (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+        return (iteration, cost, states, controls, times, maxViolation, constraintTolerance, derivatives) =>
         {
-            RadiantBrachistochroneVisualizerAlternative.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+            RadiantBrachistochroneVisualizerAlternative.UpdateTrajectory(states, controls, times, derivatives, iteration, cost, maxViolation, constraintTolerance);
         };
     }
 

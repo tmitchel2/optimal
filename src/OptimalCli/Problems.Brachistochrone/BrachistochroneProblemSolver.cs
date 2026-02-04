@@ -411,7 +411,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
 
     private static ProgressCallback CreateProgressCallback()
     {
-        return (iteration, cost, states, controls, _, maxViolation, constraintTolerance) =>
+        return (iteration, cost, states, controls, times, maxViolation, constraintTolerance, derivatives) =>
         {
             var token = RadiantBrachistochroneVisualizer.CancellationToken;
             if (token.IsCancellationRequested)
@@ -420,7 +420,7 @@ public sealed class BrachistochroneProblemSolver : ICommand
                 throw new OperationCanceledException(token);
             }
 
-            RadiantBrachistochroneVisualizer.UpdateTrajectory(states, controls, iteration, cost, maxViolation, constraintTolerance);
+            RadiantBrachistochroneVisualizer.UpdateTrajectory(states, controls, times, derivatives, iteration, cost, maxViolation, constraintTolerance);
         };
     }
 

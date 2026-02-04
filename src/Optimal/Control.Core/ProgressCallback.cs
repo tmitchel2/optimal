@@ -18,5 +18,6 @@ namespace Optimal.Control.Core
     /// <param name="times">Time points.</param>
     /// <param name="maxViolation">Maximum constraint violation.</param>
     /// <param name="constraintTolerance">Constraint tolerance for convergence.</param>
-    public delegate void ProgressCallback(int iteration, double cost, double[][] states, double[][] controls, double[] times, double maxViolation, double constraintTolerance);
+    /// <param name="derivatives">State derivatives (dx/dt) for Hermite interpolation. May be null.</param>
+    public delegate void ProgressCallback(int iteration, double cost, double[][] states, double[][] controls, double[] times, double maxViolation, double constraintTolerance, double[][]? derivatives);
 }
