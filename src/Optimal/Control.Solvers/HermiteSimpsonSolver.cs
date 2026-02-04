@@ -148,6 +148,11 @@ namespace Optimal.Control.Solvers
             var scaledProblem = new ScaledControlProblem(problem, scaling);
             var scaledControlProblem = scaledProblem.ToControlProblem();
 
+            // Create unscaling delegates for progress callback
+            Func<double[][], double[][]> unscaleStates = scaledProblem.UnscaleStates;
+            Func<double[][], double[][]> unscaleControls = scaledProblem.UnscaleControls;
+            Func<double[][], double[][]> unscaleDerivatives = scaledProblem.UnscaleDerivatives;
+
             // Scale initial guess
             var scaledGuess = scaledProblem.ScaleInitialGuess(initialGuess);
 
@@ -160,11 +165,11 @@ namespace Optimal.Control.Solvers
             CollocationResult scaledResult;
             if (Options.EnableMeshRefinement)
             {
-                scaledResult = SolveWithMeshRefinement(scaledControlProblem, z0, cancellationToken);
+                scaledResult = SolveWithMeshRefinement(scaledControlProblem, z0, cancellationToken, unscaleStates, unscaleControls, unscaleDerivatives);
             }
             else
             {
-                scaledResult = SolveOnFixedGrid(scaledControlProblem, Options.Segments, z0, cancellationToken);
+                scaledResult = SolveOnFixedGrid(scaledControlProblem, Options.Segments, z0, cancellationToken, unscaleStates, unscaleControls, unscaleDerivatives);
             }
 
             // Unscale the solution
@@ -207,7 +212,13 @@ namespace Optimal.Control.Solvers
         /// <summary>
         /// Solves with adaptive mesh refinement.
         /// </summary>
-        private CollocationResult SolveWithMeshRefinement(ControlProblem problem, double[] initialGuess, CancellationToken cancellationToken)
+        private CollocationResult SolveWithMeshRefinement(
+            ControlProblem problem,
+            double[] initialGuess,
+            CancellationToken cancellationToken,
+            Func<double[][], double[][]>? unscaleStates = null,
+            Func<double[][], double[][]>? unscaleControls = null,
+            Func<double[][], double[][]>? unscaleDerivatives = null)
         {
             var currentSegments = Options.Segments;
             CollocationResult? result = null;
@@ -217,7 +228,7 @@ namespace Optimal.Control.Solvers
             {
                 LogMeshRefinementIteration(iteration, currentSegments);
 
-                result = SolveOnFixedGrid(problem, currentSegments, previousSolution, cancellationToken);
+                result = SolveOnFixedGrid(problem, currentSegments, previousSolution, cancellationToken, unscaleStates, unscaleControls, unscaleDerivatives);
 
                 if (!result.Success)
                 {
@@ -333,7 +344,14 @@ namespace Optimal.Control.Solvers
         /// <summary>
         /// Solves on a fixed grid (no refinement).
         /// </summary>
-        private CollocationResult SolveOnFixedGrid(ControlProblem problem, int segmentCount, double[] initialGuess, CancellationToken cancellationToken)
+        private CollocationResult SolveOnFixedGrid(
+            ControlProblem problem,
+            int segmentCount,
+            double[] initialGuess,
+            CancellationToken cancellationToken,
+            Func<double[][], double[][]>? unscaleStates = null,
+            Func<double[][], double[][]>? unscaleControls = null,
+            Func<double[][], double[][]>? unscaleDerivatives = null)
         {
             // Reset monitor for new grid size (important for mesh refinement iterations)
             _monitor?.Reset();
@@ -345,7 +363,7 @@ namespace Optimal.Control.Solvers
             var hasAnalyticalGradients = CheckAnalyticalGradientCapability(problem, segmentCount);
             var iterationCount = new int[1];
 
-            var nlpObjective = CreateObjectiveFunction(problem, grid, transcription, segmentCount, iterationCount);
+            var nlpObjective = CreateObjectiveFunction(problem, grid, transcription, segmentCount, iterationCount, unscaleStates, unscaleControls, unscaleDerivatives);
             var constrainedOptimizer = ConfigureOptimizer(problem, grid, transcription, segmentCount, hasAnalyticalGradients);
 
             if (Options.Verbose)
@@ -407,7 +425,10 @@ namespace Optimal.Control.Solvers
             CollocationGrid grid,
             ParallelHermiteSimpsonTranscription transcription,
             int segments,
-            int[] iterationCount)
+            int[] iterationCount,
+            Func<double[][], double[][]>? unscaleStates = null,
+            Func<double[][], double[][]>? unscaleControls = null,
+            Func<double[][], double[][]>? unscaleDerivatives = null)
         {
             return z =>
             {
@@ -419,7 +440,7 @@ namespace Optimal.Control.Solvers
                     LogObjectiveWarnings(cost, gradient);
                 }
 
-                InvokeProgressCallback(grid, transcription, segments, z, cost, problem.Dynamics!, iterationCount);
+                InvokeProgressCallback(grid, transcription, segments, z, cost, problem.Dynamics!, iterationCount, unscaleStates, unscaleControls, unscaleDerivatives);
 
                 return (cost, gradient);
             };
@@ -444,7 +465,10 @@ namespace Optimal.Control.Solvers
             double[] z,
             double cost,
             Func<DynamicsInput, DynamicsResult> dynamics,
-            int[] iterationCount)
+            int[] iterationCount,
+            Func<double[][], double[][]>? unscaleStates = null,
+            Func<double[][], double[][]>? unscaleControls = null,
+            Func<double[][], double[][]>? unscaleDerivatives = null)
         {
             if (Options.ProgressCallback == null)
             {
@@ -461,6 +485,22 @@ namespace Optimal.Control.Solvers
                 controls[k] = transcription.GetControl(z, k);
                 var input = new DynamicsInput(states[k], controls[k], grid.TimePoints[k], k, segments);
                 derivatives[k] = dynamics(input).Value;
+            }
+
+            // Unscale values if scaling delegates are provided
+            if (unscaleStates != null)
+            {
+                states = unscaleStates(states);
+            }
+
+            if (unscaleControls != null)
+            {
+                controls = unscaleControls(controls);
+            }
+
+            if (unscaleDerivatives != null)
+            {
+                derivatives = unscaleDerivatives(derivatives);
             }
 
             var maxViolation = ComputeMaxViolation(transcription, z, dynamics);

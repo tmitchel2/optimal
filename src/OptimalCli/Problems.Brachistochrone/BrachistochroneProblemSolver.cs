@@ -283,14 +283,12 @@ public sealed class BrachistochroneProblemSolver : ICommand
         return (problem, description);
     }
 
-    private static ISolver CreateSolver(int segments, ProgressCallback? progressCallback = null, OptimisationMonitor? monitor = null)
+    private static ISolver CreateSolver(
+        int segments,
+        ProgressCallback? progressCallback = null,
+        Action<int, double, double, double, int, double[]>? innerProgressCallback = null,
+        OptimisationMonitor? monitor = null)
     {
-        var innerOptimizer = new LBFGSOptimizer(new LBFGSOptions
-        {
-            Tolerance = 1e-4,
-            MaxIterations = 500
-        }, new BacktrackingLineSearch(), monitor);
-
         Console.WriteLine("Solver configuration:");
         Console.WriteLine($"  Segments: {segments}");
         Console.WriteLine("  Order: 5 (LGL only)");
@@ -303,12 +301,22 @@ public sealed class BrachistochroneProblemSolver : ICommand
                 new HermiteSimpsonSolverOptions
                 {
                     Segments = segments,
-                    Tolerance = 1e-2,
-                    MaxIterations = 200,
+                    Tolerance = 1e-3,
+                    MaxIterations = 1000,
                     Verbose = true,
-                    ProgressCallback = progressCallback
+                    ProgressCallback = progressCallback,
+                    AutoScaling = true,
+                    EnableMeshRefinement = true,
+                    MaxRefinementIterations = 5,
+                    RefinementDefectThreshold = 1e-3,
+                    // InitialPenalty = 100,
+                    InnerProgressCallback = innerProgressCallback
                 },
-                innerOptimizer,
+                new LBFGSOptimizer(new LBFGSOptions
+                {
+                    Tolerance = 1e-4,
+                    MaxIterations = 1000
+                }, new BacktrackingLineSearch(), monitor),
                 monitor);
     }
 
@@ -327,23 +335,23 @@ public sealed class BrachistochroneProblemSolver : ICommand
         var initialGuess = InitialGuessFactory.CreateWithControlHeuristics(problem, segments);
 
         // Create optimization monitor for conditioning monitoring
-        var monitor = new OptimisationMonitor()
+        var monitor = false ? new OptimisationMonitor()
             .WithGradientVerification(testStep: 1e-6)
             .WithSmoothnessMonitoring()
-            .WithConditioningMonitoring(threshold: 1e4);
+            .WithConditioningMonitoring(threshold: 1e4) : null;
+
+        monitor?.OnOptimizationStart(initialGuess.StateTrajectory[0]);
 
         if (options.Headless)
         {
             var solver = CreateSolver(segments, monitor: monitor);
-            monitor.OnOptimizationStart(initialGuess.StateTrajectory[0]);
             var headlessResult = solver.Solve(problem, initialGuess, CancellationToken.None);
             PrintSolutionSummary(headlessResult, options.Variant);
             PrintMonitorReport(monitor);
             return;
         }
 
-        var solverWithCallback = CreateSolver(segments, CreateProgressCallback(), monitor);
-        monitor.OnOptimizationStart(initialGuess.StateTrajectory[0]);
+        var solverWithCallback = CreateSolver(segments, CreateProgressCallback(), null, monitor);
         var optimizationTask = Task.Run(() =>
         {
             try
@@ -480,8 +488,13 @@ public sealed class BrachistochroneProblemSolver : ICommand
         Console.WriteLine();
     }
 
-    private static void PrintMonitorReport(OptimisationMonitor monitor)
+    private static void PrintMonitorReport(OptimisationMonitor? monitor)
     {
+        if (monitor == null)
+        {
+            return;
+        }
+
         var report = monitor.GenerateReport();
 
         Console.WriteLine();
