@@ -32,6 +32,13 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
         public const string PrimalResultName = "__primal";
         public const string TangentResultName = "__tangent";
 
+        // Suffix/names used when ExpandSecondOrder needs a second pass that
+        // can't reuse the defaults without colliding with the first pass's
+        // emitted variable names.
+        public const string TangentSuffixFirstPass = "_tan1";
+        public const string PrimalResultNameFirstPass = "__primal1";
+        public const string TangentResultNameFirstPass = "__tangent1";
+
         private readonly ForwardModeDifferentiator _differentiator;
         private readonly ITypeSymbol _doubleType;
 
@@ -60,6 +67,24 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
             int startNodeId,
             ImmutableArray<string> zeroTangentParameters = default)
         {
+            return Expand(body, wrtParameter, startNodeId, zeroTangentParameters,
+                TangentSuffix, PrimalResultName, TangentResultName);
+        }
+
+        /// <summary>
+        /// Overridable-naming variant of <c>Expand</c> so two passes can be
+        /// composed (<see cref="ExpandSecondOrder"/>) without their emitted
+        /// variable names colliding.
+        /// </summary>
+        public ExpandedMethodBody Expand(
+            MethodBodyNode body,
+            string wrtParameter,
+            int startNodeId,
+            ImmutableArray<string> zeroTangentParameters,
+            string tangentSuffix,
+            string primalResultName,
+            string tangentResultName)
+        {
             var context = new ForwardModeContext(startNodeId, wrtParameter);
 
             context.SetTangent(wrtParameter, new ConstantNode(context.NewNodeId(), 1.0, _doubleType));
@@ -79,23 +104,81 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
 
             foreach (var stmt in body.Statements)
             {
-                ExpandStatement(stmt, context, expanded);
+                ExpandStatement(stmt, context, expanded, tangentSuffix, primalResultName, tangentResultName);
             }
 
             return new ExpandedMethodBody(
                 new MethodBodyNode(context.NewNodeId(), expanded.ToImmutable()),
-                PrimalResultName,
-                TangentResultName);
+                primalResultName,
+                tangentResultName);
         }
 
-        private void ExpandStatement(IRNode stmt, ForwardModeContext context, ImmutableArray<IRNode>.Builder expanded)
+        /// <summary>
+        /// Second-order forward-over-forward: compute ∂²f/∂firstWrt∂secondWrt
+        /// by chaining two <c>Expand</c> passes. First pass with the
+        /// "<c>_tan1</c>" suffix differentiates wrt <paramref name="firstWrt"/>
+        /// and emits a <c>__tangent1</c> variable; we drop the original
+        /// return and re-bind it to <c>__tangent1</c>; second pass with the
+        /// default "<c>_tan</c>" suffix differentiates wrt
+        /// <paramref name="secondWrt"/>. The result's <c>__tangent</c> is
+        /// the second derivative.
+        ///
+        /// Symmetry note: ∂²f/∂x∂y = ∂²f/∂y∂x for smooth f, so callers can
+        /// pick either order to share work across the 6 unique Hessian
+        /// components.
+        /// </summary>
+        public ExpandedMethodBody ExpandSecondOrder(
+            MethodBodyNode body,
+            string firstWrt,
+            string secondWrt,
+            int startNodeId,
+            ImmutableArray<string> zeroTangentParameters = default)
+        {
+            // First pass with "1"-suffixed names so the second pass's
+            // default "_tan" / "__primal" / "__tangent" don't collide.
+            var first = Expand(body, firstWrt, startNodeId, zeroTangentParameters,
+                TangentSuffixFirstPass, PrimalResultNameFirstPass, TangentResultNameFirstPass);
+
+            // Drop the first pass's terminal Return(__primal1) and re-emit
+            // Return(__tangent1) so the second pass differentiates the
+            // first derivative (which produces the second derivative).
+            var firstStmts = first.Body.Statements;
+            if (firstStmts.Length < 1 || firstStmts[firstStmts.Length - 1] is not ReturnNode)
+            {
+                throw new System.InvalidOperationException(
+                    "First-pass body did not end with a ReturnNode — cannot compose second pass.");
+            }
+            var prelude = ImmutableArray.CreateBuilder<IRNode>(firstStmts.Length);
+            for (var i = 0; i < firstStmts.Length - 1; i++)
+            {
+                prelude.Add(firstStmts[i]);
+            }
+            var idCounter = first.Body.NodeId + 1;
+            prelude.Add(new ReturnNode(
+                idCounter++,
+                new VariableNode(idCounter++, TangentResultNameFirstPass, _doubleType)));
+            var bodyForSecondPass = new MethodBodyNode(idCounter++, prelude.ToImmutable());
+
+            // Second pass with default naming — produces __tangent which IS
+            // the second derivative.
+            return Expand(bodyForSecondPass, secondWrt, idCounter, zeroTangentParameters,
+                TangentSuffix, PrimalResultName, TangentResultName);
+        }
+
+        private void ExpandStatement(
+            IRNode stmt,
+            ForwardModeContext context,
+            ImmutableArray<IRNode>.Builder expanded,
+            string tangentSuffix,
+            string primalResultName,
+            string tangentResultName)
         {
             switch (stmt)
             {
                 case AssignmentNode assignment:
                 {
                     var tangentExpr = _differentiator.Differentiate(assignment.Value, context);
-                    var tangentVar = assignment.TargetVariable + TangentSuffix;
+                    var tangentVar = assignment.TargetVariable + tangentSuffix;
 
                     expanded.Add(assignment);
                     expanded.Add(new AssignmentNode(context.NewNodeId(), tangentVar, tangentExpr));
@@ -112,11 +195,11 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
                 {
                     var tangentExpr = _differentiator.Differentiate(returnNode.Value, context);
 
-                    expanded.Add(new AssignmentNode(context.NewNodeId(), PrimalResultName, returnNode.Value));
-                    expanded.Add(new AssignmentNode(context.NewNodeId(), TangentResultName, tangentExpr));
+                    expanded.Add(new AssignmentNode(context.NewNodeId(), primalResultName, returnNode.Value));
+                    expanded.Add(new AssignmentNode(context.NewNodeId(), tangentResultName, tangentExpr));
                     expanded.Add(new ReturnNode(
                         context.NewNodeId(),
-                        new VariableNode(context.NewNodeId(), PrimalResultName, _doubleType)));
+                        new VariableNode(context.NewNodeId(), primalResultName, _doubleType)));
                     break;
                 }
 
@@ -132,8 +215,8 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
     }
 
     /// <summary>
-    /// Result of <see cref="ForwardModeIRExpander.Expand"/>: the augmented
-    /// body plus the names of the two result variables it produces.
+    /// Result of <c>ForwardModeIRExpander.Expand</c>: the augmented body
+    /// plus the names of the two result variables it produces.
     /// </summary>
     public sealed record ExpandedMethodBody(
         MethodBodyNode Body,
