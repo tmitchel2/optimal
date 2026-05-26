@@ -91,6 +91,25 @@ namespace Optimal.AutoDiff.Analyzers.IR
         int IterationCount,
         ITypeSymbol Type) : IRNode(NodeId);
 
+    /// <summary>
+    /// Models <c>min(body(0), body(1), …, body(count − 1))</c> where <c>body</c> is an IR
+    /// sub-expression parameterised by the index variable. Used by SDFs that select the
+    /// closest of several candidate distances (e.g. Bezier curve = min over segments of
+    /// per-segment closest-point distance).
+    ///
+    /// At AD time, the gradient is the gradient of whichever index achieves the min — the
+    /// subdifferential. The C0 discontinuity at the medial axis (where the argmin changes)
+    /// propagates into the sphere-tracer's step rule; that's the same overshoot the
+    /// downstream Bezier-overshoot project addresses.
+    /// </summary>
+    public sealed record MinReduceNode(
+        int NodeId,
+        int Count,
+        string IndexParamName,
+        ImmutableArray<string> PParamNames,
+        IRNode Body,
+        ITypeSymbol Type) : IRNode(NodeId);
+
     public enum BinaryOperator
     {
         Add,

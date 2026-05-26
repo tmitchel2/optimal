@@ -40,6 +40,8 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
             // IFTRule matches NewtonSolveNode — order vs other rules doesn't matter
             // for correctness but earlier means faster dispatch on the common case.
             _rules.Add(new IFTRule(this, doubleType));
+            // MinReduceRule matches MinReduceNode — same dispatch consideration.
+            _rules.Add(new MinReduceRule(this, doubleType));
             _rules.Add(new MathFunctionRule(this, doubleType));
             _rules.Add(new ControlFlowRule(this));
         }
@@ -92,6 +94,7 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
                 MethodCallNode => DifferentiateUsingRules(node, context),
                 ConditionalExpressionNode => DifferentiateUsingRules(node, context),
                 NewtonSolveNode => DifferentiateUsingRules(node, context),
+                MinReduceNode => DifferentiateUsingRules(node, context),
                 _ => throw new NotSupportedException($"Node type not supported for differentiation: {node.GetType().Name}")
             };
         }
