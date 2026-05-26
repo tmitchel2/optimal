@@ -32,6 +32,11 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
                 _rules.Add(new UserDefinedFunctionRule(this, transform));
             }
 
+            // ChildEvalRule must precede MathFunctionRule so __childEval_*
+            // method calls (with null MethodSymbol) take this rule's path
+            // instead of falling through to MathFunctionRule's
+            // unrecognised-name throw.
+            _rules.Add(new ChildEvalRule(this, doubleType));
             _rules.Add(new MathFunctionRule(this, doubleType));
             _rules.Add(new ControlFlowRule(this));
         }
