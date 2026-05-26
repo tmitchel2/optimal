@@ -69,6 +69,28 @@ namespace Optimal.AutoDiff.Analyzers.IR
 
     public sealed record MethodBodyNode(int NodeId, ImmutableArray<IRNode> Statements) : IRNode(NodeId);
 
+    /// <summary>
+    /// Models the converged result of a Newton iteration: <c>t* = NewtonSolve(initialGuess, residual)</c>
+    /// where <c>residual(t, params...) = 0</c> at convergence. Used by SDFs that solve a closest-
+    /// point problem (e.g. cubic Bezier distance via <c>dot(B(t)-p, B'(t)) = 0</c>) where the
+    /// straightforward "AD through the Newton iteration" approach is both mathematically wrong
+    /// (derivative depends on iteration count and starting guess) and impractically expensive
+    /// (Hyperdual2-through-iterations balloons WGSL output by 100×+).
+    ///
+    /// The <see cref="Differentiation.IFTRule"/> differentiates this via the implicit-function
+    /// theorem: <c>∂t*/∂p = -(∂f/∂t)⁻¹ · ∂f/∂p</c>, where <c>f</c> is the residual. This gives
+    /// the closed-form derivative at the converged point in two scalar divisions plus the
+    /// re-differentiation of the residual sub-expression, independent of <see cref="IterationCount"/>.
+    /// </summary>
+    public sealed record NewtonSolveNode(
+        int NodeId,
+        IRNode InitialGuess,
+        string TParamName,
+        ImmutableArray<string> PParamNames,
+        IRNode ResidualBody,
+        int IterationCount,
+        ITypeSymbol Type) : IRNode(NodeId);
+
     public enum BinaryOperator
     {
         Add,

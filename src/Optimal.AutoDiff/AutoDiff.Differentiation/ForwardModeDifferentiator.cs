@@ -37,6 +37,9 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
             // instead of falling through to MathFunctionRule's
             // unrecognised-name throw.
             _rules.Add(new ChildEvalRule(this, doubleType));
+            // IFTRule matches NewtonSolveNode — order vs other rules doesn't matter
+            // for correctness but earlier means faster dispatch on the common case.
+            _rules.Add(new IFTRule(this, doubleType));
             _rules.Add(new MathFunctionRule(this, doubleType));
             _rules.Add(new ControlFlowRule(this));
         }
@@ -88,6 +91,7 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
                 UnaryOpNode unary => DifferentiateUnary(unary, context),
                 MethodCallNode => DifferentiateUsingRules(node, context),
                 ConditionalExpressionNode => DifferentiateUsingRules(node, context),
+                NewtonSolveNode => DifferentiateUsingRules(node, context),
                 _ => throw new NotSupportedException($"Node type not supported for differentiation: {node.GetType().Name}")
             };
         }
