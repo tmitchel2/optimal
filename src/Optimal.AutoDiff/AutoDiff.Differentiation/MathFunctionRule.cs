@@ -50,8 +50,62 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
                 "Pow" => DifferentiatePow(methodCall, context),
                 "Abs" => DifferentiateAbs(methodCall, context),
                 "Atan2" => DifferentiateAtan2(methodCall, context),
+                "Sign" => DifferentiateSign(methodCall, context),
+                "Min" => DifferentiateMinMax(methodCall, context, isMin: true),
+                "Max" => DifferentiateMinMax(methodCall, context, isMin: false),
+                "Clamp" => DifferentiateClamp(methodCall, context),
                 _ => throw new NotSupportedException($"Math function not supported for differentiation: {methodCall.MethodName}")
             };
+        }
+
+        // Sign is constant ±1 (or 0) everywhere except a Dirac at zero; AD ignores the
+        // Dirac and emits zero — the subdifferential.
+#pragma warning disable RCS1163 // methodCall intentionally unused — Sign's derivative is a constant
+        private IRNode DifferentiateSign(MethodCallNode methodCall, ForwardModeContext context)
+        {
+            return new ConstantNode(context.NewNodeId(), 0.0, _doubleType);
+        }
+#pragma warning restore RCS1163
+
+        // min(a,b): derivative is da when a<b, else db.  Emitted as a ConditionalExpressionNode
+        // which downstream WGSL lowers to select(db, da, a<b).
+        // max(a,b): symmetric — derivative is da when a>b, else db.
+        private IRNode DifferentiateMinMax(MethodCallNode methodCall, ForwardModeContext context, bool isMin)
+        {
+            if (methodCall.Arguments.Length != 2)
+            {
+                throw new InvalidOperationException($"{(isMin ? "Min" : "Max")} requires exactly 2 arguments");
+            }
+            var a = methodCall.Arguments[0];
+            var b = methodCall.Arguments[1];
+            var da = _differentiator.Differentiate(a, context);
+            var db = _differentiator.Differentiate(b, context);
+            var op = isMin ? BinaryOperator.LessThan : BinaryOperator.GreaterThan;
+            var cond = new BinaryOpNode(context.NewNodeId(), op, a, b, _doubleType);
+            return new ConditionalExpressionNode(context.NewNodeId(), cond, da, db, _doubleType);
+        }
+
+        // clamp(x, lo, hi): derivative is dx in the interior, 0 at the limits.
+        // Two nested conditionals: `x > lo ? (x < hi ? dx : dhi) : dlo` so the limits
+        // also propagate tangent correctly if lo/hi depend on the wrt-variable.
+        private IRNode DifferentiateClamp(MethodCallNode methodCall, ForwardModeContext context)
+        {
+            if (methodCall.Arguments.Length != 3)
+            {
+                throw new InvalidOperationException("Clamp requires exactly 3 arguments");
+            }
+            var x = methodCall.Arguments[0];
+            var lo = methodCall.Arguments[1];
+            var hi = methodCall.Arguments[2];
+            var dx = _differentiator.Differentiate(x, context);
+            var dlo = _differentiator.Differentiate(lo, context);
+            var dhi = _differentiator.Differentiate(hi, context);
+
+            var xLtHi = new BinaryOpNode(context.NewNodeId(), BinaryOperator.LessThan, x, hi, _doubleType);
+            var innerSelect = new ConditionalExpressionNode(context.NewNodeId(), xLtHi, dx, dhi, _doubleType);
+
+            var xGtLo = new BinaryOpNode(context.NewNodeId(), BinaryOperator.GreaterThan, x, lo, _doubleType);
+            return new ConditionalExpressionNode(context.NewNodeId(), xGtLo, innerSelect, dlo, _doubleType);
         }
 
         private IRNode DifferentiateSqrt(MethodCallNode methodCall, ForwardModeContext context)
