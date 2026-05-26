@@ -203,11 +203,83 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
                     break;
                 }
 
+                case ConditionalNode conditional:
+                {
+                    // SSA-style scoping: snapshot tangents, expand each branch from the
+                    // same starting state, then merge. After both branches, any variable
+                    // assigned in either branch has tangent bound to VariableNode(var_tan)
+                    // — the same name regardless of which branch executed (analogous to
+                    // how C# variables retain their last-assigned value).
+                    var preBranchSnapshot = context.SnapshotTangents();
+
+                    var trueExpanded = ImmutableArray.CreateBuilder<IRNode>();
+                    foreach (var s in conditional.TrueBranch)
+                    {
+                        ExpandStatement(s, context, trueExpanded, tangentSuffix, primalResultName, tangentResultName);
+                    }
+                    var postTrueSnapshot = context.SnapshotTangents();
+
+                    context.RestoreTangents(preBranchSnapshot);
+                    var falseExpanded = ImmutableArray.CreateBuilder<IRNode>();
+                    foreach (var s in conditional.FalseBranch)
+                    {
+                        ExpandStatement(s, context, falseExpanded, tangentSuffix, primalResultName, tangentResultName);
+                    }
+
+                    // Merge: for each variable whose tangent binding changed in the true
+                    // branch, adopt the true-branch binding into the post-conditional
+                    // context. (If the false branch also modified the same variable,
+                    // both branches emitted `var_tan = ...` and both bound tangent(var)
+                    // to VariableNode("var_tan") — adopting either is equivalent.) The
+                    // false-branch changes are already in context from its expansion.
+                    foreach (var kv in postTrueSnapshot)
+                    {
+                        var variable = kv.Key;
+                        var postTangent = kv.Value;
+                        var changedInTrue =
+                            !preBranchSnapshot.TryGetValue(variable, out var pre)
+                            || !ReferenceEquals(pre, postTangent);
+                        if (changedInTrue)
+                        {
+                            context.SetTangent(variable, postTangent);
+                        }
+                    }
+
+                    expanded.Add(new ConditionalNode(
+                        context.NewNodeId(),
+                        conditional.Condition,
+                        trueExpanded.ToImmutable(),
+                        falseExpanded.ToImmutable(),
+                        conditional.Type));
+                    break;
+                }
+
+                case LoopNode loop:
+                {
+                    // The iterator variable is an integer counter — bind its tangent to
+                    // zero so reads of the iterator inside the body don't fail tangent
+                    // lookup. (For SDFs the iterator is always an unrolled-bounded for
+                    // counter; see Phase B/C constraints.)
+                    context.SetTangent(loop.IteratorVariable, new ConstantNode(context.NewNodeId(), 0.0, _doubleType));
+
+                    var bodyExpanded = ImmutableArray.CreateBuilder<IRNode>();
+                    foreach (var s in loop.Body)
+                    {
+                        ExpandStatement(s, context, bodyExpanded, tangentSuffix, primalResultName, tangentResultName);
+                    }
+
+                    expanded.Add(new LoopNode(
+                        context.NewNodeId(),
+                        loop.IteratorVariable,
+                        loop.Initializer,
+                        loop.Condition,
+                        loop.Increment,
+                        bodyExpanded.ToImmutable(),
+                        loop.Type));
+                    break;
+                }
+
                 default:
-                    // Conditionals, loops, and other control-flow statements are not
-                    // expanded by v1 — Dynamis SDF primitives use straight-line code.
-                    // Fall back to the existing differentiator's per-statement transform,
-                    // which mutates the context but does not augment the body.
                     expanded.Add(stmt);
                     break;
             }
