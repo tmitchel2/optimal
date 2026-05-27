@@ -52,5 +52,29 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
         }
 
         public int NewNodeId() => _nodeIdCounter++;
+
+        /// <summary>
+        /// Snapshot the current tangent bindings. Used by the IR expander to
+        /// implement SSA-style scoping around if/else branches: take a
+        /// snapshot before expanding each branch, restore between branches so
+        /// they start from the same pre-branch state, then merge after.
+        /// </summary>
+        public Dictionary<string, IRNode> SnapshotTangents()
+        {
+            return new Dictionary<string, IRNode>(_tangents);
+        }
+
+        /// <summary>
+        /// Restore tangent bindings from a previous snapshot. Used between
+        /// branches in <c>ForwardModeIRExpander</c>'s ConditionalNode arm.
+        /// </summary>
+        public void RestoreTangents(Dictionary<string, IRNode> snapshot)
+        {
+            _tangents.Clear();
+            foreach (var kv in snapshot)
+            {
+                _tangents[kv.Key] = kv.Value;
+            }
+        }
     }
 }

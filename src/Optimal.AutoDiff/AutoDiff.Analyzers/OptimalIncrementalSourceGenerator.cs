@@ -39,7 +39,6 @@ namespace Optimal.AutoDiff.Analyzers
                 #pragma warning disable CS0612, CS0618, CS9113, CS1591
 
                 using System;
-                using Microsoft.CodeAnalysis;
 
                 namespace Optimal
                 {
