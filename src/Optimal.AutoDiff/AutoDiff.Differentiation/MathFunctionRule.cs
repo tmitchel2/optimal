@@ -559,11 +559,17 @@ namespace Optimal.AutoDiff.Analyzers.Differentiation
             var arg = methodCall.Arguments[0];
             var dArg = _differentiator.Differentiate(arg, context);
 
-            var sign = new BinaryOpNode(
+            // d/dx |x| = sign(x). Emit sign(x) rather than the algebraic x/abs(x):
+            // the latter is 0/0 = NaN at x = 0, which poisons the whole forward-mode
+            // gradient (and, in the WGSL SDF pipeline, produces NaN surface normals at
+            // grazing box-face hits where the in-face coordinate rounds exactly to the
+            // centre). sign(0) = 0 is a valid subgradient — and the correct value there
+            // by symmetry — and equals x/abs(x) everywhere else.
+            var sign = new MethodCallNode(
                 context.NewNodeId(),
-                BinaryOperator.Divide,
-                arg,
-                methodCall,
+                "Sign",
+                methodCall.MethodSymbol,
+                ImmutableArray.Create<IRNode>(arg),
                 _doubleType);
 
             return new BinaryOpNode(
