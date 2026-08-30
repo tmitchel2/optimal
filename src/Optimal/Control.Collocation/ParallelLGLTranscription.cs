@@ -7,8 +7,8 @@
  */
 
 using System;
-using Optimal.Control.Core;
 using System.Threading.Tasks;
+using Optimal.Control.Core;
 
 namespace Optimal.Control.Collocation
 {
