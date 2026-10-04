@@ -8,7 +8,8 @@
     <OutputType>Library</OutputType>
     <DebugType>embedded</DebugType>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-    <AnalysisLevel>latest-Recommended</AnalysisLevel>
+    <!-- Pinned at .NET 10's rules: built with the .NET 11 SDK (as in Dynamis), latest turns on many more style analyzers that fail the build. Adopt them a rule at a time, then go back to latest-Recommended. -->
+    <AnalysisLevel>10.0-Recommended</AnalysisLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 

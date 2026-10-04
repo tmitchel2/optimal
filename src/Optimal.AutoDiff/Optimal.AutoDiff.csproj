@@ -11,7 +11,8 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <IsRoslynComponent>true</IsRoslynComponent>
     <IncludeBuildOutput>false</IncludeBuildOutput>
-    <AnalysisLevel>latest-Recommended</AnalysisLevel>
+    <!-- Pinned at .NET 10's rules: built with the .NET 11 SDK (as in Dynamis), latest turns on many more style analyzers that fail the build. Adopt them a rule at a time, then go back to latest-Recommended. -->
+    <AnalysisLevel>10.0-Recommended</AnalysisLevel>
     <NoWarn>$(NoWarn);IDE0130;CA1822;CA1859;IDE0005;CA1854;CA1305</NoWarn>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
