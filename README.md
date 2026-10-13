@@ -8,6 +8,7 @@ A .NET 10.0 / C# library for **trajectory optimisation** and **nonlinear program
 - **Indirect solvers** — Pontryagin's Minimum Principle and multiple-shooting variants for problems where costate equations are tractable.
 - **Multi-phase problems** — solve problems with phase transitions (e.g. Goddard rocket stages).
 - **Nonlinear optimisers** — L-BFGS, L-BFGS-B (bounded), Augmented Lagrangian (general constraints), Conjugate Gradient, Gradient Descent, with pluggable preconditioners and line-search strategies.
+- **Structural optimisers** — MMA, GCMMA and optimality criteria for many design variables under bounds and inequality constraints, with a sparse constraint Jacobian for many local constraints.
 - **Automatic differentiation** — a Roslyn source generator (`Optimal.AutoDiff`) produces forward- and reverse-mode derivative code at compile time, avoiding runtime expression-tree overhead.
 - **Problem scaling & continuation** — tooling for variable scaling, homotopy/continuation, and initial-guess construction.
 - **Monitoring & diagnostics** — gradient verification, smoothness tests, conditioning estimates, convergence monitoring, and line-search instrumentation.
@@ -33,7 +34,9 @@ optimal/
 │   │   ├── NonLinear/                Shared NLP components (CG, preconditioners, L-BFGS memory)
 │   │   ├── NonLinear.Unconstrained/  L-BFGS
 │   │   ├── NonLinear.Constrained/    L-BFGS-B, Augmented Lagrangian
-│   │   ├── NonLinear.Constraints/    Constraint abstractions
+│   │   ├── NonLinear.Constraints/    Constraint abstractions, constraint blocks (dense or CSR Jacobians)
+│   │   ├── NonLinear.Mma/            MMA and GCMMA, their subproblem solver
+│   │   ├── NonLinear.OptimalityCriteria/ OC for one volume constraint
 │   │   ├── NonLinear.LineSearch/     Backtracking & parallel variants
 │   │   └── NonLinear.Monitoring/     Gradient verification, conditioning, convergence
 │   ├── Optimal.AutoDiff/             Compile-time AD source generator
@@ -258,6 +261,42 @@ Anything else is a compile error, never a silent mis-differentiation:
 | OPTAD107 | A `[Jacobian]` or `[Vjp]` names no input, repeats another, or sets `ChunkSize` below 1 |
 | OPTAD108 | `Math.Pow`'s exponent is not a compile-time constant |
 | OPTAD109 | The kernel writes to a static table |
+
+## Structural optimisation: MMA, GCMMA and OC
+
+For problems with many design variables under simple bounds and inequality constraints g_i(x) <= 0 — topology, shape
+and sizing optimisation — `InequalityProblem` holds the objective (an `ObjectiveEvaluator` writing into a gradient
+span), the bounds and a list of `IConstraintBlock`s. A block evaluates its rows together and declares its Jacobian's
+structure once: `ConstraintSparsity.Dense(rows, n)` for a few dense rows (volume, an aggregated stress or frequency
+constraint), `ConstraintSparsity.Csr(n, rowPointers, columnIndices)` for many local ones. `LinearConstraintBlock` is
+wᵀx - limit <= 0; `ConstraintBlock.FromFunctions` wraps the (value, gradient) functions the Augmented Lagrangian takes.
+An empty gradient or Jacobian span asks for values only, so an adjoint can be skipped.
+
+```csharp
+var problem = new InequalityProblem
+{
+    Objective = (x, gradient) => Compliance(x, gradient),   // fills gradient unless it is empty
+    Constraints = [new LinearConstraintBlock(elementVolumes, 0.3 * totalVolume), localConstraints],
+    LowerBounds = lower,
+    UpperBounds = upper,
+};
+var result = new MmaOptimizer(new MmaOptions { MoveLimit = 0.2, ChangeTolerance = 1e-3 })
+    .Minimize(problem, x0, cancellationToken);
+```
+
+- **`MmaOptimizer`** — Svanberg's method of moving asymptotes (1987), in the form of his 2007 notes: the asymptote rules
+  (0.5, 1.2, 0.7), the move limit, the a0, a_i, c_i, d_i artificial variables (a_i = 1 makes a min-max problem), and the
+  primal–dual interior-point subproblem solver, whose reduced Newton system is m×m when m < n and n×n otherwise. It is
+  formed densely and factorised up to `DirectSolveLimit` unknowns, and otherwise solved by Jacobi-preconditioned
+  conjugate gradients applied through the sparse Jacobian. An n = 10⁵, m = 10⁴ sparse subproblem solves in about 0.3 s.
+- **`GcmmaOptimizer`** — the globally convergent variant (Svanberg 2002): inner iterations raise ρ until the
+  approximations are conservative, so from a feasible start the objective never increases and every iterate is feasible.
+- **`OcOptimizer`** — optimality criteria for one linear constraint, with bisection on the multiplier from an explicit
+  bracket (top99neo) and a move limit.
+
+Each reports progress through `ProgressCallback` (an `InequalityIteration` per outer iteration), honours cancellation,
+returns an `InequalityOptimizerResult` with the multipliers and the KKT residual, allocates nothing per subproblem
+solve, and is deterministic.
 
 ## Code quality
 
