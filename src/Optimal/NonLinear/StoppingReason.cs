@@ -46,6 +46,11 @@ namespace Optimal.NonLinear
         /// <summary>
         /// Numerical error occurred during optimization.
         /// </summary>
-        NumericalError
+        NumericalError,
+
+        /// <summary>
+        /// The residual of the Karush–Kuhn–Tucker conditions fell below the specified tolerance.
+        /// </summary>
+        KktTolerance
     }
 }
