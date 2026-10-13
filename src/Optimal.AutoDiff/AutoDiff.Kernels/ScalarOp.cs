@@ -84,6 +84,12 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
         SelectLessEqual,
 
         /// <summary>A = B ? C : D.</summary>
-        SelectEqual
+        SelectEqual,
+
+        /// <summary>
+        /// A's value with a zero derivative. An implicit solve detaches its Newton iterate, so no derivative flows
+        /// through the iterations; the implicit-function step that follows carries the whole derivative.
+        /// </summary>
+        Detach
     }
 }

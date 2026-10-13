@@ -18,21 +18,135 @@ namespace Optimal.AutoDiff.Analyzers.Kernels.Tests
     public class KernelDiagnosticsTests
     {
         [TestMethod]
-        public void DataDependentIfIsOptad100()
+        public void ReturnInsideRunTimeIfIsOptad100()
         {
             var source = Kernel("""
+                y[1] = 0;
                 if (x[0] > 0) // here
                 {
                     y[0] = x[0];
-                }
-                else
-                {
-                    y[0] = -x[0];
+                    return;
                 }
 
+                y[0] = -x[0];
+                """);
+            AssertDiagnostic(source, "OPTAD100", "a return, break or continue is inside an if whose condition depends on run-time values", "// here");
+        }
+
+        [TestMethod]
+        public void IntChosenAtRunTimeIsOptad100()
+        {
+            var source = Kernel("""
+                var k = 0;
+                if (x[0] > 0) // here
+                {
+                    k = 1;
+                }
+
+                y[0] = x[k];
                 y[1] = 0;
                 """);
-            AssertDiagnostic(source, "OPTAD100", "if statement's condition depends on run-time values", "// here");
+            AssertDiagnostic(source, "OPTAD100", "'k' is given different int values in the branches of an if", "// here");
+        }
+
+        [TestMethod]
+        public void OutputWrittenInOneRunTimeBranchIsOptad105()
+        {
+            var source = Kernel("""
+                y[1] = 0;
+                if (x[0] > x[1]) // here
+                {
+                    y[0] = x[0];
+                }
+                """);
+            AssertDiagnostic(source, "OPTAD105", "'y[0]' is written in only one branch of an if", "// here");
+        }
+
+        [TestMethod]
+        public void StructWithAnIntFieldIsOptad101()
+        {
+            var source = Kernel(
+                """
+                var c = new Counted { Count = 1, Value = x[0] }; // here
+                y[0] = c.Value;
+                y[1] = 0;
+                """,
+                types: "    public struct Counted\n    {\n        public int Count;\n        public double Value;\n    }");
+            AssertDiagnostic(source, "OPTAD101", "Probes.Counted.Count has type int; a kernel struct's fields are double or another such struct", "// here");
+        }
+
+        [TestMethod]
+        public void StructWithAnAutoPropertyIsOptad101()
+        {
+            var source = Kernel(
+                """
+                var p = new Point { X = x[0] }; // here
+                y[0] = p.X;
+                y[1] = 0;
+                """,
+                types: "    public struct Point\n    {\n        public double X { get; set; }\n    }");
+            AssertDiagnostic(source, "OPTAD101", "Probes.Point.X is an auto-property", "// here");
+        }
+
+        [TestMethod]
+        public void HessianOfAVectorKernelIsOptad107()
+        {
+            var source = Kernel("y[0] = x[0]; y[1] = x[1];", attributes: "[Hessian(nameof(x))]");
+            AssertDiagnostic(source, "OPTAD107", "a [Hessian] differentiates a kernel with one output (an energy), and 'y' has 2", "[Hessian(nameof(x))]");
+        }
+
+        [TestMethod]
+        public void ImplicitSolveOfALambdaIsOptad110()
+        {
+            var source = Kernel("""
+                Span<double> u = stackalloc double[1];
+                KernelMath.ImplicitSolve((v, p, g) => g[0] = v[0] - p[0], x, u, 4); // here
+                y[0] = u[0];
+                y[1] = 0;
+                """);
+            AssertDiagnostic(source, "OPTAD110", "the residual must name a static method", "// here");
+        }
+
+        [TestMethod]
+        public void ImplicitSolveOfSeventeenUnknownsIsOptad110()
+        {
+            var source = Kernel(
+                """
+                Span<double> u = stackalloc double[17];
+                KernelMath.ImplicitSolve(Residual, x, u, 4); // here
+                y[0] = u[0];
+                y[1] = 0;
+                """,
+                members: "        private static void Residual(ReadOnlySpan<double> v, ReadOnlySpan<double> p, Span<double> g) => g.Fill(p[0]);");
+            AssertDiagnostic(source, "OPTAD110", "the system has 17 unknowns; an implicit solve has 1 to 16", "// here");
+        }
+
+        [TestMethod]
+        public void ImplicitSolveOfNoIterationsIsOptad110()
+        {
+            var source = Kernel(
+                """
+                Span<double> u = stackalloc double[1];
+                KernelMath.ImplicitSolve(Residual, x, u, 0); // here
+                y[0] = u[0];
+                y[1] = 0;
+                """,
+                members: "        private static void Residual(ReadOnlySpan<double> v, ReadOnlySpan<double> p, Span<double> g) => g[0] = v[0] - p[0];");
+            AssertDiagnostic(source, "OPTAD110", "the iteration count is 0", "// here");
+        }
+
+        [TestMethod]
+        public void ResidualLeavingAnEquationUnwrittenIsOptad105()
+        {
+            var source = Kernel(
+                """
+                Span<double> u = stackalloc double[2];
+                KernelMath.ImplicitSolve(Residual, x, u, 4); // here
+                y[0] = u[0];
+                y[1] = 0;
+                """,
+                members: "        private static void Residual(ReadOnlySpan<double> v, ReadOnlySpan<double> p, Span<double> g) => g[0] = v[0] - p[0];");
+            AssertDiagnostic(source, "OPTAD105", "the residual 'Residual' never writes g[1]", "// here");
         }
 
         [TestMethod]

@@ -19,19 +19,29 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
     public static class DerivativeFlow
     {
         /// <summary>
-        /// The operands a derivative flows through. A select's comparison operands are excluded: the select is piecewise
-        /// constant in them.
+        /// The operands a derivative flows through. A select's comparison operands are excluded, because the select is
+        /// piecewise constant in them, and a detached node has none.
         /// </summary>
         public static IEnumerable<int> DerivativeOperands(ScalarNode node)
         {
-            return ScalarOps.IsSelect(node.Op) ? new[] { node.C, node.D } : node.Operands;
+            return node.Op switch
+            {
+                ScalarOp.Detach => Array.Empty<int>(),
+                _ when ScalarOps.IsSelect(node.Op) => new[] { node.C, node.D },
+                _ => node.Operands
+            };
         }
 
         /// <summary>For each primal node, whether its derivative can be non-zero: it depends on an input in <paramref name="isActiveGroup"/>.</summary>
         public static bool[] Active(UnrolledKernel kernel, Func<int, bool> isActiveGroup)
         {
-            var g = kernel.Graph;
-            var active = new bool[kernel.PrimalCount];
+            return Active(kernel.Graph, kernel.PrimalCount, isActiveGroup);
+        }
+
+        /// <summary>For each of the first <paramref name="count"/> nodes, whether it depends on an input in <paramref name="isActiveGroup"/>.</summary>
+        public static bool[] Active(ScalarGraph g, int count, Func<int, bool> isActiveGroup)
+        {
+            var active = new bool[count];
             for (var id = 0; id < active.Length; id++)
             {
                 var node = g[id];
@@ -46,9 +56,14 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
         /// <summary>For each primal node, whether an output's derivative can flow back to it.</summary>
         public static bool[] Live(UnrolledKernel kernel)
         {
-            var g = kernel.Graph;
-            var live = new bool[kernel.PrimalCount];
-            foreach (var id in kernel.OutputIds)
+            return Live(kernel.Graph, kernel.PrimalCount, kernel.OutputIds);
+        }
+
+        /// <summary>For each of the first <paramref name="count"/> nodes, whether the derivative of one of <paramref name="outputs"/> can flow back to it.</summary>
+        public static bool[] Live(ScalarGraph g, int count, IEnumerable<int> outputs)
+        {
+            var live = new bool[count];
+            foreach (var id in outputs)
             {
                 live[id] = true;
             }

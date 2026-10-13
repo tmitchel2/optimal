@@ -21,7 +21,7 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 ScalarOp.Const or ScalarOp.Input => 0,
                 ScalarOp.Neg or ScalarOp.Sqrt or ScalarOp.Cbrt or ScalarOp.Abs or ScalarOp.Sign or ScalarOp.PowConst
                     or ScalarOp.Exp or ScalarOp.Log or ScalarOp.Sin or ScalarOp.Cos or ScalarOp.Tan or ScalarOp.Atan
-                    or ScalarOp.Tanh => 1,
+                    or ScalarOp.Tanh or ScalarOp.Detach => 1,
                 ScalarOp.Add or ScalarOp.Sub or ScalarOp.Mul or ScalarOp.Div or ScalarOp.Atan2 or ScalarOp.Min
                     or ScalarOp.Max => 2,
                 ScalarOp.SelectLess or ScalarOp.SelectLessEqual or ScalarOp.SelectEqual => 4,

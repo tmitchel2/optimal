@@ -6,15 +6,18 @@
  *
  */
 
+using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 
 namespace Optimal.AutoDiff.Analyzers.Kernels
 {
     /// <summary>
-    /// Vector forward mode as a graph transform. Every primal node that is both active and live gets a tangent: one
-    /// graph node per element of the differentiated parameter, carried at once. Tangents are built through the
-    /// graph's builders, so the zeros of a sparse tangent fold away and shared terms are built once.
+    /// Vector forward mode as a graph transform. Every node that is both active and live gets a tangent: one graph node
+    /// per direction, carried at once. Tangents are built through the graph's builders, so the zeros of a sparse tangent
+    /// fold away and shared terms are built once. The transform applies to any nodes of the graph, not only the
+    /// kernel's own outputs: applied to a VJP's gradient it gives a Hessian (forward over reverse).
     /// </summary>
     public static class JacobianTransform
     {
@@ -25,27 +28,57 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
         public static ImmutableArray<int> Apply(UnrolledKernel kernel, KernelParameter wrt)
         {
             var g = kernel.Graph;
-            var n = wrt.Length;
-            var zero = g.Const(0);
-            var active = DerivativeFlow.Active(kernel, group => group == wrt.Group);
-            var live = DerivativeFlow.Live(kernel);
-            var tangents = new int[]?[kernel.PrimalCount];
-            for (var id = 0; id < tangents.Length; id++)
-            {
-                tangents[id] = active[id] && live[id] ? Tangent(g, id, tangents, n, zero) : null;
-            }
+            return Apply(g, kernel.PrimalCount, kernel.OutputIds, wrt.Group, wrt.Length, index => Unit(g, index, wrt.Length));
+        }
 
-            return kernel.OutputIds
+        /// <summary>
+        /// The tangents of <paramref name="outputIds"/>, row-major (output i, direction j at <c>i × n + j</c>), over the
+        /// first <paramref name="count"/> nodes, when element k of input group <paramref name="wrtGroup"/> has the
+        /// <paramref name="n"/>-direction tangent <paramref name="seed"/>(k). Unit seeds give a Jacobian; one direction
+        /// read from another input gives a Jacobian–vector product.
+        /// </summary>
+        public static ImmutableArray<int> Apply(ScalarGraph g, int count, IReadOnlyList<int> outputIds, int wrtGroup, int n, Func<int, int[]> seed)
+        {
+            var zero = g.Const(0);
+            var active = DerivativeFlow.Active(g, count, group => group == wrtGroup);
+            var live = DerivativeFlow.Live(g, count, outputIds);
+            var tangents = Sweep(g, 0, count, id => active[id] && live[id], id => g[id].Op == ScalarOp.Input ? seed(g[id].B) : null, n, zero);
+            return outputIds
                 .SelectMany(id => tangents[id] ?? Enumerable.Repeat(zero, n).ToArray())
                 .ToImmutableArray();
+        }
+
+        /// <summary>
+        /// Tangents of the nodes from <paramref name="from"/> up to <paramref name="count"/> that <paramref name="include"/>
+        /// admits: a node <paramref name="seedOf"/> gives a tangent for takes it, and any other is the chain rule over its
+        /// operands. Nodes before <paramref name="from"/>, and nodes no seed reaches, have none (null).
+        /// </summary>
+        public static int[]?[] Sweep(ScalarGraph g, int from, int count, Func<int, bool> include, Func<int, int[]?> seedOf, int n, int zero)
+        {
+            var tangents = new int[]?[count];
+            for (var id = from; id < count; id++)
+            {
+                if (include(id))
+                {
+                    tangents[id] = seedOf(id) ?? Tangent(g, id, tangents, n, zero);
+                }
+            }
+
+            return tangents;
+        }
+
+        private static int[] Unit(ScalarGraph g, int index, int n)
+        {
+            var zero = g.Const(0);
+            return Enumerable.Range(0, n).Select(j => j == index ? g.Const(1) : zero).ToArray();
         }
 
         private static int[]? Tangent(ScalarGraph g, int id, int[]?[] tangents, int n, int zero)
         {
             var node = g[id];
-            if (node.Op == ScalarOp.Input)
+            if (node.Op is ScalarOp.Input or ScalarOp.Const or ScalarOp.Detach)
             {
-                return Enumerable.Range(0, n).Select(j => j == node.B ? g.Const(1) : zero).ToArray();
+                return null;
             }
 
             return ScalarOps.IsPiecewise(node.Op)

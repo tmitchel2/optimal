@@ -44,7 +44,7 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
 
                 // The minimum-norm subgradient: 0 at the kink.
                 ScalarOp.Abs => g.Unary(ScalarOp.Sign, node.A),
-                ScalarOp.Sign => g.Const(0),
+                ScalarOp.Sign or ScalarOp.Detach => g.Const(0),
                 ScalarOp.PowConst => g.Mul(g.Const(node.Value), g.PowConst(node.A, node.Value - 1)),
                 ScalarOp.Exp => id,
                 ScalarOp.Log => Reciprocal(g, node.A),

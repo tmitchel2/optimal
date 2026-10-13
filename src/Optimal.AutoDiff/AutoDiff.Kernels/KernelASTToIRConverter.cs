@@ -51,23 +51,47 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             return _locations.TryGetValue(node.NodeId, out var location) ? location : null;
         }
 
-        /// <summary>Converts a method with a body in this compilation.</summary>
-        public KernelFunctionNode ConvertFunction(IMethodSymbol method, MethodDeclarationSyntax syntax)
+        /// <summary>
+        /// Converts a method with a body in this compilation: a method, constructor or operator declaration, a property's
+        /// accessor, or the expression body of a get-only property.
+        /// </summary>
+        public KernelFunctionNode ConvertFunction(IMethodSymbol method, SyntaxNode declaration)
         {
             var previous = _model;
-            _model = ModelFor(syntax.SyntaxTree);
+            _model = ModelFor(declaration.SyntaxTree);
             try
             {
+                var parameterList = (declaration as BaseMethodDeclarationSyntax)?.ParameterList;
                 var parameters = method.Parameters
-                    .Select(p => ConvertParameter(p, syntax.ParameterList.Parameters[p.Ordinal]))
+                    .Select(p => ConvertParameter(p, parameterList?.Parameters[p.Ordinal] ?? declaration))
                     .ToImmutableArray();
-                var body = new MethodBodyNode(NewId(), ConvertBody(method, syntax));
-                return At(new KernelFunctionNode(NewId(), method, parameters, body), syntax.Identifier);
+                var body = new MethodBodyNode(NewId(), ConvertBody(method, declaration));
+                var node = new KernelFunctionNode(NewId(), method, parameters, body);
+                return declaration switch
+                {
+                    MethodDeclarationSyntax m => At(node, m.Identifier),
+                    ConstructorDeclarationSyntax c => At(node, c.Identifier),
+                    OperatorDeclarationSyntax o => At(node, o.OperatorToken),
+                    _ => At(node, declaration)
+                };
             }
             finally
             {
                 _model = previous;
             }
+        }
+
+        /// <summary>Whether a declaration is one <see cref="ConvertFunction"/> can convert.</summary>
+        public static bool IsFunctionDeclaration(SyntaxNode syntax)
+        {
+            return syntax is MethodDeclarationSyntax or ConstructorDeclarationSyntax or OperatorDeclarationSyntax
+                or AccessorDeclarationSyntax or ArrowExpressionClauseSyntax;
+        }
+
+        /// <summary>Whether <paramref name="method"/> is <c>KernelMath.ImplicitSolve</c>.</summary>
+        public static bool IsImplicitSolve(IMethodSymbol method)
+        {
+            return method.Name == "ImplicitSolve" && method.ContainingType?.ToDisplayString() == KernelFunctionLibrary.KernelMathTypeName;
         }
 
         /// <summary>Whether <paramref name="type"/> is <c>Span&lt;T&gt;</c> or <c>ReadOnlySpan&lt;T&gt;</c>, and its element type.</summary>
@@ -86,21 +110,36 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             return type.SpecialType is SpecialType.System_Double or SpecialType.System_Int32 or SpecialType.System_Boolean;
         }
 
+        // A struct the kernel flattens, or an error saying why it cannot.
+        private static INamedTypeSymbol FlattenableStruct(ITypeSymbol type, SyntaxNode at)
+        {
+            var problem = KernelStructs.Problem(type);
+            return problem == null
+                ? (INamedTypeSymbol)type
+                : throw Unsupported(at, $"{problem}, so a kernel cannot hold it as a value");
+        }
+
         private static bool IsArrayElement(ITypeSymbol type)
         {
             return type.SpecialType is SpecialType.System_Double or SpecialType.System_Int32;
         }
 
-        private IRNode ConvertParameter(IParameterSymbol parameter, ParameterSyntax syntax)
+        private IRNode ConvertParameter(IParameterSymbol parameter, SyntaxNode syntax)
         {
-            if (parameter.RefKind != RefKind.None)
+            var isStruct = KernelStructs.IsStruct(parameter.Type);
+            if (parameter.RefKind != RefKind.None && !(isStruct && IsReadOnlyReference(parameter.RefKind)))
             {
-                throw Unsupported(syntax, $"parameter '{parameter.Name}' is passed by {parameter.RefKind.ToString().ToLowerInvariant()}; kernels and helpers take doubles, ints, bools and spans by value");
+                throw Unsupported(syntax, $"parameter '{parameter.Name}' is passed by {parameter.RefKind.ToString().ToLowerInvariant()}; kernels and helpers take doubles, ints, bools and spans by value, and structs by value or by in");
             }
 
             if (IsScalar(parameter.Type))
             {
                 return At(new VariableNode(NewId(), parameter.Name, parameter.Type), syntax);
+            }
+
+            if (isStruct)
+            {
+                return At(new VariableNode(NewId(), parameter.Name, FlattenableStruct(parameter.Type, syntax)), syntax);
             }
 
             if (IsSpan(parameter.Type, out var element, out var writable) && IsArrayElement(element))
@@ -112,25 +151,42 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 return At(new ArrayParameterNode(NewId(), parameter.Name, element, fixedLength, writable), syntax);
             }
 
-            throw Unsupported(syntax, $"parameter '{parameter.Name}' has type {parameter.Type.ToDisplayString()}; kernels and helpers take double, int, bool, Span<double>, ReadOnlySpan<double>, Span<int> and ReadOnlySpan<int>");
+            throw Unsupported(syntax, $"parameter '{parameter.Name}' has type {parameter.Type.ToDisplayString()}; kernels and helpers take double, int, bool, Span<double>, ReadOnlySpan<double>, Span<int>, ReadOnlySpan<int> and structs of doubles");
         }
 
-        private ImmutableArray<IRNode> ConvertBody(IMethodSymbol method, MethodDeclarationSyntax syntax)
+        // in, or ref readonly (RefKind.RefReadOnlyParameter, which netstandard's Roslyn reference names only by value).
+        private static bool IsReadOnlyReference(RefKind kind)
         {
-            if (syntax.Body != null)
+            return kind == RefKind.In || (int)kind == 4;
+        }
+
+        private ImmutableArray<IRNode> ConvertBody(IMethodSymbol method, SyntaxNode declaration)
+        {
+            if (declaration is ConstructorDeclarationSyntax { Initializer: not null } constructor)
             {
-                return ConvertStatements(syntax.Body.Statements);
+                throw Unsupported(constructor.Initializer, $"the constructor initialiser '{constructor.Initializer}' is not supported; assign the fields in the constructor's body");
             }
 
-            if (syntax.ExpressionBody != null)
+            var (body, expressionBody) = declaration switch
             {
-                var expression = syntax.ExpressionBody.Expression;
+                BaseMethodDeclarationSyntax m => (m.Body, m.ExpressionBody?.Expression),
+                AccessorDeclarationSyntax a => (a.Body, a.ExpressionBody?.Expression),
+                ArrowExpressionClauseSyntax arrow => ((BlockSyntax?)null, arrow.Expression),
+                _ => (null, null)
+            };
+            if (body != null)
+            {
+                return ConvertStatements(body.Statements);
+            }
+
+            if (expressionBody != null)
+            {
                 return method.ReturnsVoid
-                    ? ImmutableArray.Create(ConvertExpressionStatement(expression))
-                    : ImmutableArray.Create<IRNode>(At(new ReturnNode(NewId(), ConvertExpression(expression)), expression));
+                    ? ImmutableArray.Create(ConvertExpressionStatement(expressionBody))
+                    : ImmutableArray.Create<IRNode>(At(new ReturnNode(NewId(), ConvertExpression(expressionBody)), expressionBody));
             }
 
-            throw new KernelException(KernelDiagnostics.UnsupportedCall, syntax.Identifier.GetLocation(), $"'{method.Name}' has no body to inline");
+            throw new KernelException(KernelDiagnostics.UnsupportedCall, declaration.GetLocation(), $"'{method.Name}' has no body to inline");
         }
 
         private ImmutableArray<IRNode> ConvertStatements(IEnumerable<StatementSyntax> statements)
@@ -154,7 +210,7 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 ContinueStatementSyntax => new[] { At(new ContinueNode(NewId()), statement) },
                 EmptyStatementSyntax => Array.Empty<IRNode>(),
                 LocalFunctionStatementSyntax => throw Unsupported(statement, "local functions are not supported; declare the helper as a static method of an [OptimalCode] class"),
-                _ => throw Unsupported(statement, $"the statement '{Describe(statement)}' is not supported; kernels use declarations, assignments, for and while loops with compile-time trip counts, if on compile-time conditions, calls, break, continue and return")
+                _ => throw Unsupported(statement, $"the statement '{Describe(statement)}' is not supported; kernels use declarations, assignments, for and while loops with compile-time trip counts, if, calls, break, continue and return")
             };
         }
 
@@ -213,7 +269,10 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 _ => throw Unsupported(assignment, $"the assignment '{Describe(assignment)}' is not supported; kernels use =, +=, -=, *=, /= and %=")
             };
             var type = TypeOf(assignment.Left);
-            var value = At(new BinaryOpNode(NewId(), op, ConvertExpression(assignment.Left), Widen(right, type, assignment.Right), type), assignment);
+            var userOperator = (_model.GetOperation(assignment) as ICompoundAssignmentOperation)?.OperatorMethod;
+            var value = userOperator != null
+                ? (IRNode)At(new MethodCallNode(NewId(), userOperator.Name, userOperator, ImmutableArray.Create(ConvertExpression(assignment.Left), right), userOperator.ReturnType), assignment)
+                : At(new BinaryOpNode(NewId(), op, ConvertExpression(assignment.Left), Widen(right, type, assignment.Right), type), assignment);
             return MakeAssignment(assignment.Left, value, assignment);
         }
 
@@ -228,10 +287,15 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
 
         private IRNode MakeAssignment(ExpressionSyntax target, IRNode value, SyntaxNode syntax)
         {
+            var symbol = _model.GetSymbolInfo(target).Symbol;
             switch (target)
             {
-                case IdentifierNameSyntax identifier when _model.GetSymbolInfo(identifier).Symbol is ILocalSymbol or IParameterSymbol:
+                case IdentifierNameSyntax identifier when symbol is ILocalSymbol or IParameterSymbol:
                     return At(new AssignmentNode(NewId(), identifier.Identifier.Text, value), syntax);
+                case IdentifierNameSyntax when symbol is IFieldSymbol { IsStatic: false } field && KernelStructs.IsStruct(field.ContainingType):
+                    return At(new FieldAssignmentNode(NewId(), This(field.ContainingType, target), field, value), syntax);
+                case MemberAccessExpressionSyntax member when symbol is IFieldSymbol { IsStatic: false } field && KernelStructs.IsStruct(field.ContainingType):
+                    return At(new FieldAssignmentNode(NewId(), ConvertExpression(member.Expression), field, value), syntax);
                 case ElementAccessExpressionSyntax element:
                     return At(new ElementAssignmentNode(NewId(), ConvertExpression(element.Expression), ConvertIndices(element), value), syntax);
                 default:
@@ -302,12 +366,29 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                     : throw Unsupported(expression, $"the constant '{Describe(expression)}' has type {TypeOf(expression).ToDisplayString()}; kernels compute with double, int and bool");
             }
 
+            var userOperator = expression is BinaryExpressionSyntax or PrefixUnaryExpressionSyntax
+                ? _model.GetOperation(expression) switch
+                {
+                    IBinaryOperation binaryOperation => binaryOperation.OperatorMethod,
+                    IUnaryOperation unaryOperation => unaryOperation.OperatorMethod,
+                    _ => null
+                }
+                : null;
+            if (userOperator != null)
+            {
+                return ConvertUserOperator(expression, userOperator);
+            }
+
             return expression switch
             {
                 ParenthesizedExpressionSyntax parenthesized => ConvertExpression(parenthesized.Expression),
                 IdentifierNameSyntax identifier => ConvertName(identifier),
+                ThisExpressionSyntax => This(TypeOf(expression), expression),
                 MemberAccessExpressionSyntax member => ConvertMemberAccess(member),
                 ElementAccessExpressionSyntax element => ConvertElementAccess(element),
+                BaseObjectCreationExpressionSyntax creation => ConvertObjectCreation(creation),
+                WithExpressionSyntax with => ConvertWith(with),
+                DefaultExpressionSyntax or LiteralExpressionSyntax when KernelStructs.IsStruct(ConvertedTypeOf(expression)) => ConvertDefault(expression),
                 BinaryExpressionSyntax binary => At(new BinaryOpNode(NewId(), ConvertBinaryOperator(binary), ConvertExpression(binary.Left), ConvertExpression(binary.Right), TypeOf(binary)), binary),
                 PrefixUnaryExpressionSyntax prefix => At(new UnaryOpNode(NewId(), ConvertUnaryOperator(prefix), ConvertExpression(prefix.Operand), TypeOf(prefix)), prefix),
                 CastExpressionSyntax cast => At(new UnaryOpNode(NewId(), UnaryOperator.Identity, ConvertExpression(cast.Expression), TypeOf(cast)), cast),
@@ -329,6 +410,10 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             {
                 ILocalSymbol local => At(new VariableNode(NewId(), local.Name, local.Type), identifier),
                 IParameterSymbol parameter => At(new VariableNode(NewId(), parameter.Name, parameter.Type), identifier),
+                IFieldSymbol { IsStatic: false } field when KernelStructs.IsStruct(field.ContainingType)
+                    => At(new FieldAccessNode(NewId(), This(field.ContainingType, identifier), field), identifier),
+                IPropertySymbol { IsStatic: false } property when KernelStructs.IsStruct(property.ContainingType)
+                    => Getter(property, This(property.ContainingType, identifier), identifier),
                 IFieldSymbol or IPropertySymbol => ConvertStaticMember(symbol, identifier),
                 _ => throw Unsupported(identifier, $"'{identifier}' is not a local, a parameter or a static table")
             };
@@ -340,6 +425,16 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             if (symbol is IPropertySymbol { Name: "Length", IsStatic: false } length && IsSpan(length.ContainingType, out _, out _))
             {
                 return At(new ArrayLengthNode(NewId(), ConvertExpression(member.Expression)), member);
+            }
+
+            switch (symbol)
+            {
+                case IFieldSymbol { IsStatic: false } field when KernelStructs.IsStruct(field.ContainingType):
+                    return At(new FieldAccessNode(NewId(), ConvertExpression(member.Expression), field), member);
+                case IPropertySymbol { IsStatic: false } property when KernelStructs.IsStruct(property.ContainingType):
+                    return Getter(property, ConvertExpression(member.Expression), member);
+                default:
+                    break;
             }
 
             return symbol is IFieldSymbol or IPropertySymbol
@@ -426,9 +521,22 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
         {
             var method = _model.GetSymbolInfo(invocation).Symbol as IMethodSymbol
                 ?? throw new KernelException(KernelDiagnostics.UnsupportedCall, invocation.GetLocation(), $"the call '{Describe(invocation)}' could not be resolved");
+            if (IsImplicitSolve(method))
+            {
+                return ConvertImplicitSolve(invocation, isStatement);
+            }
+
             if (!method.IsStatic && IsSpan(method.ContainingType, out _, out _) && invocation.Expression is MemberAccessExpressionSyntax receiver)
             {
                 return ConvertSpanMethod(invocation, method, ConvertExpression(receiver.Expression), isStatement);
+            }
+
+            if (!method.IsStatic && KernelStructs.IsStruct(method.ContainingType))
+            {
+                var target = invocation.Expression is MemberAccessExpressionSyntax access
+                    ? ConvertExpression(access.Expression)
+                    : This(method.ContainingType, invocation);
+                return At(new InstanceCallNode(NewId(), target, method, ConvertArguments(invocation), method.ReturnType), invocation);
             }
 
             if (!method.IsStatic)
@@ -457,16 +565,22 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
         {
             var operation = _model.GetOperation(invocation) as IInvocationOperation
                 ?? throw new KernelException(KernelDiagnostics.UnsupportedCall, invocation.GetLocation(), $"the call '{Describe(invocation)}' could not be resolved");
-            return operation.Arguments
+            return ConvertArguments(operation.Arguments, invocation);
+        }
+
+        private ImmutableArray<IRNode> ConvertArguments(ImmutableArray<IArgumentOperation> arguments, SyntaxNode invocation)
+        {
+            return arguments
                 .OrderBy(a => a.Parameter!.Ordinal)
                 .Select(a => ConvertArgument(a, invocation))
                 .ToImmutableArray();
         }
 
-        private IRNode ConvertArgument(IArgumentOperation argument, InvocationExpressionSyntax invocation)
+        private IRNode ConvertArgument(IArgumentOperation argument, SyntaxNode invocation)
         {
             var parameter = argument.Parameter!;
-            if (argument.ArgumentKind == ArgumentKind.ParamArray || parameter.RefKind != RefKind.None)
+            var byReadOnlyReference = IsReadOnlyReference(parameter.RefKind) && KernelStructs.IsStruct(parameter.Type);
+            if (argument.ArgumentKind == ArgumentKind.ParamArray || (parameter.RefKind != RefKind.None && !byReadOnlyReference))
             {
                 throw new KernelException(KernelDiagnostics.UnsupportedCall, invocation.GetLocation(), $"the call '{Describe(invocation)}' passes '{parameter.Name}' by reference or as a params array; kernels pass values and spans");
             }
@@ -480,6 +594,101 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             }
 
             return ConvertExpression(((ArgumentSyntax)argument.Syntax).Expression);
+        }
+
+        // KernelMath.ImplicitSolve(residual, p, y, iterations): the residual must name a method, not a lambda or a
+        // delegate value, so the generator can inline it.
+        private IRNode ConvertImplicitSolve(InvocationExpressionSyntax invocation, bool isStatement)
+        {
+            if (!isStatement)
+            {
+                throw new KernelException(KernelDiagnostics.InvalidImplicitSolve, invocation.GetLocation(), "KernelMath.ImplicitSolve writes its solution to y and returns nothing; call it as a statement");
+            }
+
+            var operation = (IInvocationOperation)_model.GetOperation(invocation)!;
+            var arguments = operation.Arguments.OrderBy(a => a.Parameter!.Ordinal).ToList();
+            var residual = Unwrap(arguments[0].Value) is IDelegateCreationOperation { Target: IMethodReferenceOperation reference }
+                ? reference.Method
+                : throw new KernelException(KernelDiagnostics.InvalidImplicitSolve, arguments[0].Syntax.GetLocation(), "the residual must name a static method, as ImplicitSolve(Residual, …), not a lambda or a delegate variable");
+            return At(
+                new ImplicitSolveNode(
+                    NewId(),
+                    residual,
+                    ConvertArgument(arguments[1], invocation),
+                    ConvertArgument(arguments[2], invocation),
+                    ConvertArgument(arguments[3], invocation)),
+                invocation);
+        }
+
+        private static IOperation Unwrap(IOperation operation)
+        {
+            return operation is IConversionOperation conversion ? Unwrap(conversion.Operand) : operation;
+        }
+
+        // A user-defined operator of a struct, inlined like a static helper.
+        private IRNode ConvertUserOperator(ExpressionSyntax expression, IMethodSymbol method)
+        {
+            var operands = expression switch
+            {
+                BinaryExpressionSyntax binary => ImmutableArray.Create(ConvertExpression(binary.Left), ConvertExpression(binary.Right)),
+                PrefixUnaryExpressionSyntax prefix => ImmutableArray.Create(ConvertExpression(prefix.Operand)),
+                _ => throw Unsupported(expression, $"the operator in '{Describe(expression)}' is not supported")
+            };
+            return At(new MethodCallNode(NewId(), method.Name, method, operands, method.ReturnType), expression);
+        }
+
+        // `this` inside a struct's constructor, method or property.
+        private IRNode This(ITypeSymbol type, SyntaxNode at)
+        {
+            return At(new VariableNode(NewId(), KernelFrame.This, FlattenableStruct(type, at)), at);
+        }
+
+        private IRNode Getter(IPropertySymbol property, IRNode receiver, SyntaxNode at)
+        {
+            var getter = property.GetMethod
+                ?? throw Unsupported(at, $"the property '{property.Name}' has no getter");
+            return At(new InstanceCallNode(NewId(), receiver, getter, ImmutableArray<IRNode>.Empty, property.Type), at);
+        }
+
+        // new T(…), new(…) or new T { … } of a struct. A struct's implicit parameterless constructor zeroes it.
+        private IRNode ConvertObjectCreation(BaseObjectCreationExpressionSyntax creation)
+        {
+            var type = FlattenableStruct(ConvertedTypeOf(creation), creation);
+            var operation = _model.GetOperation(creation) as IObjectCreationOperation
+                ?? throw Unsupported(creation, $"the creation '{Describe(creation)}' could not be resolved");
+            var constructor = operation.Constructor is { IsImplicitlyDeclared: false } declared ? declared : null;
+            var arguments = constructor == null ? ImmutableArray<IRNode>.Empty : ConvertArguments(operation.Arguments, creation);
+            return At(new StructCreationNode(NewId(), type, null, constructor, arguments, ConvertInitializers(creation.Initializer)), creation);
+        }
+
+        private IRNode ConvertWith(WithExpressionSyntax with)
+        {
+            var type = FlattenableStruct(TypeOf(with), with);
+            return At(new StructCreationNode(NewId(), type, ConvertExpression(with.Expression), null, ImmutableArray<IRNode>.Empty, ConvertInitializers(with.Initializer)), with);
+        }
+
+        private IRNode ConvertDefault(ExpressionSyntax expression)
+        {
+            var type = FlattenableStruct(ConvertedTypeOf(expression), expression);
+            return At(new StructCreationNode(NewId(), type, null, null, ImmutableArray<IRNode>.Empty, ImmutableArray<FieldInitializer>.Empty), expression);
+        }
+
+        private ImmutableArray<FieldInitializer> ConvertInitializers(InitializerExpressionSyntax? initializer)
+        {
+            return initializer == null
+                ? ImmutableArray<FieldInitializer>.Empty
+                : initializer.Expressions
+                    .Select(e => e is AssignmentExpressionSyntax { Left: IdentifierNameSyntax name } assignment && _model.GetSymbolInfo(name).Symbol is IFieldSymbol { IsStatic: false } field
+                        ? new FieldInitializer(field, ConvertExpression(assignment.Right))
+                        : throw Unsupported(e, $"the initialiser '{Describe(e)}' is not supported; a struct initialiser assigns fields, as Field = value"))
+                    .ToImmutableArray();
+        }
+
+        private ITypeSymbol ConvertedTypeOf(ExpressionSyntax expression)
+        {
+            var info = _model.GetTypeInfo(expression);
+            return info.ConvertedType ?? info.Type
+                ?? throw Unsupported(expression, $"the type of '{Describe(expression)}' could not be resolved");
         }
 
         private IRNode ConvertArrayCreation(ExpressionSyntax expression, string name, ITypeSymbol arrayType, bool isReadOnly)

@@ -1,0 +1,13 @@
+# SHA-256 of each file the kernel generator emits for Optimal.Tests, its text with line endings as \n.
+# Tet4Elastic, Tet4NeoHookean and Tet10Elastic are as phase 2 (Dynamis FEA) generated them. MathKernels' VJP
+# changed in phase 12: a product of an adjoint that a select can zero is guarded, so the branch not taken adds
+# no NaN. The others are new in phase 12. Regenerate a line only for a deliberate change to the generator.
+b8b12f7fc53bbce0196a3badf608d00d4a1dcb1989d1c3c70a34db1bad22b84f Optimal.AutoDiff.Tests.ImplicitSystemsKernels.g.cs
+db255f0ba66070cd3a72951163023c97af3bb25fbd9e55c1c6d387957bfa66d5 Optimal.AutoDiff.Tests.J2PlasticityKernels.g.cs
+8c5ed2323ef9df3d7434929fcd65cf2cf6a314674c45e87851b4f855bd4adff7 Optimal.AutoDiff.Tests.MathKernelsKernels.g.cs
+7c704e6486c93b2c53f40403a6d065a738ea1430c3e29b5e2ce41535a044b8f3 Optimal.AutoDiff.Tests.NeoHookeanEnergyKernels.g.cs
+d75f67976d7f100bd14a610eff771da4a844dc1151ec9437f2a2f3872bf3de6d Optimal.AutoDiff.Tests.Tet10ElasticEnergyKernels.g.cs
+e1d7c68c09569e2b8541a2e32d79b695a3d1e83eb516196355ea1b903502e825 Optimal.AutoDiff.Tests.Tet10ElasticKernels.g.cs
+4ae942c19af828079f7b1d9f0cc5b74ef8f0150199f669980b6796c08a38a961 Optimal.AutoDiff.Tests.Tet4ElasticKernels.g.cs
+dbc8debddb1eee798084cb3450ab2b72ffb51bf1c2a7bce096122230360d0f8a Optimal.AutoDiff.Tests.Tet4NeoHookeanKernels.g.cs
+3d10a61a77b4d6ef952dc6c8a9edc4f78307e213fec3d0b11ee289aa3597dd73 Optimal.AutoDiff.Tests.VocePlasticityKernels.g.cs

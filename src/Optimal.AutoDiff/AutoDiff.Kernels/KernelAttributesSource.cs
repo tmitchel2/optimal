@@ -10,7 +10,8 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
 {
     /// <summary>
     /// The source the generator adds to every compilation for array kernels: the attributes that declare a kernel's
-    /// derivatives and span lengths, and <c>KernelMath</c>, smooth stand-ins for min, max and abs that a kernel inlines.
+    /// derivatives and span lengths, and <c>KernelMath</c>: smooth stand-ins for min, max and abs that a kernel inlines,
+    /// and <c>ImplicitSolve</c>, a small nonlinear solve the generator differentiates by the implicit-function theorem.
     /// </summary>
     public static class KernelAttributesSource
     {
@@ -68,6 +69,39 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 }
 
                 /// <summary>
+                /// Generates <c>{Kernel}Hessian_{wrt}</c>: the dense, exactly symmetric Hessian of a kernel with one output
+                /// (an energy) with respect to the named input, row-major, by forward mode over reverse mode.
+                /// </summary>
+                [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+                internal sealed class HessianAttribute : Attribute
+                {
+                    public HessianAttribute(string wrt) => Wrt = wrt;
+
+                    public string Wrt { get; }
+
+                    /// <summary>The most operations per generated method; larger kernels are split into chunks.</summary>
+                    public int ChunkSize { get; set; }
+                }
+
+                /// <summary>
+                /// Generates <c>{Kernel}Hvp_{wrt}</c>: the Hessian–vector product H v of a kernel with one output, with v
+                /// read from a <c>direction</c> input, by one forward-mode direction over reverse mode.
+                /// </summary>
+                [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+                internal sealed class HvpAttribute : Attribute
+                {
+                    public HvpAttribute(string wrt) => Wrt = wrt;
+
+                    public string Wrt { get; }
+
+                    /// <summary>The most operations per generated method; larger kernels are split into chunks.</summary>
+                    public int ChunkSize { get; set; }
+                }
+
+                /// <summary>The residual g(y, p) of a small nonlinear system that <see cref="KernelMath.ImplicitSolve"/> solves.</summary>
+                internal delegate void ImplicitResidual(ReadOnlySpan<double> y, ReadOnlySpan<double> p, Span<double> g);
+
+                /// <summary>
                 /// Smooth stand-ins a kernel may call where the kink of Math.Min, Math.Max or Math.Abs would spoil a
                 /// derivative. Each differs from the function it smooths by at most <c>width</c> (half of it for min and max).
                 /// </summary>
@@ -78,6 +112,118 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                     public static double SmoothMax(double a, double b, double width) => 0.5 * (a + b + Math.Sqrt(((a - b) * (a - b)) + (width * width)));
 
                     public static double SmoothAbs(double x, double width) => Math.Sqrt((x * x) + (width * width));
+
+                    /// <summary>The most unknowns <see cref="ImplicitSolve"/> takes.</summary>
+                    public const int MaxImplicitUnknowns = 16;
+
+                    /// <summary>
+                    /// Solves g(y, p) = 0 for y, from the guess in <paramref name="y"/>, by Newton's method, and leaves the
+                    /// solution in <paramref name="y"/>. Pass the residual as a static method of an [OptimalCode] class by
+                    /// name, so a kernel's generator can inline it: there it runs exactly <paramref name="iterations"/>
+                    /// Newton steps with the exact Jacobian, and differentiates the solution by the implicit-function
+                    /// theorem, dy/dp = −(∂g/∂y)⁻¹ ∂g/∂p, never through the iterations. Here, at run time, the Jacobian is
+                    /// taken by central differences and the iteration stops once a step is below 1e-13 relative. After
+                    /// <paramref name="iterations"/> steps the last must be below 1e-8 relative, so that Newton's quadratic
+                    /// convergence has made the error negligible; otherwise the solve throws.
+                    /// </summary>
+                    public static void ImplicitSolve(ImplicitResidual residual, ReadOnlySpan<double> p, Span<double> y, int iterations)
+                    {
+                        var m = y.Length;
+                        if (m < 1 || m > MaxImplicitUnknowns)
+                        {
+                            throw new ArgumentException($"An implicit solve has 1 to {MaxImplicitUnknowns} unknowns, not {m}.", nameof(y));
+                        }
+
+                        if (iterations < 1)
+                        {
+                            throw new ArgumentOutOfRangeException(nameof(iterations), iterations, "An implicit solve takes at least one Newton step.");
+                        }
+
+                        Span<double> g = stackalloc double[m];
+                        Span<double> plus = stackalloc double[m];
+                        Span<double> minus = stackalloc double[m];
+                        Span<double> a = stackalloc double[m * m];
+                        var largest = double.PositiveInfinity;
+                        for (var iteration = 0; iteration < iterations; iteration++)
+                        {
+                            residual(y, p, g);
+                            for (var j = 0; j < m; j++)
+                            {
+                                var yj = y[j];
+                                var h = 6.0554544523933395e-6 * Math.Max(1.0, Math.Abs(yj));
+                                y[j] = yj + h;
+                                residual(y, p, plus);
+                                y[j] = yj - h;
+                                residual(y, p, minus);
+                                var width = (yj + h) - (yj - h);
+                                y[j] = yj;
+                                for (var i = 0; i < m; i++)
+                                {
+                                    a[(i * m) + j] = (plus[i] - minus[i]) / width;
+                                }
+                            }
+
+                            SolveInPlace(a, g, m);
+                            largest = 0.0;
+                            for (var i = 0; i < m; i++)
+                            {
+                                y[i] -= g[i];
+                                largest = Math.Max(largest, Math.Abs(g[i]) / Math.Max(1.0, Math.Abs(y[i])));
+                            }
+
+                            if (largest <= 1e-13)
+                            {
+                                return;
+                            }
+                        }
+
+                        if (!(largest <= 1e-8))
+                        {
+                            throw new InvalidOperationException($"KernelMath.ImplicitSolve did not converge in {iterations} Newton steps: the last step was {largest:E3} relative.");
+                        }
+                    }
+
+                    // b ← A⁻¹ b by Gaussian elimination with partial pivoting, as the generated code solves it.
+                    private static void SolveInPlace(Span<double> a, Span<double> b, int n)
+                    {
+                        for (var k = 0; k < n; k++)
+                        {
+                            for (var i = k + 1; i < n; i++)
+                            {
+                                if (Math.Abs(a[(k * n) + k]) < Math.Abs(a[(i * n) + k]))
+                                {
+                                    for (var j = k; j < n; j++)
+                                    {
+                                        (a[(k * n) + j], a[(i * n) + j]) = (a[(i * n) + j], a[(k * n) + j]);
+                                    }
+
+                                    (b[k], b[i]) = (b[i], b[k]);
+                                }
+                            }
+
+                            for (var i = k + 1; i < n; i++)
+                            {
+                                var factor = a[(i * n) + k] / a[(k * n) + k];
+                                for (var j = k + 1; j < n; j++)
+                                {
+                                    a[(i * n) + j] -= factor * a[(k * n) + j];
+                                }
+
+                                b[i] -= factor * b[k];
+                            }
+                        }
+
+                        for (var k = n - 1; k >= 0; k--)
+                        {
+                            var sum = b[k];
+                            for (var j = k + 1; j < n; j++)
+                            {
+                                sum -= a[(k * n) + j] * b[j];
+                            }
+
+                            b[k] = sum / a[(k * n) + k];
+                        }
+                    }
                 }
             }
             """;

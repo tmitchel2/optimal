@@ -223,6 +223,7 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 ScalarOp.SelectLess => $"{O(node.A)} < {O(node.B)} ? {O(node.C)} : {O(node.D)}",
                 ScalarOp.SelectLessEqual => $"{O(node.A)} <= {O(node.B)} ? {O(node.C)} : {O(node.D)}",
                 ScalarOp.SelectEqual => $"{O(node.A)} == {O(node.B)} ? {O(node.C)} : {O(node.D)}",
+                ScalarOp.Detach => O(node.A),
                 _ => throw new ArgumentOutOfRangeException(nameof(id), node.Op, "Not an operation.")
             };
         }

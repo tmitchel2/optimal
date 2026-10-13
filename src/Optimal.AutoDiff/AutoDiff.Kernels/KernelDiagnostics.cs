@@ -78,6 +78,12 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             "Kernel writes to a read-only table",
             "Kernel '{0}': {1}");
 
+        /// <summary>A <c>KernelMath.ImplicitSolve</c> whose residual, unknowns or iteration count the generator cannot unroll.</summary>
+        public static readonly DiagnosticDescriptor InvalidImplicitSolve = Create(
+            "OPTAD110",
+            "Kernel implicit solve is not supported",
+            "Kernel '{0}': {1}");
+
         private static DiagnosticDescriptor Create(string id, string title, string message)
         {
             return new DiagnosticDescriptor(id, title, message, Category, DiagnosticSeverity.Error, isEnabledByDefault: true);

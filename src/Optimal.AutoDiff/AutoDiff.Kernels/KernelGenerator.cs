@@ -19,12 +19,13 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
 {
     /// <summary>
     /// Generates <c>{Class}Kernels</c> for each <c>[OptimalCode]</c> class with array kernels: for every
-    /// <c>[Jacobian]</c> a dense Jacobian by vector forward mode, and for every <c>[Vjp]</c> a vector–Jacobian product by
-    /// reverse mode, as allocation-free SSA code in a file of its own. The scalar generator's output is untouched.
+    /// <c>[Jacobian]</c> a dense Jacobian by vector forward mode, for every <c>[Vjp]</c> a vector–Jacobian product by
+    /// reverse mode, and for every <c>[Hessian]</c> or <c>[Hvp]</c> a Hessian or Hessian–vector product by forward over
+    /// reverse, as allocation-free SSA code in a file of its own. The scalar generator's output is untouched.
     /// </summary>
     public static class KernelGenerator
     {
-        /// <summary>Whether a method is an array kernel: it carries <c>[Jacobian]</c> or <c>[Vjp]</c>.</summary>
+        /// <summary>Whether a method is an array kernel: it carries <c>[Jacobian]</c>, <c>[Vjp]</c>, <c>[Hessian]</c> or <c>[Hvp]</c>.</summary>
         public static bool IsKernelMethod(IMethodSymbol method)
         {
             return method.GetAttributes().Any(DerivativeRequest.IsDerivativeAttribute);
@@ -113,7 +114,8 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 throw new KernelException(KernelDiagnostics.InvalidDerivativeAttribute, duplicate.Last().Location, $"'{duplicate.Key}' is requested twice");
             }
 
-            var kernel = new LoopUnroller(library, cancellationToken).Unroll(library.Kernel(method, syntax), parameters);
+            var order = requests.Any(r => r.IsSecondOrder) ? 2 : 1;
+            var kernel = new LoopUnroller(library, cancellationToken, order).Unroll(library.Kernel(method, syntax), parameters);
             var inputs = parameters.Where(p => !p.IsOutput).ToList();
             var taken = new HashSet<string>(parameters.Select(p => p.Name));
             var sb = new StringBuilder();
@@ -121,9 +123,13 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             {
                 var emitter = new KernelCodeEmitter(request.ChunkSize);
                 var name = request.MethodName(method.Name);
-                _ = sb.Append(request.IsJacobian
-                    ? EmitJacobian(emitter, name, method.Name, kernel, inputs, request.Wrt[0], taken)
-                    : EmitVjp(emitter, name, method.Name, kernel, inputs, request.Wrt, taken));
+                _ = sb.Append(request.Kind switch
+                {
+                    DerivativeKind.Jacobian => EmitJacobian(emitter, name, method.Name, kernel, inputs, request.Wrt[0], taken),
+                    DerivativeKind.Vjp => EmitVjp(emitter, name, method.Name, kernel, inputs, request.Wrt, taken),
+                    DerivativeKind.Hessian => EmitHessian(emitter, name, method.Name, kernel, inputs, request.Wrt[0], taken),
+                    _ => EmitHvp(emitter, name, method.Name, kernel, inputs, request.Wrt[0], taken)
+                });
             }
 
             return sb.ToString();
@@ -145,6 +151,39 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 .ToList();
             var summary = $"λᵀ ∂{kernel.Output.Name}/∂({string.Join(", ", wrt.Select(w => w.Name))}) of {kernelName}, with λ in {lambda.Name}.";
             return emitter.Emit(name, summary, kernel.Graph, inputs.Append(lambda).ToList(), outputs);
+        }
+
+        // The Hessian is the forward-mode Jacobian of the gradient, a VJP seeded with 1. Its two triangles would differ in
+        // rounding, so the upper one is emitted and mirrored: the result is exactly symmetric, and the lower triangle's
+        // operations are dead code.
+        private static string EmitHessian(KernelCodeEmitter emitter, string name, string kernelName, UnrolledKernel kernel, List<KernelParameter> inputs, KernelParameter wrt, ISet<string> taken)
+        {
+            var g = kernel.Graph;
+            var n = wrt.Length;
+            var gradient = VjpTransform.Apply(kernel, ImmutableArray.Create(wrt), _ => g.Const(1))[0];
+            var tangents = JacobianTransform.Apply(g, g.Count, gradient, wrt.Group, n, index => Unit(g, index, n));
+            var ids = Enumerable.Range(0, n * n).Select(k => k / n <= k % n ? tangents[k] : tangents[((k % n) * n) + (k / n)]).ToImmutableArray();
+            var hessian = new KernelOutput(Unique("hessian", taken), ids);
+            var summary = $"∂²{kernel.Output.Name}/∂{wrt.Name}² of {kernelName}, row-major ({n} × {n}) and exactly symmetric.";
+            return emitter.Emit(name, summary, g, inputs, new[] { hessian });
+        }
+
+        // H v: one forward-mode direction, read from the direction input, through the gradient.
+        private static string EmitHvp(KernelCodeEmitter emitter, string name, string kernelName, UnrolledKernel kernel, List<KernelParameter> inputs, KernelParameter wrt, ISet<string> taken)
+        {
+            var g = kernel.Graph;
+            var direction = new KernelParameter(Unique("direction", taken), wrt.Length, wrt.IsArray, IsOutput: false, kernel.Parameters.Length + 1);
+            var gradient = VjpTransform.Apply(kernel, ImmutableArray.Create(wrt), _ => g.Const(1))[0];
+            var product = JacobianTransform.Apply(g, g.Count, gradient, wrt.Group, 1, index => new[] { g.Input(direction.Group, index) });
+            var output = new KernelOutput(Unique("hvp", taken), product);
+            var summary = $"(∂²{kernel.Output.Name}/∂{wrt.Name}²) {direction.Name} of {kernelName}, a Hessian–vector product.";
+            return emitter.Emit(name, summary, g, inputs.Append(direction).ToList(), new[] { output });
+        }
+
+        private static int[] Unit(ScalarGraph g, int index, int n)
+        {
+            var zero = g.Const(0);
+            return Enumerable.Range(0, n).Select(j => j == index ? g.Const(1) : zero).ToArray();
         }
 
         // A generated parameter name that does not clash with the kernel's own.

@@ -126,6 +126,70 @@ namespace Optimal.AutoDiff.Tests
             return (remainders, slopes);
         }
 
+        /// <summary>
+        /// Central differences of a generated gradient: column j is (∇f(x + h e_j) − ∇f(x − h e_j)) / 2h, so a generated
+        /// Hessian is checked against the first derivative it was built from.
+        /// </summary>
+        public static double[] CentralDifferenceHessian(Action<double[], double[]> gradient, double[] x, double h)
+        {
+            var n = x.Length;
+            var hessian = new double[n * n];
+            var plus = new double[n];
+            var minus = new double[n];
+            for (var j = 0; j < n; j++)
+            {
+                var (xp, xm) = ((double[])x.Clone(), (double[])x.Clone());
+                xp[j] += h;
+                xm[j] -= h;
+                gradient(xp, plus);
+                gradient(xm, minus);
+                for (var i = 0; i < n; i++)
+                {
+                    hessian[(i * n) + j] = (plus[i] - minus[i]) / (xp[j] - xm[j]);
+                }
+            }
+
+            return hessian;
+        }
+
+        /// <summary>A central-difference Jacobian of <paramref name="f"/>, which writes <paramref name="outputs"/> values, at <paramref name="x"/>.</summary>
+        public static double[] CentralDifferenceJacobian(Action<double[], double[]> f, double[] x, int outputs, double h)
+        {
+            var n = x.Length;
+            var jacobian = new double[outputs * n];
+            var plus = new double[outputs];
+            var minus = new double[outputs];
+            for (var j = 0; j < n; j++)
+            {
+                var (xp, xm) = ((double[])x.Clone(), (double[])x.Clone());
+                xp[j] += h;
+                xm[j] -= h;
+                f(xp, plus);
+                f(xm, minus);
+                for (var i = 0; i < outputs; i++)
+                {
+                    jacobian[(i * n) + j] = (plus[i] - minus[i]) / (xp[j] - xm[j]);
+                }
+            }
+
+            return jacobian;
+        }
+
+        /// <summary>A row-major n × n matrix times a vector.</summary>
+        public static double[] Times(double[] matrix, double[] vector)
+        {
+            var n = vector.Length;
+            return Enumerable.Range(0, matrix.Length / n)
+                .Select(i => Enumerable.Range(0, n).Sum(j => matrix[(i * n) + j] * vector[j]))
+                .ToArray();
+        }
+
+        /// <summary>The largest |A_ij − A_ji| of a row-major n × n matrix.</summary>
+        public static double Asymmetry(double[] matrix, int n)
+        {
+            return Enumerable.Range(0, n * n).Max(k => Math.Abs(matrix[k] - matrix[((k % n) * n) + (k / n)]));
+        }
+
         /// <summary>The bytes the calling thread allocates over 10,000 calls of <paramref name="call"/>, after 1,000 to warm up.</summary>
         public static long AllocatedBytes(Action call)
         {

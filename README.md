@@ -221,9 +221,15 @@ The generator is wired in via `Optimal.csproj`:
 
 A static void method of an `[OptimalCode]` class that takes doubles and `[FixedLength(n)] ReadOnlySpan<double>` inputs and
 writes one `[FixedLength(n)] Span<double>` output is an **array kernel** (a finite element's residual, for example).
-`[Jacobian(nameof(u))]` generates `{Kernel}Jacobian_u`, the dense Jacobian of the output by vector forward mode;
-`[Vjp(nameof(X), nameof(E))]` generates `{Kernel}Vjp_X_E`, λᵀ∂output/∂X and λᵀ∂output/∂E from one reverse sweep. Both go
-to `{Class}Kernels.g.cs`, allocate nothing, and check span lengths on entry; the scalar output above is unchanged.
+Attributes on it generate derivatives into `{Class}Kernels.g.cs`; each generated method allocates nothing and checks
+span lengths on entry, and the scalar output above is unchanged.
+
+| Attribute | Generates | How |
+|---|---|---|
+| `[Jacobian(nameof(u))]` | `{Kernel}Jacobian_u`: the dense ∂output/∂u, row-major | vector forward mode |
+| `[Vjp(nameof(X), nameof(E))]` | `{Kernel}Vjp_X_E`: λᵀ∂output/∂X and λᵀ∂output/∂E | one reverse sweep |
+| `[Hessian(nameof(F))]` | `{Kernel}Hessian_F`: the dense ∂²output/∂F² of a kernel with one output (an energy), exactly symmetric | forward over reverse |
+| `[Hvp(nameof(F))]` | `{Kernel}Hvp_F`: (∂²output/∂F²) v, with v the `direction` input | one forward direction over reverse |
 
 ```csharp
 [OptimalCode]
@@ -237,30 +243,75 @@ public static class Tet4Elastic
 ```
 
 The generator (`AutoDiff.Kernels`) interprets the kernel at compile time: ints and bools are compile-time values, so
-every loop is unrolled, every index is a constant and every `if` takes one branch, while doubles become nodes of a
-hash-consed SSA graph that folds constants and shares common subexpressions. A kernel may use `stackalloc` and local
-arrays, collection expressions, static readonly tables (`int[]`, `double[,]`, `ReadOnlySpan<int>` properties),
-`Slice`, ranges, `Length`, `Clear`, `Fill` and `CopyTo`, `for` and `while` with `break` and `continue`, and calls to
-static helpers of `[OptimalCode]` classes, which are inlined (spans pass by reference). The `System.Math` functions it
-may call are Abs, Atan, Atan2, Cbrt, Clamp, Cos, Exp, Log, Max, Min, Pow (constant exponent), Sign, Sin, Sqrt, Tan and
-Tanh. A comparison of doubles may choose between the branches of a conditional expression; its derivative, like that of
-Min, Max and Abs, follows the branch taken. `KernelMath.SmoothMin`, `SmoothMax` and `SmoothAbs` are smooth stand-ins.
-Generated methods of more than `ChunkSize` operations (500 by default) are split into chunks so the JIT optimises them.
+every loop is unrolled and every index is a constant, while doubles become nodes of a hash-consed SSA graph that folds
+constants and shares common subexpressions. A kernel may use `stackalloc` and local arrays, collection expressions,
+static readonly tables (`int[]`, `double[,]`, `ReadOnlySpan<int>` properties), `Slice`, ranges, `Length`, `Clear`,
+`Fill` and `CopyTo`, `for` and `while` with `break` and `continue`, and calls to static helpers of `[OptimalCode]`
+classes, which are inlined (spans pass by reference). The `System.Math` functions it may call are Abs, Atan, Atan2,
+Cbrt, Clamp, Cos, Exp, Log, Max, Min, Pow (constant exponent), Sign, Sin, Sqrt, Tan and Tanh. `KernelMath.SmoothMin`,
+`SmoothMax` and `SmoothAbs` are smooth stand-ins for Min, Max and Abs. Generated methods of more than `ChunkSize`
+operations (500 by default) are split into chunks so the JIT optimises them.
+
+**Structs.** A struct whose instance state is `double` fields, or fields of another such struct (a 3 × 3 tensor, say),
+is flattened to its fields. It may be a local, a helper's parameter (by value or `in`) or return value, the result of a
+conditional expression, and a field of another struct. It is built by a constructor, `new T()`, `default`, an object
+initialiser or `with`, and read and written field by field (`p.Second.X += x`). Its constructors, instance methods,
+get-only properties and operators are inlined; inside them `this` is the value, and a method that changes `this` writes
+it back to the variable it was called on, as C# does. The struct must be non-generic, with source in the compilation,
+and without auto-properties or a primary constructor, whose state the generator cannot see.
+
+**Run-time conditions.** A comparison of doubles is decided at run time. In a conditional expression `c ? a : b` it is a
+select. An `if` on one is **if-converted**: both branches are interpreted from the same state, and every variable,
+struct field and array element (outputs included) that either branch assigns becomes a select of the two branches'
+values. The generated code computes what C# computes. Within such a branch:
+- `return`, `break` and `continue` are not allowed (put the rest of the method in an `else`);
+- an int, bool or span may be assigned only if both branches leave it the same, because those are compile-time;
+- an array element written in one branch must already hold a value, so the other branch has one to keep;
+- `&&` and `||` of run-time comparisons are not allowed; nest the `if`s instead.
+
+The derivative of a select, of Min, Max, Clamp and Abs, and of an if-converted branch is the derivative of the branch
+the comparison takes, so it is the derivative of the function as written wherever the comparison is not at a tie. **On
+the switching surface it is not defined**: there the generated derivative is the one-sided derivative of the branch
+chosen (`if (f > 0)` takes the `else` branch at f = 0; Min and Max follow their first operand at a tie, Abs takes 0), and
+where the branches do not meet in value the jump is not part of it. Use `KernelMath`'s smooth stand-ins where a kink
+matters. A branch not taken may compute a NaN or an infinity (0/0 at zero deviatoric stress, say); it never reaches the
+result or either derivative: forward mode selects tangents, and reverse mode never multiplies a select's zero adjoint by
+the not-taken branch's partials.
+
+**Implicit solves.** `KernelMath.ImplicitSolve(Residual, p, y, iterations)` solves a small nonlinear system
+g(y, p) = 0 of up to 16 unknowns, from the guess in `y`, and leaves the solution there. `Residual` is a static method
+`(ReadOnlySpan<double> y, ReadOnlySpan<double> p, Span<double> g)` named directly, not a lambda, so the generator can
+inline it:
+
+```csharp
+Span<double> dGamma = stackalloc double[1];          // the guess, 0
+KernelMath.ImplicitSolve(VoceResidual, p, dGamma, 12);
+```
+
+The generator builds g and its exact Jacobian ∂g/∂y once, unrolls `iterations` Newton steps, each solving the linear
+system by Gaussian elimination with partial pivoting (the pivot choices are run-time selects), and then detaches the
+iterate: no derivative flows through the iterations. One more Newton step with ∂g/∂y detached gives the value and the
+derivative of the implicit-function theorem, dy/dp = −(∂g/∂y)⁻¹ ∂g/∂p, in forward and reverse mode alike; when the kernel
+asks for a Hessian a further Newton step makes the solution exact to second order. The run-time method, which the
+kernel's own code calls, takes the Jacobian by central differences, stops once a step is below 1e-13 relative, and
+throws unless the last of its `iterations` steps is below 1e-8 relative. Choose `iterations` for convergence: the
+generated code runs exactly that many steps, with no test.
 
 Anything else is a compile error, never a silent mis-differentiation:
 
 | Id | Raised when |
 |---|---|
-| OPTAD100 | A loop bound, index, length or `if` condition depends on a double |
-| OPTAD101 | The statement or expression is outside the kernel language |
+| OPTAD100 | A loop bound, index or length depends on a double; a run-time branch returns, breaks or continues, or leaves an int, bool or span different |
+| OPTAD101 | The statement or expression is outside the kernel language, or a struct cannot be flattened |
 | OPTAD102 | The kernel's signature is not as above |
 | OPTAD103 | A call is not a supported Math function, span method or inlinable helper |
 | OPTAD104 | A compile-time index or slice is out of range |
-| OPTAD105 | An output element is never written, or a value is read before it is written |
+| OPTAD105 | An output element is never written, a value is read before it is written, an element is written in one branch of a run-time `if` only, or a residual leaves an equation unwritten |
 | OPTAD106 | Unrolling exceeds 1,000,000 iterations, 4,000,000 graph nodes or 64 nested calls |
-| OPTAD107 | A `[Jacobian]` or `[Vjp]` names no input, repeats another, or sets `ChunkSize` below 1 |
+| OPTAD107 | A derivative attribute names no input, repeats another, sets `ChunkSize` below 1, or asks a Hessian of a kernel with more than one output |
 | OPTAD108 | `Math.Pow`'s exponent is not a compile-time constant |
 | OPTAD109 | The kernel writes to a static table |
+| OPTAD110 | An implicit solve's residual is not a named static method of that signature, or it has more than 16 unknowns or fewer than one iteration |
 
 ## Structural optimisation: MMA, GCMMA and OC
 
