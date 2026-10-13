@@ -19,6 +19,22 @@
     <AssemblyAttribute Include="Microsoft.VisualStudio.TestTools.UnitTesting.Parallelize"/>
   </ItemGroup>
 
+  <!-- Where the golden test finds the generator's emitted sources, and the goldens they are compared with. -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>OptimalTestsGeneratedDirectory</_Parameter1>
+      <_Parameter2>$(MSBuildProjectDirectory)/$(CompilerGeneratedFilesOutputPath)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>OptimalCliGeneratedDirectory</_Parameter1>
+      <_Parameter2>$(MSBuildProjectDirectory)/../OptimalCli/$(CompilerGeneratedFilesOutputPath)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>GoldenDirectory</_Parameter1>
+      <_Parameter2>$(MSBuildProjectDirectory)/AutoDiff.Tests.Golden</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Optimal.AutoDiff\Optimal.AutoDiff.csproj"  ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
     <ProjectReference Include="..\Optimal\Optimal.csproj" />

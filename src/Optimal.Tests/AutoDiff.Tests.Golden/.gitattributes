@@ -1,0 +1,2 @@
+# The goldens are compared byte for byte with the generator's output: never normalise their line endings.
+*.golden -text

@@ -214,6 +214,51 @@ The generator is wired in via `Optimal.csproj`:
                   OutputItemType="Analyzer" />
 ```
 
+### Array kernels
+
+A static void method of an `[OptimalCode]` class that takes doubles and `[FixedLength(n)] ReadOnlySpan<double>` inputs and
+writes one `[FixedLength(n)] Span<double>` output is an **array kernel** (a finite element's residual, for example).
+`[Jacobian(nameof(u))]` generates `{Kernel}Jacobian_u`, the dense Jacobian of the output by vector forward mode;
+`[Vjp(nameof(X), nameof(E))]` generates `{Kernel}Vjp_X_E`, λᵀ∂output/∂X and λᵀ∂output/∂E from one reverse sweep. Both go
+to `{Class}Kernels.g.cs`, allocate nothing, and check span lengths on entry; the scalar output above is unchanged.
+
+```csharp
+[OptimalCode]
+public static class Tet4Elastic
+{
+    [Jacobian(nameof(u))]
+    [Vjp(nameof(X))]
+    public static void Residual([FixedLength(12)] ReadOnlySpan<double> u, [FixedLength(12)] ReadOnlySpan<double> X,
+        double E, double nu, [FixedLength(12)] Span<double> r) { /* … */ }
+}
+```
+
+The generator (`AutoDiff.Kernels`) interprets the kernel at compile time: ints and bools are compile-time values, so
+every loop is unrolled, every index is a constant and every `if` takes one branch, while doubles become nodes of a
+hash-consed SSA graph that folds constants and shares common subexpressions. A kernel may use `stackalloc` and local
+arrays, collection expressions, static readonly tables (`int[]`, `double[,]`, `ReadOnlySpan<int>` properties),
+`Slice`, ranges, `Length`, `Clear`, `Fill` and `CopyTo`, `for` and `while` with `break` and `continue`, and calls to
+static helpers of `[OptimalCode]` classes, which are inlined (spans pass by reference). The `System.Math` functions it
+may call are Abs, Atan, Atan2, Cbrt, Clamp, Cos, Exp, Log, Max, Min, Pow (constant exponent), Sign, Sin, Sqrt, Tan and
+Tanh. A comparison of doubles may choose between the branches of a conditional expression; its derivative, like that of
+Min, Max and Abs, follows the branch taken. `KernelMath.SmoothMin`, `SmoothMax` and `SmoothAbs` are smooth stand-ins.
+Generated methods of more than `ChunkSize` operations (500 by default) are split into chunks so the JIT optimises them.
+
+Anything else is a compile error, never a silent mis-differentiation:
+
+| Id | Raised when |
+|---|---|
+| OPTAD100 | A loop bound, index, length or `if` condition depends on a double |
+| OPTAD101 | The statement or expression is outside the kernel language |
+| OPTAD102 | The kernel's signature is not as above |
+| OPTAD103 | A call is not a supported Math function, span method or inlinable helper |
+| OPTAD104 | A compile-time index or slice is out of range |
+| OPTAD105 | An output element is never written, or a value is read before it is written |
+| OPTAD106 | Unrolling exceeds 1,000,000 iterations, 4,000,000 graph nodes or 64 nested calls |
+| OPTAD107 | A `[Jacobian]` or `[Vjp]` names no input, repeats another, or sets `ChunkSize` below 1 |
+| OPTAD108 | `Math.Pow`'s exponent is not a compile-time constant |
+| OPTAD109 | The kernel writes to a static table |
+
 ## Code quality
 
 - `Nullable` is enabled across every project.

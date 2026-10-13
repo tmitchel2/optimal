@@ -122,13 +122,25 @@ namespace Optimal.AutoDiff.Analyzers.IR
         GreaterThanOrEqual,
         LessThanOrEqual,
         Equal,
-        NotEqual
+        NotEqual,
+
+        /// <summary>Integer remainder; array kernels only, on compile-time integers.</summary>
+        Modulo,
+
+        /// <summary>Short-circuit <c>&amp;&amp;</c>; array kernels only, on compile-time booleans.</summary>
+        LogicalAnd,
+
+        /// <summary>Short-circuit <c>||</c>; array kernels only, on compile-time booleans.</summary>
+        LogicalOr
     }
 
     public enum UnaryOperator
     {
         Negate,
         Identity,
-        Plus
+        Plus,
+
+        /// <summary>Boolean <c>!</c>; array kernels only, on compile-time booleans and run-time comparisons.</summary>
+        LogicalNot
     }
 }
