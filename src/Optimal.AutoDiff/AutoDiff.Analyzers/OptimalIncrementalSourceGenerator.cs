@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) Small Trading Company Ltd (Destash.com).
  *
  * This source code is licensed under the MIT license found in the
@@ -252,11 +252,12 @@ namespace Optimal.AutoDiff.Analyzers
 
                 var methodsList = new List<MethodToTransform>();
 
-                // Array kernels and the span helpers they call belong to the kernel generator, not this scalar one.
+                // Array kernels and the span and struct helpers they call belong to the kernel generator, not this scalar one.
                 foreach (var methodSymbol in classSymbol.GetMembers()
                     .OfType<IMethodSymbol>()
                     .Where(m => m.IsStatic && m.DeclaredAccessibility == Accessibility.Public && m.MethodKind == MethodKind.Ordinary)
-                    .Where(m => !Kernels.KernelGenerator.IsKernelMethod(m) && !m.Parameters.Any(p => Kernels.KernelASTToIRConverter.IsSpan(p.Type, out _, out _))))
+                    .Where(m => !Kernels.KernelGenerator.IsKernelMethod(m) && !m.Parameters.Any(p => Kernels.KernelASTToIRConverter.IsSpan(p.Type, out _, out _)))
+                    .Where(m => !Kernels.KernelStructs.IsFlattenable(m.ReturnType) && !m.Parameters.Any(p => Kernels.KernelStructs.IsFlattenable(p.Type))))
                 {
                     var methodSyntax = classSyntax.Members
                         .OfType<MethodDeclarationSyntax>()

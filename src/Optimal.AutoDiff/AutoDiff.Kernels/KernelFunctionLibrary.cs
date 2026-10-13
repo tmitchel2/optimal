@@ -17,7 +17,8 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
     /// <summary>
     /// The kernels and helpers of one compilation as statement IR, each converted once. It decides what a kernel may
     /// inline: a static, non-generic method with a body in this compilation, declared in an <c>[OptimalCode]</c> class
-    /// or in the generator's own <c>Optimal.KernelMath</c>.
+    /// or in the generator's own <c>Optimal.KernelMath</c>; and the constructors, methods, get-only properties and
+    /// operators of a struct the kernel flattens.
     /// </summary>
     public sealed class KernelFunctionLibrary
     {
@@ -39,20 +40,15 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
         }
 
         /// <summary>The IR of a helper called at <paramref name="call"/>, if the helper may be inlined.</summary>
-        public KernelFunctionNode Helper(IMethodSymbol method, MethodCallNode call)
+        public KernelFunctionNode Helper(IMethodSymbol method, IRNode call)
         {
-            var syntax = method.DeclaringSyntaxReferences.Select(r => r.GetSyntax()).OfType<MethodDeclarationSyntax>().FirstOrDefault();
-            var inlinable = method.IsStatic
-                && method.MethodKind == MethodKind.Ordinary
-                && !method.IsGenericMethod
-                && syntax != null
-                && (IsOptimalCode(method.ContainingType) || method.ContainingType.ToDisplayString() == KernelMathTypeName);
-            return inlinable
-                ? Function(method, syntax!)
+            var syntax = method.DeclaringSyntaxReferences.Select(r => r.GetSyntax()).FirstOrDefault(KernelASTToIRConverter.IsFunctionDeclaration);
+            return syntax != null && !method.IsGenericMethod && (IsStaticHelper(method) || IsStructMember(method))
+                ? Function(method, syntax)
                 : throw new KernelException(
                     KernelDiagnostics.UnsupportedCall,
                     call,
-                    $"'{method.ContainingType.ToDisplayString()}.{method.Name}' cannot be inlined; a kernel calls System.Math functions, span methods, Optimal.KernelMath, and static non-generic methods with source in an [OptimalCode] class");
+                    $"'{method.ContainingType.ToDisplayString()}.{method.Name}' cannot be inlined; a kernel calls System.Math functions, span methods, Optimal.KernelMath, static non-generic methods with source in an [OptimalCode] class, and the members of a struct of doubles");
         }
 
         /// <summary>The source location an IR node was converted from, if it was converted by this library.</summary>
@@ -61,12 +57,26 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             return _converter.LocationOf(node);
         }
 
+        private static bool IsStaticHelper(IMethodSymbol method)
+        {
+            return method.IsStatic
+                && method.MethodKind == MethodKind.Ordinary
+                && !KernelASTToIRConverter.IsImplicitSolve(method)
+                && (IsOptimalCode(method.ContainingType) || method.ContainingType.ToDisplayString() == KernelMathTypeName);
+        }
+
+        private static bool IsStructMember(IMethodSymbol method)
+        {
+            return method.MethodKind is MethodKind.Ordinary or MethodKind.Constructor or MethodKind.UserDefinedOperator or MethodKind.PropertyGet
+                && KernelStructs.IsFlattenable(method.ContainingType);
+        }
+
         private static bool IsOptimalCode(INamedTypeSymbol type)
         {
             return type.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "Optimal.OptimalCodeAttribute");
         }
 
-        private KernelFunctionNode Function(IMethodSymbol method, MethodDeclarationSyntax syntax)
+        private KernelFunctionNode Function(IMethodSymbol method, SyntaxNode syntax)
         {
             if (!_functions.TryGetValue(method, out var function))
             {

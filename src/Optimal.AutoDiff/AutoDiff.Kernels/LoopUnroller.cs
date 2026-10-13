@@ -19,11 +19,18 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
 {
     /// <summary>
     /// Flattens a kernel to SSA by interpreting its statement IR. Integers and booleans are compile-time values, so every
-    /// loop is unrolled, every index is a constant, every <c>if</c> takes one branch, and every helper call is inlined.
-    /// Doubles become nodes of a <see cref="ScalarGraph"/>. A loop bound, index, length or statement condition that
-    /// depends on a double is a generator error (<c>OPTAD100</c>), never a silent skip; a comparison of doubles may only
-    /// choose between the branches of a conditional expression, which becomes a select.
+    /// loop is unrolled, every index is a constant, every <c>if</c> on a compile-time condition takes one branch, and
+    /// every helper call is inlined. Doubles become nodes of a <see cref="ScalarGraph"/>, and structs of doubles are
+    /// flattened to their fields. A loop bound, index or length that depends on a double is a generator error
+    /// (<c>OPTAD100</c>), never a silent skip.
     /// </summary>
+    /// <remarks>
+    /// A comparison of doubles is a run-time condition. A conditional expression on one becomes a select; an <c>if</c>
+    /// on one is if-converted: both branches are interpreted from the same state, and every variable, field and array
+    /// element either branch assigned becomes a select of the two branches' values. The value is the one C# computes,
+    /// and the derivative is the derivative of the branch taken. A branch may not <c>return</c>, <c>break</c> or
+    /// <c>continue</c>, and the branches may not leave an int, bool or span different, because those are compile-time.
+    /// </remarks>
     public sealed class LoopUnroller
     {
         /// <summary>The most loop iterations one kernel may unroll.</summary>
@@ -35,8 +42,8 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
         /// <summary>The deepest helper calls may nest.</summary>
         public const int MaxCallDepth = 64;
 
-        private const string IfConditionMessage =
-            "an if statement's condition depends on run-time values; write the choice as a conditional expression (c ? a : b) or with Math.Min or Math.Max, whose derivative follows the branch taken";
+        private const string BranchExitMessage =
+            "a return, break or continue is inside an if whose condition depends on run-time values; both branches of such an if run to their end and are merged, so move the rest of the method into an else branch";
 
         private const string LoopConditionMessage =
             "a loop condition depends on run-time values; a kernel's loops must have compile-time trip counts";
@@ -45,15 +52,25 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
 
         private readonly KernelFunctionLibrary _library;
         private readonly CancellationToken _cancellationToken;
+        private readonly int _derivativeOrder;
         private readonly ScalarGraph _graph = new();
         private readonly Dictionary<int, ArrayValue> _tables = new();
+        private readonly WriteJournal _journal = new();
         private int _iterations;
         private int _depth;
+        private int _implicitSolves;
 
-        public LoopUnroller(KernelFunctionLibrary library, CancellationToken cancellationToken)
+        /// <summary>
+        /// An unroller for one kernel. <paramref name="derivativeOrder"/> is the highest derivative any request of the
+        /// kernel takes (2 for a Hessian), so an implicit solve can be built exact to that order.
+        /// </summary>
+        public LoopUnroller(KernelFunctionLibrary library, CancellationToken cancellationToken, int derivativeOrder = 1)
         {
             _library = library;
             _cancellationToken = cancellationToken;
+            _derivativeOrder = derivativeOrder is 1 or 2
+                ? derivativeOrder
+                : throw new ArgumentOutOfRangeException(nameof(derivativeOrder), derivativeOrder, "Kernels are differentiated once or twice.");
         }
 
         /// <summary>
@@ -128,6 +145,9 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 case AssignmentNode assignment:
                     Assign(assignment, frame);
                     return Completion.Normal;
+                case FieldAssignmentNode write:
+                    AssignField(write.Target, write.Field, Evaluate(write.Value, frame), frame, write);
+                    return Completion.Normal;
                 case ElementAssignmentNode write:
                     WriteElement(write, frame);
                     return Completion.Normal;
@@ -137,10 +157,16 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 case MethodCallNode call:
                     _ = Call(call, frame);
                     return Completion.Normal;
+                case InstanceCallNode call:
+                    _ = InstanceCall(call, frame);
+                    return Completion.Normal;
+                case ImplicitSolveNode solve:
+                    ExecuteImplicitSolve(solve, frame);
+                    return Completion.Normal;
                 case LoopNode loop:
                     return ExecuteLoop(loop, frame);
                 case ConditionalNode branch:
-                    return Execute(EvaluateCondition(branch.Condition, frame, IfConditionMessage) ? branch.TrueBranch : branch.FalseBranch, frame);
+                    return ExecuteBranch(branch, frame);
                 case ReturnNode ret:
                     frame.ReturnValue = Convert(frame.ReturnType, Evaluate(ret.Value, frame), ret);
                     return Completion.Return;
@@ -174,7 +200,7 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 throw new KernelException(KernelDiagnostics.ReadOnlyWrite, write, $"'{array.Storage.Name}' is read-only to a kernel; copy a static table into a local array before changing it");
             }
 
-            array.Storage[index] = Element(array.Storage, Evaluate(write.Value, frame), write);
+            _journal.Store(array.Storage, index, Element(array.Storage, Evaluate(write.Value, frame), write));
         }
 
         private void ExecuteArrayOperation(ArrayOperationNode operation, KernelFrame frame)
@@ -205,7 +231,7 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 .ToList();
             for (var i = 0; i < count; i++)
             {
-                target.Storage[target.Offset + i] = values[i];
+                _journal.Store(target.Storage, target.Offset + i, values[i]);
             }
         }
 
@@ -240,6 +266,70 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             return completion == Completion.Return ? Completion.Return : Completion.Normal;
         }
 
+        private Completion ExecuteBranch(ConditionalNode branch, KernelFrame frame)
+        {
+            return Evaluate(branch.Condition, frame) switch
+            {
+                BoolValue b => Execute(b.Value ? branch.TrueBranch : branch.FalseBranch, frame),
+                ConditionValue c => IfConvert(branch, c, frame),
+                _ => throw new KernelException(KernelDiagnostics.UnsupportedSyntax, branch.Condition, "a condition must be a boolean")
+            };
+        }
+
+        // Both branches from the same state, then every variable and array element either assigned becomes a select.
+        private Completion IfConvert(ConditionalNode branch, ConditionValue condition, KernelFrame frame)
+        {
+            var before = frame.Snapshot();
+            var whenTrue = RunBranch(branch.TrueBranch, branch, frame, before);
+            var whenFalse = RunBranch(branch.FalseBranch, branch, frame, before);
+            var trueValues = whenTrue.Variables.ToDictionary(v => v.Key, v => v.Value.Value);
+            var falseValues = whenFalse.Variables.ToDictionary(v => v.Key, v => v.Value.Value);
+            foreach (var variable in before)
+            {
+                var name = variable.Key;
+                if (whenTrue.Declared.Contains(name) || whenFalse.Declared.Contains(name)
+                    || !trueValues.TryGetValue(name, out var t) || !falseValues.TryGetValue(name, out var f))
+                {
+                    continue;
+                }
+
+                var merged = ValueMerge.Merge(_graph, condition, t, f, $"'{name}'", branch, requireBoth: false);
+                if (!ValueMerge.Same(merged, variable.Value.Value))
+                {
+                    frame.Assign(name, merged);
+                }
+            }
+
+            var trueWrites = whenTrue.Writes.ToDictionary(w => (w.Storage, w.Index), w => w.Value);
+            var falseWrites = whenFalse.Writes.ToDictionary(w => (w.Storage, w.Index), w => w.Value);
+            var written = whenTrue.Writes.Select(w => (w.Storage, w.Index))
+                .Concat(whenFalse.Writes.Select(w => (w.Storage, w.Index)).Where(key => !trueWrites.ContainsKey(key)))
+                .ToList();
+            foreach (var (storage, index) in written)
+            {
+                var original = storage[index];
+                var t = trueWrites.TryGetValue((storage, index), out var tv) ? tv : original;
+                var f = falseWrites.TryGetValue((storage, index), out var fv) ? fv : original;
+                _journal.Store(storage, index, ValueMerge.Merge(_graph, condition, t, f, $"'{storage.Name}[{index}]'", branch, requireBoth: true));
+            }
+
+            return Completion.Normal;
+        }
+
+        private BranchState RunBranch(ImmutableArray<IRNode> statements, ConditionalNode branch, KernelFrame frame, IReadOnlyList<KeyValuePair<string, (ITypeSymbol Type, KernelValue? Value)>> before)
+        {
+            frame.BeginBranch();
+            _journal.Begin();
+            var completion = Execute(statements, frame);
+            var writes = _journal.EndAndUndo();
+            var declared = frame.EndBranch();
+            var variables = frame.Snapshot();
+            frame.Restore(before);
+            return completion == Completion.Normal
+                ? new BranchState(variables, new HashSet<string>(declared), writes)
+                : throw new KernelException(KernelDiagnostics.ControlFlowNotConstant, branch.Condition, BranchExitMessage);
+        }
+
         private void CountIteration(IRNode loop)
         {
             _cancellationToken.ThrowIfCancellationRequested();
@@ -267,8 +357,12 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 UnaryOpNode unary => EvaluateUnary(unary, frame),
                 BinaryOpNode binary => EvaluateBinary(binary, frame),
                 ConditionalExpressionNode conditional => EvaluateConditional(conditional, frame),
+                FieldAccessNode field => ReadField(field, frame),
+                StructCreationNode creation => CreateStruct(creation, frame),
                 MethodCallNode call => Call(call, frame)
                     ?? throw new KernelException(KernelDiagnostics.UnsupportedSyntax, call, $"'{call.MethodName}' returns no value"),
+                InstanceCallNode call => InstanceCall(call, frame)
+                    ?? throw new KernelException(KernelDiagnostics.UnsupportedSyntax, call, $"'{call.Method.Name}' returns no value"),
                 _ => throw new KernelException(KernelDiagnostics.UnsupportedSyntax, node, $"the expression {node.GetType().Name} is not supported in a kernel")
             };
         }
@@ -375,6 +469,10 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             {
                 _tables[creation.NodeId] = array;
             }
+            else
+            {
+                _journal.Created(storage);
+            }
 
             return array;
         }
@@ -417,7 +515,7 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             return Evaluate(operand, frame) switch
             {
                 BoolValue b => b.Value,
-                ConditionValue => throw new KernelException(KernelDiagnostics.ControlFlowNotConstant, operand, "&& and || need compile-time operands; combine run-time comparisons by nesting conditional expressions"),
+                ConditionValue => throw new KernelException(KernelDiagnostics.ControlFlowNotConstant, operand, "&& and || need compile-time operands; combine run-time comparisons by nesting if statements or conditional expressions"),
                 _ => throw new KernelException(KernelDiagnostics.UnsupportedSyntax, operand, "&& and || need boolean operands")
             };
         }
@@ -478,14 +576,12 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             {
                 case BoolValue b:
                     return Convert(conditional.Type, Evaluate(b.Value ? conditional.TrueExpression : conditional.FalseExpression, frame), conditional);
-                case ConditionValue c when conditional.Type.SpecialType == SpecialType.System_Double:
-                    var whenTrue = ToScalar(Evaluate(conditional.TrueExpression, frame), conditional.TrueExpression);
-                    var whenFalse = ToScalar(Evaluate(conditional.FalseExpression, frame), conditional.FalseExpression);
-                    return new ScalarValue(c.Negated
-                        ? _graph.Select(c.Op, c.Left, c.Right, whenFalse, whenTrue)
-                        : _graph.Select(c.Op, c.Left, c.Right, whenTrue, whenFalse));
+                case ConditionValue c when conditional.Type.SpecialType == SpecialType.System_Double || KernelStructs.IsStruct(conditional.Type):
+                    var whenTrue = Convert(conditional.Type, Evaluate(conditional.TrueExpression, frame), conditional.TrueExpression);
+                    var whenFalse = Convert(conditional.Type, Evaluate(conditional.FalseExpression, frame), conditional.FalseExpression);
+                    return ValueMerge.Merge(_graph, c, whenTrue, whenFalse, "the conditional expression", conditional, requireBoth: true)!;
                 case ConditionValue:
-                    throw new KernelException(KernelDiagnostics.ControlFlowNotConstant, conditional, $"a run-time condition chooses a value of type {conditional.Type.ToDisplayString()}; only a double can be chosen at run time");
+                    throw new KernelException(KernelDiagnostics.ControlFlowNotConstant, conditional, $"a run-time condition chooses a value of type {conditional.Type.ToDisplayString()}; only a double or a struct of doubles can be chosen at run time");
                 default:
                     throw new KernelException(KernelDiagnostics.UnsupportedSyntax, conditional.Condition, "a condition must be a boolean");
             }
@@ -501,33 +597,145 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             };
         }
 
+        private KernelValue ReadField(FieldAccessNode access, KernelFrame frame)
+        {
+            var target = Evaluate(access.Target, frame) as StructValue
+                ?? throw new KernelException(KernelDiagnostics.UnsupportedSyntax, access, $"'{access.Field.Name}' is read from a value that is not a struct");
+            return target.Fields[KernelStructs.IndexOf(target.Type, access.Field)]
+                ?? throw new KernelException(KernelDiagnostics.UnassignedValue, access, $"the field '{access.Field.Name}' is read before it is assigned");
+        }
+
+        // target.Field = value, where target is a variable or a field of one: the variable gets a new struct value.
+        private void AssignField(IRNode target, IFieldSymbol field, KernelValue value, KernelFrame frame, IRNode at)
+        {
+            var current = ReadForWrite(target, frame, at);
+            StoreInto(target, current.With(KernelStructs.IndexOf(current.Type, field), Convert(field.Type, value, at)), frame, at);
+        }
+
+        // The struct value at target, or a value with every field unassigned if the variable is unassigned.
+        private StructValue ReadForWrite(IRNode target, KernelFrame frame, IRNode at)
+        {
+            switch (target)
+            {
+                case VariableNode variable when frame.TryGet(variable.Name, out var type, out var value):
+                    return value as StructValue ?? KernelStructs.Unassigned((INamedTypeSymbol)type);
+                case FieldAccessNode access:
+                    var parent = ReadForWrite(access.Target, frame, at);
+                    return parent.Fields[KernelStructs.IndexOf(parent.Type, access.Field)] as StructValue
+                        ?? KernelStructs.Unassigned((INamedTypeSymbol)access.Field.Type);
+                default:
+                    throw new KernelException(KernelDiagnostics.UnsupportedSyntax, at, "a field is assigned on a value that is not a variable; assign the struct to a local first");
+            }
+        }
+
+        private void StoreInto(IRNode target, KernelValue value, KernelFrame frame, IRNode at)
+        {
+            switch (target)
+            {
+                case VariableNode variable:
+                    frame.Assign(variable.Name, value);
+                    break;
+                case FieldAccessNode access:
+                    AssignField(access.Target, access.Field, value, frame, at);
+                    break;
+                default:
+                    throw new KernelException(KernelDiagnostics.UnsupportedSyntax, at, "a field is assigned on a value that is not a variable; assign the struct to a local first");
+            }
+        }
+
+        private static bool IsAssignable(IRNode target)
+        {
+            return target is VariableNode || (target is FieldAccessNode access && IsAssignable(access.Target));
+        }
+
+        private StructValue CreateStruct(StructCreationNode creation, KernelFrame frame)
+        {
+            var value = creation switch
+            {
+                { Source: not null } => Evaluate(creation.Source, frame) as StructValue
+                    ?? throw new KernelException(KernelDiagnostics.UnsupportedSyntax, creation, "the source of a with expression is not a struct"),
+                { Constructor: not null } => Construct(creation.Constructor, creation.Arguments.Select(a => Evaluate(a, frame)).ToList(), creation),
+                _ => KernelStructs.Zero(creation.Type, _graph)
+            };
+            foreach (var initializer in creation.Initializers)
+            {
+                value = value.With(KernelStructs.IndexOf(value.Type, initializer.Field), Convert(initializer.Field.Type, Evaluate(initializer.Value, frame), initializer.Value));
+            }
+
+            return value;
+        }
+
+        // A constructor runs on a zeroed value, as C# 11 does for fields the constructor leaves unassigned.
+        private StructValue Construct(IMethodSymbol constructor, IReadOnlyList<KernelValue> args, IRNode at)
+        {
+            var self = KernelStructs.Zero(constructor.ContainingType, _graph);
+            _ = Invoke(constructor, args, self, at, out var constructed);
+            return constructed!;
+        }
+
         private KernelValue? Call(MethodCallNode call, KernelFrame frame)
         {
             var method = call.MethodSymbol
                 ?? throw new KernelException(KernelDiagnostics.UnsupportedCall, call, $"the call to '{call.MethodName}' could not be resolved");
             var args = call.Arguments.Select(a => Evaluate(a, frame)).ToList();
-            if (KernelMathCalls.IsMath(method))
+            return KernelMathCalls.IsMath(method)
+                ? MathCall(method, call, args)
+                : Invoke(method, args, null, call, out _);
+        }
+
+        // receiver.Method(args): the callee sees the receiver as `this`, and a change it makes is written back when the
+        // receiver is a variable or a field of one.
+        private KernelValue? InstanceCall(InstanceCallNode call, KernelFrame frame)
+        {
+            var receiver = Evaluate(call.Receiver, frame) as StructValue
+                ?? throw new KernelException(KernelDiagnostics.UnsupportedSyntax, call, $"'{call.Method.Name}' is called on a value that is not a struct");
+            var args = call.Arguments.Select(a => Evaluate(a, frame)).ToList();
+            var result = Invoke(call.Method, args, receiver, call, out var after);
+            if (after != null && !ValueMerge.Same(after, receiver) && IsAssignable(call.Receiver))
             {
-                return MathCall(method, call, args);
+                StoreInto(call.Receiver, after, frame, call);
             }
 
-            var helper = _library.Helper(method, call);
+            return result;
+        }
+
+        // Inlines a helper, constructor or struct member; self is `this` for a struct member, and selfAfter its value at
+        // the end of the call.
+        private KernelValue? Invoke(IMethodSymbol method, IReadOnlyList<KernelValue> args, StructValue? self, IRNode at, out StructValue? selfAfter)
+        {
+            var helper = _library.Helper(method, at);
             if (++_depth > MaxCallDepth)
             {
-                throw new KernelException(KernelDiagnostics.UnrollLimit, call, $"helper calls nest more than {MaxCallDepth} deep");
+                throw new KernelException(KernelDiagnostics.UnrollLimit, at, $"helper calls nest more than {MaxCallDepth} deep");
             }
 
             var callee = new KernelFrame(method.ReturnType);
+            if (self != null)
+            {
+                callee.Declare(KernelFrame.This, self.Type, self);
+            }
+
             foreach (var (parameter, arg) in method.Parameters.Zip(args, (p, a) => (p, a)))
             {
-                callee.Declare(parameter.Name, parameter.Type, Convert(parameter.Type, arg, call));
+                callee.Declare(parameter.Name, parameter.Type, Convert(parameter.Type, arg, at));
             }
 
             _ = Execute(helper.Body.Statements, callee);
             _depth--;
-            return method.ReturnsVoid
+            selfAfter = self == null ? null : CurrentThis(callee, method, at);
+            return method.ReturnsVoid || method.MethodKind == MethodKind.Constructor
                 ? null
-                : callee.ReturnValue ?? throw new KernelException(KernelDiagnostics.UnassignedValue, call, $"'{method.Name}' returned no value");
+                : callee.ReturnValue ?? throw new KernelException(KernelDiagnostics.UnassignedValue, at, $"'{method.Name}' returned no value");
+        }
+
+        private static StructValue CurrentThis(KernelFrame callee, IMethodSymbol method, IRNode at)
+        {
+            _ = callee.TryGet(KernelFrame.This, out _, out var value);
+            var self = (StructValue)value!;
+            var unassigned = self.Fields.IndexOf(null);
+            return unassigned < 0
+                ? self
+                : throw new KernelException(KernelDiagnostics.UnassignedValue, at, $"the field '{KernelStructs.Fields(self.Type)[unassigned].Name}' of {self.Type.Name} is unassigned at the end of '{method.ToDisplayString()}'");
         }
 
         private KernelValue MathCall(IMethodSymbol method, MethodCallNode call, IReadOnlyList<KernelValue> args)
@@ -545,7 +753,75 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             throw new KernelException(KernelDiagnostics.UnsupportedCall, call, $"the overload '{method.ToDisplayString()}' is not supported; kernels call Math functions on double, and Abs, Min, Max, Sign and Clamp on int");
         }
 
-        // Converts a value to a declared or cast type: double, int, bool or a span.
+        // KernelMath.ImplicitSolve(Residual, p, y, iterations): the residual is inlined once at placeholder unknowns, and
+        // ImplicitSolver unrolls Newton's method and the implicit-function step from it.
+        private void ExecuteImplicitSolve(ImplicitSolveNode solve, KernelFrame frame)
+        {
+            var residual = solve.Residual;
+            if (!IsResidualSignature(residual))
+            {
+                throw new KernelException(KernelDiagnostics.InvalidImplicitSolve, solve, $"the residual '{residual.Name}' must be a static void method (ReadOnlySpan<double> y, ReadOnlySpan<double> p, Span<double> g)");
+            }
+
+            var p = EvaluateArray(solve.Parameters, frame, solve);
+            var y = EvaluateArray(solve.Unknowns, frame, solve);
+            var m = y.Length;
+            if (m < 1 || m > ImplicitSolver.MaxUnknowns)
+            {
+                throw new KernelException(KernelDiagnostics.InvalidImplicitSolve, solve, $"the system has {m} unknowns; an implicit solve has 1 to {ImplicitSolver.MaxUnknowns}");
+            }
+
+            if (y.Storage.IsReadOnly)
+            {
+                throw new KernelException(KernelDiagnostics.ReadOnlyWrite, solve, $"'{y.Storage.Name}' is read-only to a kernel; ImplicitSolve writes its solution to y");
+            }
+
+            var iterations = EvaluateInt(solve.Iterations, frame, "ImplicitSolve's iteration count");
+            if (iterations < 1)
+            {
+                throw new KernelException(KernelDiagnostics.InvalidImplicitSolve, solve, $"the iteration count is {iterations}; an implicit solve takes at least one Newton step");
+            }
+
+            var guess = Enumerable.Range(0, m).Select(i => ToScalar(Read(y.Storage, y.Offset + i, solve), solve)).ToList();
+            var group = -1 - _implicitSolves++;
+            var placeholders = Enumerable.Range(0, m).Select(i => _graph.Input(group, i)).ToList();
+            var unknowns = new KernelArray("y", false, 0, true, placeholders.Select(id => (KernelValue?)new ScalarValue(id)));
+            var g = new KernelArray("g", false, 0, false, Enumerable.Repeat<KernelValue?>(null, m));
+            _journal.Created(g);
+            _ = Invoke(residual, new KernelValue[] { new ArrayValue(unknowns, 0, m), p, new ArrayValue(g, 0, m) }, null, solve, out _);
+            var unwritten = g.FirstUnwritten();
+            if (unwritten >= 0)
+            {
+                throw new KernelException(KernelDiagnostics.UnassignedValue, solve, $"the residual '{residual.Name}' never writes g[{unwritten}]; it must write one equation per unknown");
+            }
+
+            var residualIds = Enumerable.Range(0, m).Select(i => ((ScalarValue)g[i]!).Id).ToList();
+            var solution = ImplicitSolver.Solve(_graph, placeholders, residualIds, guess, iterations, _derivativeOrder, () => CountIteration(solve));
+            for (var i = 0; i < m; i++)
+            {
+                _journal.Store(y.Storage, y.Offset + i, new ScalarValue(solution[i]));
+            }
+        }
+
+        private static bool IsResidualSignature(IMethodSymbol method)
+        {
+            var parameters = method.Parameters;
+            return method.IsStatic
+                && method.ReturnsVoid
+                && parameters.Length == 3
+                && IsDoubleSpan(parameters[0].Type, writable: false)
+                && IsDoubleSpan(parameters[1].Type, writable: false)
+                && IsDoubleSpan(parameters[2].Type, writable: true);
+        }
+
+        private static bool IsDoubleSpan(ITypeSymbol type, bool writable)
+        {
+            return KernelASTToIRConverter.IsSpan(type, out var element, out var isWritable)
+                && isWritable == writable
+                && element.SpecialType == SpecialType.System_Double;
+        }
+
+        // Converts a value to a declared or cast type: double, int, bool, a span or a struct.
         private KernelValue Convert(ITypeSymbol type, KernelValue value, IRNode at)
         {
             return (type.SpecialType, value) switch
@@ -556,6 +832,7 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
                 (SpecialType.System_Int32, ScalarValue) => throw new KernelException(KernelDiagnostics.ControlFlowNotConstant, at, "a run-time double is converted to int; a kernel's ints must be compile-time values"),
                 (SpecialType.System_Boolean, BoolValue or ConditionValue) => value,
                 (_, ArrayValue) when KernelASTToIRConverter.IsSpan(type, out _, out _) || type is IArrayTypeSymbol => value,
+                (_, StructValue s) when SymbolEqualityComparer.Default.Equals(type, s.Type) => value,
                 _ => throw new KernelException(KernelDiagnostics.UnsupportedSyntax, at, $"a value cannot be converted to {type.ToDisplayString()} in a kernel")
             };
         }
@@ -578,7 +855,7 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             {
                 ScalarValue s => s.Id,
                 IntValue i => _graph.Const(i.Value),
-                _ => throw new KernelException(KernelDiagnostics.UnsupportedSyntax, at, "a boolean or span is used as a number")
+                _ => throw new KernelException(KernelDiagnostics.UnsupportedSyntax, at, "a boolean, span or struct is used as a number")
             };
         }
 
@@ -596,5 +873,10 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             return Evaluate(node, frame) as ArrayValue
                 ?? throw new KernelException(KernelDiagnostics.UnsupportedSyntax, at, "the value indexed is not a span or array");
         }
+
+        private sealed record BranchState(
+            IReadOnlyList<KeyValuePair<string, (ITypeSymbol Type, KernelValue? Value)>> Variables,
+            HashSet<string> Declared,
+            IReadOnlyList<(KernelArray Storage, int Index, KernelValue? Value)> Writes);
     }
 }

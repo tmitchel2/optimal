@@ -195,7 +195,7 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
         /// <summary>A one-operand function: Sqrt, Cbrt, Abs, Sign, Exp, Log, Sin, Cos, Tan, Atan or Tanh.</summary>
         public int Unary(ScalarOp op, int a)
         {
-            if (ScalarOps.Arity(op) != 1 || op is ScalarOp.Neg or ScalarOp.PowConst)
+            if (ScalarOps.Arity(op) != 1 || op is ScalarOp.Neg or ScalarOp.PowConst or ScalarOp.Detach)
             {
                 throw new ArgumentException($"{op} is not a one-operand function.", nameof(op));
             }
@@ -279,6 +279,38 @@ namespace Optimal.AutoDiff.Analyzers.Kernels
             }
 
             return Intern(op, left, right, whenTrue, whenFalse, 0);
+        }
+
+        /// <summary>A's value with a zero derivative. A constant needs no detaching, and detaching twice is detaching once.</summary>
+        public int Detach(int a)
+        {
+            return IsConst(a, out _) || _nodes[a].Op == ScalarOp.Detach ? a : Intern(ScalarOp.Detach, a, -1, -1, -1, 0);
+        }
+
+        /// <summary>
+        /// The node <paramref name="node"/> would be with its operands replaced by <paramref name="a"/> to
+        /// <paramref name="d"/> (unused slots ignored), built through the builders so constants fold. Constants and inputs
+        /// are returned as they are.
+        /// </summary>
+        public int Rebuild(ScalarNode node, int a, int b, int c, int d)
+        {
+            return node.Op switch
+            {
+                ScalarOp.Const => Const(node.Value),
+                ScalarOp.Input => Input(node.A, node.B),
+                ScalarOp.Add => Add(a, b),
+                ScalarOp.Sub => Sub(a, b),
+                ScalarOp.Mul => Mul(a, b),
+                ScalarOp.Div => Div(a, b),
+                ScalarOp.Neg => Neg(a),
+                ScalarOp.PowConst => PowConst(a, node.Value),
+                ScalarOp.Atan2 => Atan2(a, b),
+                ScalarOp.Min => Min(a, b),
+                ScalarOp.Max => Max(a, b),
+                ScalarOp.Detach => Detach(a),
+                ScalarOp.SelectLess or ScalarOp.SelectLessEqual or ScalarOp.SelectEqual => Select(node.Op, a, b, c, d),
+                _ => Unary(node.Op, a)
+            };
         }
 
         /// <summary>Evaluates a select's comparison on constants.</summary>

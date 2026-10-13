@@ -6,6 +6,7 @@
  *
  */
 
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Optimal.AutoDiff.Analyzers.Kernels.Tests
@@ -90,6 +91,42 @@ namespace Optimal.AutoDiff.Analyzers.Kernels.Tests
             var abs = g.Unary(ScalarOp.Abs, x);
             Assert.AreEqual(abs, g.Unary(ScalarOp.Abs, abs));
             Assert.AreEqual(abs, g.Unary(ScalarOp.Abs, g.Neg(x)));
+        }
+
+        [TestMethod]
+        public void DetachFoldsConstantsAndRepeats()
+        {
+            var g = new ScalarGraph();
+            var x = g.Input(0, 0);
+            var detached = g.Detach(x);
+            Assert.AreEqual(ScalarOp.Detach, g[detached].Op);
+            Assert.AreEqual(detached, g.Detach(detached));
+            Assert.IsTrue(g.IsConst(g.Detach(g.Const(2)), 2));
+        }
+
+        [TestMethod]
+        public void DetachedNodesCarryNoDerivative()
+        {
+            var g = new ScalarGraph();
+            var x = g.Input(0, 0);
+            var detached = g.Detach(x);
+            var y = g.Mul(detached, x);
+            var active = DerivativeFlow.Active(g, g.Count, group => group == 0);
+            Assert.IsFalse(DerivativeFlow.DerivativeOperands(g[detached]).Any());
+            Assert.IsFalse(active[detached]);
+            Assert.IsTrue(active[y]);
+        }
+
+        [TestMethod]
+        public void RebuildReplacesOperandsThroughTheBuilders()
+        {
+            var g = new ScalarGraph();
+            var (x, y) = (g.Input(0, 0), g.Input(0, 1));
+            var product = g[g.Mul(x, y)];
+            Assert.IsTrue(g.IsConst(g.Rebuild(product, g.Const(3), g.Const(4), -1, -1), 12));
+            Assert.AreEqual(x, g.Rebuild(product, x, g.Const(1), -1, -1));
+            var select = g[g.Select(ScalarOp.SelectLess, x, y, x, y)];
+            Assert.AreEqual(y, g.Rebuild(select, g.Const(2), g.Const(1), x, y));
         }
 
         [TestMethod]
