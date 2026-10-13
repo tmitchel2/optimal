@@ -50,6 +50,24 @@ namespace Optimal.AutoDiff.Analyzers
                 """, Encoding.UTF8));
                 });
 
+                // Array kernels ([Jacobian], [Vjp]) go to {Class}Kernels.g.cs, so the scalar output below is unchanged.
+                // The compilation is combined in because a kernel inlines helpers and reads tables from other files.
+                context.RegisterPostInitializationOutput(static postInitializationContext =>
+                    postInitializationContext.AddSource(Kernels.KernelAttributesSource.HintName, SourceText.From(Kernels.KernelAttributesSource.Text, Encoding.UTF8)));
+
+                var kernelClasses = context
+                    .SyntaxProvider
+                    .ForAttributeWithMetadataName(
+                        "Optimal.OptimalCodeAttribute",
+                        predicate: static (node, _) => node is ClassDeclarationSyntax,
+                        transform: static (ctx, _) => Kernels.KernelGenerator.KernelClassName(ctx.TargetSymbol))
+                    .Where(static name => name != null)
+                    .Collect();
+
+                context.RegisterSourceOutput(
+                    kernelClasses.Combine(context.CompilationProvider),
+                    static (sourceProductionContext, source) => Kernels.KernelGenerator.Generate(source.Right, source.Left, sourceProductionContext));
+
                 var compilationProvider = context.CompilationProvider;
 
                 var graphNodeProvider = context
@@ -234,9 +252,11 @@ namespace Optimal.AutoDiff.Analyzers
 
                 var methodsList = new List<MethodToTransform>();
 
+                // Array kernels and the span helpers they call belong to the kernel generator, not this scalar one.
                 foreach (var methodSymbol in classSymbol.GetMembers()
                     .OfType<IMethodSymbol>()
-                    .Where(m => m.IsStatic && m.DeclaredAccessibility == Accessibility.Public && m.MethodKind == MethodKind.Ordinary))
+                    .Where(m => m.IsStatic && m.DeclaredAccessibility == Accessibility.Public && m.MethodKind == MethodKind.Ordinary)
+                    .Where(m => !Kernels.KernelGenerator.IsKernelMethod(m) && !m.Parameters.Any(p => Kernels.KernelASTToIRConverter.IsSpan(p.Type, out _, out _))))
                 {
                     var methodSyntax = classSyntax.Members
                         .OfType<MethodDeclarationSyntax>()

@@ -5,6 +5,7 @@
     <Platform Name="x86" />
   </Configurations>
   <Project Path="Optimal.AutoDiff/Optimal.AutoDiff.csproj" />
+  <Project Path="Optimal.AutoDiff.Tests/Optimal.AutoDiff.Tests.csproj" />
   <Project Path="Optimal/Optimal.csproj" />
   <Project Path="Optimal.Tests/Optimal.Tests.csproj" />
   <Project Path="OptimalCli/OptimalCli.csproj" />
